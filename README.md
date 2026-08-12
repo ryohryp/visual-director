@@ -57,6 +57,103 @@ $env:BOTTOM_OF_THIRST_REPO_PATH = 'C:\path\to\---The-Bottom-of-Thirst'
 
 リポジトリパスは`--repo-path`でも指定できます。パスはソース管理に含めず、認証情報を配置しないでください。
 
+## インストール後の使い方
+
+Visual Directorは単独で画像を作るアプリではありません。ChatGPTから呼び出され、ゲームのCanonを検証して「画像生成用の指示書（Generation Package）」を作るMCPツールです。
+
+ChatGPTから使うときは、次の3つを順番に動かします。
+
+```text
+Visual Directorを起動
+        ↓
+Secure MCP Tunnelを起動
+        ↓
+ChatGPTのチャットでVisual Directorを選んで依頼
+```
+
+ChatGPTへの接続登録がまだの場合だけ、先に[ChatGPT接続ガイド](docs/chatgpt-connection.md)を参照して、Developer mode、Tunnel、Visual Directorプラグインを設定してください。登録済みなら毎回やり直す必要はありません。
+
+### 1. Visual Directorを起動する
+
+PowerShellを開き、このリポジトリで次を実行します。
+
+```powershell
+$env:BOTTOM_OF_THIRST_REPO_PATH = 'C:\path\to\---The-Bottom-of-Thirst'
+npm.cmd run dev -- --http --host 127.0.0.1 --port 3000
+```
+
+次の表示が出れば起動成功です。このPowerShellは閉じずに残します。
+
+```text
+Visual Director MCP listening on http://127.0.0.1:3000/mcp
+```
+
+### 2. Secure MCP Tunnelを起動する
+
+別のPowerShellを開きます。APIキーをコマンド履歴へ直接残さないよう、マスク入力してから、設定済みの`visual-director`プロファイルを起動します。
+
+```powershell
+$tunnelExe = 'C:\path\to\tunnel-client.exe'
+$profileDir = 'C:\path\to\tunnel-client\profiles'
+$runtimeKey = Read-Host 'OpenAI runtime API key' -AsSecureString
+$env:CONTROL_PLANE_API_KEY = [System.Net.NetworkCredential]::new('', $runtimeKey).Password
+
+& $tunnelExe doctor --profile visual-director --profile-dir $profileDir --explain
+& $tunnelExe run --profile visual-director --profile-dir $profileDir
+```
+
+`doctor`が成功し、`run`が接続待機状態になれば準備完了です。このPowerShellも閉じずに残します。APIキーをREADME、Git、チャット、スクリーンショットへ貼り付けないでください。
+
+`tunnel-client`がPATHに登録済みで、プロファイルが標準ディレクトリにある場合は、次の短いコマンドでも起動できます。
+
+```powershell
+tunnel-client doctor --profile visual-director --explain
+tunnel-client run --profile visual-director
+```
+
+### 3. ChatGPTから呼び出す
+
+ChatGPTで新しいチャットを開き、ツールまたは「＋」メニューから`Visual Director`を有効にして、次のように依頼します。
+
+```text
+Visual Directorを使って、次の画像生成パッケージを作ってください。
+
+- project_id: bottom-of-thirst
+- asset_type: event_cg
+- subject_ids: [souma]
+- request_text: 地下の記録保管庫で古い記録を確認しているイベントCG
+- scene_context: { location: 地下の記録保管庫, story_state: present_day_investigation }
+
+Canonの不足やエラーは推測で補完せず、そのまま報告してください。
+```
+
+成功すると、ChatGPTは`visual.prepare_generation`を呼び出し、スタイル、キャラクター、禁止事項、参照アセットをまとめたGeneration Packageを受け取ります。
+
+Visual Director自身は画像を生成しません。Generation Packageを確認したあと、必要なら同じチャットで次のように依頼します。
+
+```text
+このGeneration Packageの制約を守って画像を生成してください。
+```
+
+### 終了する
+
+作業が終わったら、Visual DirectorとTunnelを起動した各PowerShellで`Ctrl+C`を押します。Tunnel側のPowerShellでは、APIキーの環境変数も削除してください。
+
+```powershell
+Remove-Item Env:CONTROL_PLANE_API_KEY
+```
+
+### うまく動かない場合
+
+| 状況 | 確認すること |
+|---|---|
+| ChatGPTにVisual Directorが表示されない | Developer mode、プラグインの接続状態、Tunnelの起動状態を確認する |
+| `PROJECT_CONFIG_MISSING` | `BOTTOM_OF_THIRST_REPO_PATH`または`VISUAL_DIRECTOR_PROJECTS_CONFIG`を設定する |
+| `PROJECT_NOT_FOUND` | プロンプトの`project_id`が設定済みのIDと一致しているか確認する |
+| `SUBJECT_NOT_FOUND` | `subject_ids`にプロジェクトで定義されたIDを指定する |
+| `REFERENCE_NOT_FOUND` | Canonに記載されたApproved Anchorが実際に存在するか確認する |
+| ChatGPTから呼び出すと失敗する | Visual Directorと`tunnel-client`の両方が動いているか確認する |
+
 ### 複数ゲームを使う場合
 
 [projects.example.json](projects.example.json)をコピーしてプロジェクト定義を編集し、次のように起動します。
