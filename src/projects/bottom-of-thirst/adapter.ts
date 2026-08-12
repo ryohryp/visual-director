@@ -2,12 +2,12 @@ import { access } from 'node:fs/promises';
 import path from 'node:path';
 
 import { bullets, bulletsAfterLabel, fencedBlock, readUtf8File, section, subsection } from '../../domain/markdown.js';
-import {
+import { VisualDirectorError } from '../../domain/types.js';
+import type {
   GenerationPackage,
   PrepareGenerationInput,
   ProjectAdapter,
   ReferenceAsset,
-  VisualDirectorError,
 } from '../../domain/types.js';
 
 const PROJECT_ID = 'bottom-of-thirst';

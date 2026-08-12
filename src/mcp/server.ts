@@ -7,7 +7,8 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { z } from 'zod';
 
 import { BottomOfThirstAdapter } from '../projects/bottom-of-thirst/adapter.js';
-import { PrepareGenerationInput, ProjectAdapter, VisualDirectorError } from '../domain/types.js';
+import { VisualDirectorError } from '../domain/types.js';
+import type { PrepareGenerationInput, ProjectAdapter } from '../domain/types.js';
 
 export interface VisualDirectorServerOptions {
   repoPath?: string;
