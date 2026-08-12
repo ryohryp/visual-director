@@ -7,7 +7,7 @@ import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { beforeEach, afterEach, describe, expect, it } from 'vitest';
 
 import { createVisualDirectorServer } from '../src/mcp/server.js';
-import { BottomOfThirstAdapter } from '../src/projects/bottom-of-thirst/adapter.js';
+import { approvedAnchorPaths, BottomOfThirstAdapter } from '../src/projects/bottom-of-thirst/adapter.js';
 
 let fixtureRoot: string;
 
@@ -29,6 +29,19 @@ const input = {
 };
 
 describe('BottomOfThirstAdapter', () => {
+  it('keeps only contiguous exact anchor paths before metadata and legacy bullets', () => {
+    expect(
+      approvedAnchorPaths(
+        '- `v2/anchor.avif`\n- runtime alpha mask: `v2/mask.avif`\n\nAnchor explanation.\n\n- `legacy/madness.png`',
+      ),
+    ).toEqual(['v2/anchor.avif']);
+    expect(approvedAnchorPaths('- `v2/default.avif`\n- `v2/default.webp`\n')).toEqual([
+      'v2/default.avif',
+      'v2/default.webp',
+    ]);
+    expect(approvedAnchorPaths('Anchor explanation.\n\n- `legacy/madness.png`')).toEqual([]);
+  });
+
   it('builds a separated, canon-backed Generation Package', async () => {
     const result = await new BottomOfThirstAdapter({ repoPath: fixtureRoot }).prepare(input);
 
@@ -61,6 +74,13 @@ describe('BottomOfThirstAdapter', () => {
     await rm(path.join(fixtureRoot, 'public/images/characters/souma/v2/default.avif'));
     await expect(new BottomOfThirstAdapter({ repoPath: fixtureRoot }).prepare(input)).rejects.toMatchObject({
       code: 'REFERENCE_NOT_FOUND',
+    });
+  });
+
+  it('fails closed when the visual reference asset manifest is missing', async () => {
+    await rm(path.join(fixtureRoot, 'docs/visual/assets/README.md'));
+    await expect(new BottomOfThirstAdapter({ repoPath: fixtureRoot }).prepare(input)).rejects.toMatchObject({
+      code: 'CANON_READ_FAILED',
     });
   });
 });

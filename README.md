@@ -16,7 +16,7 @@ The current project adapter is `bottom-of-thirst`, targeting `ryohryp/---The-Bot
 - Reference Assets
 - Generation Policy
 
-The adapter resolves Approved Anchor paths from `CHARACTER_VISUAL_CANON.md`. It verifies the Global Visual Style, World Direction, character facts, approved anchor files, and global reference asset before returning. Unknown projects, unknown subjects, missing documents, missing anchors, and incomplete style locks return explicit errors. No legacy or candidate asset is used as a fallback.
+The adapter resolves Approved Anchor paths from `CHARACTER_VISUAL_CANON.md`. It verifies the Global Visual Style, World Direction, character facts, visual reference asset manifest, approved anchor files, and global reference asset before returning. Unknown projects, unknown subjects, missing documents, missing anchors, and incomplete style locks return explicit errors. No legacy or candidate asset is used as a fallback.
 
 ## Architecture
 
@@ -114,7 +114,7 @@ npm.cmd run typecheck
 npm.cmd test
 ```
 
-The tests cover Generation Package separation, Canon-derived anchor resolution, explicit unknown-subject errors, missing-anchor errors, MCP tool discovery, and MCP protocol invocation.
+The tests cover Generation Package separation, Canon-derived anchor resolution, contiguous approved-anchor parsing, explicit unknown-subject errors, missing-anchor/manifest errors, MCP tool discovery, and MCP protocol invocation.
 
 ## Intentionally out of scope for v0.1
 

@@ -13,6 +13,7 @@ import type {
 const PROJECT_ID = 'bottom-of-thirst';
 const GLOBAL_STYLE = 'docs/visual/GLOBAL_VISUAL_STYLE.md';
 const CANON = 'docs/visual/CHARACTER_VISUAL_CANON.md';
+const ASSET_README = 'docs/visual/assets/README.md';
 const GLOBAL_REFERENCE = 'docs/visual/assets/global_visual_style_reference.webp';
 
 interface SubjectAnchor {
@@ -81,16 +82,26 @@ export class BottomOfThirstAdapter implements ProjectAdapter {
   async prepare(input: PrepareGenerationInput): Promise<GenerationPackage> {
     this.validateInput(input);
 
-    const [styleMarkdown, canonMarkdown, worldMarkdown] = await Promise.all([
+    const [styleMarkdown, canonMarkdown, worldMarkdown, assetReadmeMarkdown] = await Promise.all([
       readUtf8File(path.join(this.repoPath, GLOBAL_STYLE), 'Global Visual Style'),
       readUtf8File(path.join(this.repoPath, CANON), 'Character Visual Canon'),
       readUtf8File(path.join(this.repoPath, 'docs/WORLD_DIRECTION.md'), 'World Direction'),
+      readUtf8File(path.join(this.repoPath, ASSET_README), 'Visual reference asset manifest'),
     ]);
+    if (!assetReadmeMarkdown.trim()) {
+      throw new VisualDirectorError('ASSET_MANIFEST_EMPTY', 'Visual reference asset manifest is empty.', {
+        path: ASSET_README,
+      });
+    }
 
-    const referenceAssets = await this.resolveReferences(input.subject_ids, canonMarkdown);
     const subjects = await Promise.all(
       input.subject_ids.map((subjectId) => this.loadSubject(subjectId, canonMarkdown)),
     );
+    const referenceAssets = subjects.map<ReferenceAsset>((subject) => ({
+      role: 'subject_anchor',
+      subject_id: subject.id,
+      path: subject.anchorPath,
+    }));
     const globalReference = path.join(this.repoPath, GLOBAL_REFERENCE);
     await ensureFile(globalReference, 'Global Visual Reference');
 
@@ -164,7 +175,7 @@ export class BottomOfThirstAdapter implements ProjectAdapter {
       });
     }
     const anchorSection = subsection(canonSection, 'Approved Visual Anchor');
-    const anchorPaths = [...anchorSection.matchAll(/^-\s+`([^`]+)`\s*$/gm)].map((match) => match[1]);
+    const anchorPaths = approvedAnchorPaths(anchorSection);
     const anchorPath = anchorPaths[0];
     const anchorFallback = anchorPaths[1];
     if (!anchorPath) {
@@ -182,15 +193,6 @@ export class BottomOfThirstAdapter implements ProjectAdapter {
     }
     const characterMarkdown = await readUtf8File(path.join(this.repoPath, configured.characterFile), `Character facts for ${subjectId}`);
     return { ...configured, anchorPath, anchorFallback, canonSection, characterMarkdown };
-  }
-
-  private async resolveReferences(subjectIds: string[], canonMarkdown: string): Promise<ReferenceAsset[]> {
-    const references: ReferenceAsset[] = [];
-    for (const subjectId of subjectIds) {
-      const subject = await this.loadSubject(subjectId, canonMarkdown);
-      references.push({ role: 'subject_anchor', subject_id: subject.id, path: subject.anchorPath });
-    }
-    return references;
   }
 
   private subjectLock(subject: SubjectAnchor): string {
@@ -268,6 +270,19 @@ function characterSection(markdown: string, heading: string): string {
 
 function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+export function approvedAnchorPaths(anchorSection: string): string[] {
+  const paths: string[] = [];
+  for (const line of anchorSection.split(/\r?\n/)) {
+    const match = line.match(/^\s*-\s+`([^`]+)`\s*$/);
+    if (match?.[1]) {
+      paths.push(match[1]);
+      continue;
+    }
+    if (line.trim() !== '') break;
+  }
+  return paths;
 }
 
 function resolveRepoPath(repoPath: string, relativePath: string): string {
