@@ -10,6 +10,7 @@ import { beforeEach, afterEach, describe, expect, it } from 'vitest';
 
 import { createHttpServerForVisualDirector, createVisualDirectorServer } from '../src/mcp/server.js';
 import { approvedAnchorPaths, BottomOfThirstAdapter } from '../src/projects/bottom-of-thirst/adapter.js';
+import { createProjectRegistry } from '../src/projects/registry.js';
 
 let fixtureRoot: string;
 
@@ -170,6 +171,47 @@ describe('MCP tool', () => {
   });
 });
 
+describe('multi-project registry', () => {
+  it('loads an additional game from a project config without changing the MCP contract', async () => {
+    const otherGameRoot = path.join(fixtureRoot, 'other-game');
+    await createOtherGameFixture(otherGameRoot);
+    const configPath = path.join(fixtureRoot, 'projects.json');
+    await writeFile(
+      configPath,
+      JSON.stringify({
+        projects: {
+          'other-game': {
+            repo_path: 'other-game',
+            subjects: {
+              hero: {
+                display_name: 'The Hero',
+                character_file: 'docs/characters/hero.md',
+                canon_heading: 'The Hero',
+              },
+            },
+          },
+        },
+      }),
+      'utf8',
+    );
+
+    const adapter = createProjectRegistry({ projectsConfigPath: configPath }).resolve('other-game');
+    const result = await adapter.prepare({
+      project_id: 'other-game',
+      asset_type: 'portrait',
+      subject_ids: ['hero'],
+      request_text: 'A quiet portrait in the canonical world style.',
+    });
+
+    expect(result.project_id).toBe('other-game');
+    expect(result.prompt_package.style_lock).toContain('OTHER GAME STYLE LOCK');
+    expect(result.reference_assets).toEqual([
+      { role: 'global_reference', path: 'docs/visual/assets/global_visual_style_reference.webp' },
+      { role: 'subject_anchor', subject_id: 'hero', path: 'assets/hero/approved.avif' },
+    ]);
+  });
+});
+
 async function createFixture(root: string): Promise<void> {
   const files: Record<string, string> = {
     'docs/visual/GLOBAL_VISUAL_STYLE.md': `# Global Style\n\n## Global Visual Style Lock\n\n\`\`\`text\nSTYLE LOCK\n\`\`\`\n\n## Fixed Avoid Block\n\n\`\`\`text\nAVOID: photorealism, anime\n\`\`\`\n\n## 既存キャラクター差分生成フロー\n\n### 変更してよいもの\n- small facial expression\n- gaze\n- hand position\n\n### 変更してはいけないもの\n- face identity\n`,
@@ -187,6 +229,26 @@ async function createFixture(root: string): Promise<void> {
     'docs/visual/assets/global_visual_style_reference.webp',
     'public/images/characters/souma/v2/default.avif',
   ]) {
+    const absolutePath = path.join(root, relativePath);
+    await mkdir(path.dirname(absolutePath), { recursive: true });
+    await writeFile(absolutePath, Buffer.from('fixture'));
+  }
+}
+
+async function createOtherGameFixture(root: string): Promise<void> {
+  const files: Record<string, string> = {
+    'docs/visual/GLOBAL_VISUAL_STYLE.md': `# Global Style\n\n## Global Visual Style Lock\n\n\`\`\`text\nOTHER GAME STYLE LOCK\n\`\`\`\n\n## Fixed Avoid Block\n\n\`\`\`text\nAVOID: glossy, 3d\n\`\`\`\n\n## Allowed Changes\n- expression\n\n## Forbidden Changes\n- identity\n`,
+    'docs/visual/CHARACTER_VISUAL_CANON.md': `# Canon\n\n## Common Rules\n- Always use an approved anchor.\n\n## The Hero\n\n### Approved Visual Anchor\n- \`assets/hero/approved.avif\`\n\n### Accepted Visual Conditions\n- blue coat\n`,
+    'docs/WORLD_DIRECTION.md': '# World\n\n- grounded fantasy\n',
+    'docs/characters/hero.md': '# Hero\n\n- reliable scout\n',
+    'docs/visual/assets/README.md': '# Assets\n\n- global reference\n',
+  };
+  for (const [relativePath, content] of Object.entries(files)) {
+    const absolutePath = path.join(root, relativePath);
+    await mkdir(path.dirname(absolutePath), { recursive: true });
+    await writeFile(absolutePath, content, 'utf8');
+  }
+  for (const relativePath of ['docs/visual/assets/global_visual_style_reference.webp', 'assets/hero/approved.avif']) {
     const absolutePath = path.join(root, relativePath);
     await mkdir(path.dirname(absolutePath), { recursive: true });
     await writeFile(absolutePath, Buffer.from('fixture'));

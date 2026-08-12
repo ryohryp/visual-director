@@ -2,6 +2,7 @@ import { createHttpServerForVisualDirector, runStdio } from './mcp/server.js';
 
 const isHttp = process.argv.includes('--http');
 const repoPath = argumentValue('--repo-path') ?? process.env.BOTTOM_OF_THIRST_REPO_PATH;
+const projectsConfigPath = argumentValue('--projects-config') ?? process.env.VISUAL_DIRECTOR_PROJECTS_CONFIG;
 
 if (isHttp) {
   const port = Number(argumentValue('--port') ?? process.env.VISUAL_DIRECTOR_PORT ?? 3000);
@@ -9,12 +10,12 @@ if (isHttp) {
   if (!Number.isInteger(port) || port < 1 || port > 65_535) {
     throw new Error(`Invalid port: ${port}`);
   }
-  const { httpServer } = createHttpServerForVisualDirector({ repoPath });
+  const { httpServer } = createHttpServerForVisualDirector({ repoPath, projectsConfigPath });
   httpServer.listen(port, host, () => {
     process.stderr.write(`Visual Director MCP listening on http://${host}:${port}/mcp\n`);
   });
 } else {
-  await runStdio({ repoPath });
+  await runStdio({ repoPath, projectsConfigPath });
 }
 
 function argumentValue(name: string): string | undefined {

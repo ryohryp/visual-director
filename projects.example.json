@@ -1,0 +1,28 @@
+{
+  "projects": {
+    "my-game": {
+      "repo_path": "../my-game",
+      "subjects": {
+        "hero": {
+          "display_name": "The Hero",
+          "character_file": "docs/characters/hero.md",
+          "canon_heading": "The Hero"
+        }
+      },
+      "documents": {
+        "global_style": "docs/visual/GLOBAL_VISUAL_STYLE.md",
+        "character_canon": "docs/visual/CHARACTER_VISUAL_CANON.md",
+        "world_direction": "docs/WORLD_DIRECTION.md",
+        "asset_manifest": "docs/visual/assets/README.md",
+        "global_reference": "docs/visual/assets/global_visual_style_reference.webp"
+      },
+      "labels": {
+        "avoid_block_heading": "Fixed Avoid Block",
+        "allowed_changes_heading": "Allowed Changes",
+        "forbidden_changes_heading": "Forbidden Changes",
+        "common_rules_heading": "Common Rules",
+        "accepted_conditions_heading": "Accepted Visual Conditions"
+      }
+    }
+  }
+}

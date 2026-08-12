@@ -4,6 +4,8 @@ Visual Director exposes a read-only Streamable HTTP MCP endpoint. The recommende
 
 Visual Director v0.1 prepares a Canon-backed Generation Package. It does not generate an image or call an image API. After the tool returns successfully, ChatGPT can use the package as context for its image-generation capability.
 
+The bundled connection targets `bottom-of-thirst`, but the same Tunnel and ChatGPT connection can serve additional games loaded from a local `projects.json`. Only the `project_id` and project-specific subject data change.
+
 ## Prerequisites
 
 - Node.js 20 or later
@@ -27,6 +29,15 @@ The local MCP endpoint is:
 ```text
 http://127.0.0.1:3000/mcp
 ```
+
+For multiple games, set `VISUAL_DIRECTOR_PROJECTS_CONFIG` or pass `--projects-config`:
+
+```powershell
+$env:VISUAL_DIRECTOR_PROJECTS_CONFIG = 'C:\path\to\projects.json'
+npm.cmd run dev -- --http --host 127.0.0.1 --port 3000
+```
+
+Use [projects.example.json](../projects.example.json) as the starting point. The config's `repo_path` values are resolved relative to the config file and should remain local-only.
 
 Keep the server bound to `127.0.0.1` for tunnel-based development. The tunnel client must be able to reach this endpoint from the same machine or network.
 
