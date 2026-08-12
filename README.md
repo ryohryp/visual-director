@@ -2,7 +2,7 @@
 
 Visual Director MCP v0.1 is a small, fail-closed MCP server for preparing image-generation context from a game's Visual Canon. It does not generate images, call the OpenAI Image API, mutate a game repository, or manage candidates and reviews.
 
-The current project adapter is `bottom-of-thirst`, targeting `ryohryp/---The-Bottom-of-Thirst`.
+The bundled project adapter is `bottom-of-thirst`, targeting `ryohryp/---The-Bottom-of-Thirst`. Additional games can be registered through a local JSON project config without changing the MCP tool contract.
 
 ## What v0.1 does
 
@@ -40,7 +40,7 @@ BottomOfThirstAdapter
         +-- public/images/characters/*/v2/* approved anchor
 ```
 
-The adapter boundary is intentional: another game can be added under `src/projects/<project>/` without changing the MCP tool contract.
+The adapter boundary is intentional: the bundled project keeps its existing adapter, while additional Canon-compatible games are loaded through `projects.json` and the generic Canon adapter. Each project has its own repository path, document paths, labels, and subject definitions.
 
 ## Setup
 
@@ -52,6 +52,15 @@ $env:BOTTOM_OF_THIRST_REPO_PATH = 'C:\path\to\---The-Bottom-of-Thirst'
 ```
 
 The repository path may also be supplied with `--repo-path`. Keep it out of source control and do not put credentials in it.
+
+To use multiple games, copy [projects.example.json](projects.example.json), edit the project definitions, and start with:
+
+```powershell
+$env:VISUAL_DIRECTOR_PROJECTS_CONFIG = 'C:\path\to\projects.json'
+npm.cmd run dev -- --http --host 127.0.0.1 --port 3000
+```
+
+The config file is local-only and should not be committed when it contains machine-specific paths. `repo_path` is resolved relative to the config file. The bundled `bottom-of-thirst` project remains available through `BOTTOM_OF_THIRST_REPO_PATH`.
 
 ## Start locally
 
@@ -109,6 +118,13 @@ Build first if using the compiled server:
 npm.cmd run build
 $env:BOTTOM_OF_THIRST_REPO_PATH = 'C:\path\to\---The-Bottom-of-Thirst'
 npx.cmd @modelcontextprotocol/inspector node dist/index.js
+```
+
+With a multi-project config:
+
+```powershell
+npm.cmd run build
+npx.cmd @modelcontextprotocol/inspector node dist/index.js --projects-config C:\path\to\projects.json
 ```
 
 For HTTP inspection, start the HTTP server in one terminal and point MCP Inspector at `http://127.0.0.1:3000/mcp` in another. The inspector should show exactly one tool: `visual.prepare_generation`.

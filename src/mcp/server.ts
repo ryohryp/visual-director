@@ -6,15 +6,17 @@ import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
 
-import { BottomOfThirstAdapter } from '../projects/bottom-of-thirst/adapter.js';
 import { VisualDirectorError } from '../domain/types.js';
-import type { PrepareGenerationInput, ProjectAdapter } from '../domain/types.js';
+import type { PrepareGenerationInput } from '../domain/types.js';
+import { createProjectRegistry } from '../projects/registry.js';
 
 export interface VisualDirectorServerOptions {
   repoPath?: string;
+  projectsConfigPath?: string;
 }
 
 export function createVisualDirectorServer(options: VisualDirectorServerOptions = {}): McpServer {
+  const registry = createProjectRegistry(options);
   const server = new McpServer(
     { name: 'visual-director', version: '0.1.0' },
     {
@@ -68,7 +70,7 @@ export function createVisualDirectorServer(options: VisualDirectorServerOptions 
     },
     async (input) => {
       try {
-        const adapter = resolveAdapter(input.project_id, options);
+        const adapter = registry.resolve(input.project_id);
         const generationPackage = await adapter.prepare(input as PrepareGenerationInput);
         return {
           structuredContent: { ...generationPackage } as Record<string, unknown>,
@@ -83,20 +85,6 @@ export function createVisualDirectorServer(options: VisualDirectorServerOptions 
     },
   );
   return server;
-}
-
-function resolveAdapter(projectId: string, options: VisualDirectorServerOptions): ProjectAdapter {
-  if (projectId !== 'bottom-of-thirst') {
-    throw new VisualDirectorError('PROJECT_NOT_FOUND', `Unsupported project_id: ${projectId}.`);
-  }
-  const repoPath = options.repoPath ?? process.env.BOTTOM_OF_THIRST_REPO_PATH;
-  if (!repoPath) {
-    throw new VisualDirectorError(
-      'PROJECT_CONFIG_MISSING',
-      'BOTTOM_OF_THIRST_REPO_PATH is not configured. Set it to an absolute checkout path before calling this tool.',
-    );
-  }
-  return new BottomOfThirstAdapter({ repoPath });
 }
 
 function serializeError(error: unknown): Record<string, unknown> {
