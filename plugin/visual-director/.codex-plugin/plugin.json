@@ -1,0 +1,33 @@
+{
+  "name": "visual-director",
+  "version": "0.1.0",
+  "description": "Prepare Canon-safe game image generation packages with Visual Director MCP.",
+  "author": {
+    "name": "ryohryp",
+    "url": "https://github.com/ryohryp"
+  },
+  "homepage": "https://github.com/ryohryp/visual-director#readme",
+  "repository": "https://github.com/ryohryp/visual-director",
+  "keywords": [
+    "game-development",
+    "image-generation",
+    "mcp",
+    "visual-canon"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Visual Director",
+    "shortDescription": "ゲームのCanonを守って画像生成を準備します。",
+    "longDescription": "Visual Director MCPを使い、ゲームのVisual Canon、キャラクター同一性、Approved Anchor、シーン要件、禁止事項を検証したGeneration Packageを準備します。",
+    "developerName": "ryohryp",
+    "category": "Productivity",
+    "capabilities": [
+      "Read"
+    ],
+    "defaultPrompt": [
+      "『渇きの底』で、水上沙耶の通常立ち絵を作って。",
+      "このゲームのCanonを守ってキャラクター立ち絵を作って。",
+      "画像生成前のGeneration Packageだけ確認して。"
+    ]
+  }
+}

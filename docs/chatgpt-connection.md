@@ -58,10 +58,9 @@ Use a prompt that names the desired outcome and leaves the tool arguments explic
 ```text
 Visual Directorを使って、次の画像生成パッケージを作成してください。
 - project_id: bottom-of-thirst
-- asset_type: event_cg
-- subject_ids: [souma]
-- request_text: 現場検証中のイベントCG。Canonの制約を維持する。
-- scene_context: { location: 現場, story_state: present_day_investigation }
+- asset_type: character_portrait
+- subject_ids: [saya]
+- request_text: 水上沙耶の通常立ち絵。Canonの制約を維持する。
 
 生成パッケージのエラーや不足は補完せずに報告してください。成功した場合だけ、その結果を確認してから画像生成に進めてください。
 ```
