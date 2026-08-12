@@ -1,0 +1,4 @@
+interface:
+  display_name: "Visual Director"
+  short_description: "ゲームのVisual Canonを守って画像生成を準備します"
+  default_prompt: "Use $visual-director to prepare a Canon-safe game image generation package."

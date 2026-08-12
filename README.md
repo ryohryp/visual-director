@@ -73,6 +73,38 @@ ChatGPTのチャットでVisual Directorを選んで依頼
 
 ChatGPTへの接続登録がまだの場合だけ、先に[ChatGPT接続ガイド](docs/chatgpt-connection.md)を参照して、Developer mode、Tunnel、Visual Directorプラグインを設定してください。登録済みなら毎回やり直す必要はありません。
 
+### スキルを使う最短手順
+
+[Visual Directorスキル](plugin/visual-director/skills/visual-director/SKILL.md)をインストールすると、`project_id`などのJSONを毎回書く必要がなくなります。ChatGPTでは`@Visual Director`、Codexでは`$visual-director`を選び、普段の言葉で依頼してください。
+
+ChatGPTへ追加する場合は、スキルの中身をZIPにして、ChatGPTの**プラグイン → スキル → 作成 → パソコンからアップロード**から登録します。
+
+```powershell
+$skillSource = Join-Path $PWD 'plugin\visual-director\skills\visual-director\*'
+$skillZip = Join-Path $env:TEMP 'visual-director-skill.zip'
+Compress-Archive -Path $skillSource -DestinationPath $skillZip -Force
+```
+
+Codexへ追加する場合は、ユーザースキルの場所へコピーします。
+
+```powershell
+$codexSkills = Join-Path $env:USERPROFILE '.agents\skills'
+New-Item -ItemType Directory -Path $codexSkills -Force | Out-Null
+Copy-Item -LiteralPath (Join-Path $PWD 'plugin\visual-director\skills\visual-director') -Destination $codexSkills -Recurse -Force
+```
+
+```text
+@Visual Director 『渇きの底』で、水上沙耶の通常立ち絵を作って。
+```
+
+```text
+$visual-director 『渇きの底』で、水上沙耶の通常立ち絵を作って。
+```
+
+スキルは、会話から判断できないゲームIDや人物IDだけを質問し、`visual.prepare_generation`の呼び出し、Generation Packageの適用、参照画像の確認までを案内します。スキル本体は[ChatGPTとCodex共通のプラグインパッケージ](plugin/visual-director)に含まれています。
+
+ChatGPTで使う場合はVisual Director接続も有効にしてください。Codexでリポジトリ内のスキルだけを試す場合は、`plugin/visual-director/skills/visual-director`をユーザースキルの場所へインストールできます。プラグインをインストールした後は、新しいチャットまたはタスクを開始してください。
+
 ### 1. Visual Directorを起動する
 
 PowerShellを開き、このリポジトリで次を実行します。
@@ -119,10 +151,9 @@ ChatGPTで新しいチャットを開き、ツールまたは「＋」メニュ�
 Visual Directorを使って、次の画像生成パッケージを作ってください。
 
 - project_id: bottom-of-thirst
-- asset_type: event_cg
-- subject_ids: [souma]
-- request_text: 地下の記録保管庫で古い記録を確認しているイベントCG
-- scene_context: { location: 地下の記録保管庫, story_state: present_day_investigation }
+- asset_type: character_portrait
+- subject_ids: [saya]
+- request_text: 水上沙耶の通常立ち絵
 
 Canonの不足やエラーは推測で補完せず、そのまま報告してください。
 ```
@@ -192,13 +223,9 @@ MCPサーバーは、読み取り専用・冪等のツールメタデータと�
 ```json
 {
   "project_id": "bottom-of-thirst",
-  "asset_type": "event_cg",
-  "subject_ids": ["souma"],
-  "request_text": "地下の記録保管庫で古い記録を確認しているイベントCG",
-  "scene_context": {
-    "location": "地下の記録保管庫",
-    "story_state": "present_day_investigation"
-  }
+  "asset_type": "character_portrait",
+  "subject_ids": ["saya"],
+  "request_text": "水上沙耶の通常立ち絵"
 }
 ```
 
@@ -207,7 +234,7 @@ MCPサーバーは、読み取り専用・冪等のツールメタデータと�
 ```json
 [
   { "role": "global_reference", "path": "docs/visual/assets/global_visual_style_reference.webp" },
-  { "role": "subject_anchor", "subject_id": "souma", "path": "public/images/characters/souma/v2/default.avif" }
+  { "role": "subject_anchor", "subject_id": "saya", "path": "public/images/characters/saya/v2/default.avif" }
 ]
 ```
 
