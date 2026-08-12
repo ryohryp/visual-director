@@ -1,12 +1,14 @@
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import type { AddressInfo } from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
 
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
+import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import { beforeEach, afterEach, describe, expect, it } from 'vitest';
 
-import { createVisualDirectorServer } from '../src/mcp/server.js';
+import { createHttpServerForVisualDirector, createVisualDirectorServer } from '../src/mcp/server.js';
 import { approvedAnchorPaths, BottomOfThirstAdapter } from '../src/projects/bottom-of-thirst/adapter.js';
 
 let fixtureRoot: string;
@@ -94,10 +96,25 @@ describe('MCP tool', () => {
     await client.connect(clientTransport);
 
     const tools = await client.listTools();
-    expect(tools.tools.map((tool) => tool.name)).toContain('visual.prepare_generation');
+    const tool = tools.tools.find((candidate) => candidate.name === 'visual.prepare_generation');
+    expect(tool).toMatchObject({
+      name: 'visual.prepare_generation',
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
+    });
+    expect(tool?.outputSchema).toBeDefined();
+    expect(client.getInstructions()).toContain('visual.prepare_generation');
 
     const result = await client.callTool({ name: 'visual.prepare_generation', arguments: input });
     expect(result.isError).not.toBe(true);
+    expect(result.structuredContent).toMatchObject({
+      project_id: 'bottom-of-thirst',
+      asset_type: 'event_cg',
+    });
     const content = result.content as Array<{ type: string; text?: string }>;
     const text = content[0];
     expect(text?.type).toBe('text');
@@ -124,6 +141,32 @@ describe('MCP tool', () => {
 
     await client.close();
     await server.close();
+  });
+
+  it('serves the ChatGPT-compatible Streamable HTTP transport', async () => {
+    const { httpServer } = createHttpServerForVisualDirector({ repoPath: fixtureRoot });
+    await new Promise<void>((resolve) => httpServer.listen(0, '127.0.0.1', resolve));
+
+    const address = httpServer.address();
+    expect(address && typeof address !== 'string').toBe(true);
+    if (!address || typeof address === 'string') {
+      throw new Error('Expected an ephemeral HTTP server address.');
+    }
+
+    const client = new Client({ name: 'visual-director-http-test-client', version: '0.1.0' });
+    const transport = new StreamableHTTPClientTransport(new URL(`http://127.0.0.1:${(address as AddressInfo).port}/mcp`));
+    try {
+      await client.connect(transport);
+      const tools = await client.listTools();
+
+      expect(tools.tools.map((tool) => tool.name)).toEqual(['visual.prepare_generation']);
+      expect(client.getInstructions()).toContain('visual.prepare_generation');
+    } finally {
+      await client.close();
+      await new Promise<void>((resolve, reject) => {
+        httpServer.close((error) => (error ? reject(error) : resolve()));
+      });
+    }
   });
 });
 

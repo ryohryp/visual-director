@@ -69,6 +69,12 @@ npm.cmd run dev -- --http --host 127.0.0.1 --port 3000
 
 The endpoint is `http://127.0.0.1:3000/mcp`. The HTTP server binds to loopback by default. It uses stateful Streamable HTTP sessions and does not expose the project path or source documents until a valid tool call is made.
 
+## Connect from ChatGPT
+
+For local ChatGPT use, keep the server on loopback and connect it through a Secure MCP Tunnel. The connection guide covers the tunnel, Developer mode, verification prompt, and the boundary between local testing and public deployment: [docs/chatgpt-connection.md](docs/chatgpt-connection.md).
+
+The MCP server advertises read-only, idempotent tool metadata and a structured Generation Package output so ChatGPT can select `visual.prepare_generation` and consume its result reliably. The tool still prepares context only; it does not generate images or call an image API.
+
 ## Example tool input
 
 ```json

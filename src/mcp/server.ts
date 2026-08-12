@@ -15,13 +15,25 @@ export interface VisualDirectorServerOptions {
 }
 
 export function createVisualDirectorServer(options: VisualDirectorServerOptions = {}): McpServer {
-  const server = new McpServer({ name: 'visual-director', version: '0.1.0' });
+  const server = new McpServer(
+    { name: 'visual-director', version: '0.1.0' },
+    {
+      instructions:
+        'Use visual.prepare_generation when the user asks to prepare a game image-generation package. Supply project_id, asset_type, subject_ids, request_text, and optional scene_context. This read-only tool validates the configured Visual Canon and never generates images or calls an image API. Report explicit errors and never invent a fallback package or substitute candidate or legacy assets.',
+    },
+  );
   server.registerTool(
     'visual.prepare_generation',
     {
       title: 'Prepare visual generation',
       description:
         'Read the configured project Visual Canon and return a fail-closed Generation Package for an image model. This tool never generates images or calls an image API.',
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
       inputSchema: {
         project_id: z.string().min(1),
         asset_type: z.string().min(1),
@@ -29,12 +41,37 @@ export function createVisualDirectorServer(options: VisualDirectorServerOptions 
         request_text: z.string().min(1),
         scene_context: z.record(z.string(), z.unknown()).optional(),
       },
+      outputSchema: {
+        project_id: z.string(),
+        asset_type: z.string(),
+        prompt_package: z.object({
+          style_lock: z.string(),
+          subject_lock: z.array(z.string()),
+          scene_requirements: z.array(z.string()),
+          allowed_changes: z.array(z.string()),
+          forbidden_changes: z.array(z.string()),
+          avoid_block: z.array(z.string()),
+        }),
+        reference_assets: z.array(
+          z.object({
+            role: z.enum(['global_reference', 'subject_anchor']),
+            path: z.string(),
+            subject_id: z.string().optional(),
+          }),
+        ),
+        policy: z.object({
+          must_use_approved_anchor: z.literal(true),
+          must_not_chain_from_candidate: z.literal(true),
+          must_review_after_generation: z.literal(true),
+        }),
+      },
     },
     async (input) => {
       try {
         const adapter = resolveAdapter(input.project_id, options);
         const generationPackage = await adapter.prepare(input as PrepareGenerationInput);
         return {
+          structuredContent: { ...generationPackage } as Record<string, unknown>,
           content: [{ type: 'text' as const, text: JSON.stringify(generationPackage, null, 2) }],
         };
       } catch (error) {
