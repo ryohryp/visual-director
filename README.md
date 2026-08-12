@@ -1,33 +1,37 @@
 # Visual Director MCP
 
-Visual Director MCP v0.1 is a small, fail-closed MCP server for preparing image-generation context from a game's Visual Canon. It does not generate images, call the OpenAI Image API, mutate a game repository, or manage candidates and reviews.
+Visual Director MCP v0.1は、ゲームのVisual Canon（ビジュアル設定資料）を読み取り、画像生成に必要なコンテキストを準備する、フェイルクローズ設計のMCPサーバーです。
 
-The bundled project adapter is `bottom-of-thirst`, targeting `ryohryp/---The-Bottom-of-Thirst`. Additional games can be registered through a local JSON project config without changing the MCP tool contract.
+画像を生成したり、OpenAI Image APIを呼び出したり、ゲームリポジトリを変更したり、候補画像やレビューを管理したりはしません。
 
-## What v0.1 does
+標準搭載のプロジェクトAdapterは`bottom-of-thirst`で、`ryohryp/---The-Bottom-of-Thirst`を対象にしています。ローカルのJSON設定ファイルを使えば、MCPツールの契約を変更せずに他のゲームも追加できます。
 
-`visual.prepare_generation` reads the configured project's authoritative documents and returns a Generation Package with these separate sections:
+## v0.1でできること
 
-- Global Style
-- Character Identity and Approved Anchor
-- Scene Requirements
-- Allowed Changes
-- Forbidden Changes
-- Reference Assets
-- Generation Policy
+`visual.prepare_generation`は、設定されたプロジェクトの正本資料を読み取り、以下の項目に分けたGeneration Packageを返します。
 
-The adapter resolves Approved Anchor paths from `CHARACTER_VISUAL_CANON.md`. It verifies the Global Visual Style, World Direction, character facts, visual reference asset manifest, approved anchor files, and global reference asset before returning. Unknown projects, unknown subjects, missing documents, missing anchors, and incomplete style locks return explicit errors. No legacy or candidate asset is used as a fallback.
+- 全体のビジュアルスタイル
+- キャラクターの同一性とApproved Anchor
+- シーン要件
+- 許可される変更
+- 禁止される変更
+- 参照アセット
+- 生成ポリシー
 
-## Architecture
+Adapterは`CHARACTER_VISUAL_CANON.md`からApproved Anchorのパスを解決します。返却前に、全体ビジュアルスタイル、世界観設定、キャラクター設定、参照アセット一覧、Approved Anchor、全体スタイル参照画像を検証します。
+
+未知のプロジェクト、未知のキャラクター、資料不足、Anchor不足、スタイルロック不足は明示的なエラーとして返します。Legacyアセットや候補アセットを代替として使用することはありません。
+
+## アーキテクチャ
 
 ```text
-MCP client / Inspector
+MCPクライアント / Inspector
         |
         v
 visual.prepare_generation
         |
         v
-project adapter registry
+プロジェクトAdapterレジストリ
         |
         v
 BottomOfThirstAdapter
@@ -37,54 +41,56 @@ BottomOfThirstAdapter
         +-- docs/visual/CHARACTER_VISUAL_CANON.md
         +-- docs/characters/*.md
         +-- docs/visual/assets/global_visual_style_reference.webp
-        +-- public/images/characters/*/v2/* approved anchor
+        +-- public/images/characters/*/v2/* Approved Anchor
 ```
 
-The adapter boundary is intentional: the bundled project keeps its existing adapter, while additional Canon-compatible games are loaded through `projects.json` and the generic Canon adapter. Each project has its own repository path, document paths, labels, and subject definitions.
+Adapterの境界は意図的に分離されています。標準のプロジェクトAdapterは既存のものを維持し、追加のCanon互換ゲームは`projects.json`と汎用Canon Adapterから読み込みます。プロジェクトごとに、リポジトリパス、資料パス、見出し名、キャラクター定義を設定できます。
 
-## Setup
+## セットアップ
 
-Requires Node.js 20 or later.
+Node.js 20以降が必要です。
 
 ```powershell
 npm.cmd install
 $env:BOTTOM_OF_THIRST_REPO_PATH = 'C:\path\to\---The-Bottom-of-Thirst'
 ```
 
-The repository path may also be supplied with `--repo-path`. Keep it out of source control and do not put credentials in it.
+リポジトリパスは`--repo-path`でも指定できます。パスはソース管理に含めず、認証情報を配置しないでください。
 
-To use multiple games, copy [projects.example.json](projects.example.json), edit the project definitions, and start with:
+### 複数ゲームを使う場合
+
+[projects.example.json](projects.example.json)をコピーしてプロジェクト定義を編集し、次のように起動します。
 
 ```powershell
 $env:VISUAL_DIRECTOR_PROJECTS_CONFIG = 'C:\path\to\projects.json'
 npm.cmd run dev -- --http --host 127.0.0.1 --port 3000
 ```
 
-The config file is local-only and should not be committed when it contains machine-specific paths. `repo_path` is resolved relative to the config file. The bundled `bottom-of-thirst` project remains available through `BOTTOM_OF_THIRST_REPO_PATH`.
+マシン固有のパスを含む設定ファイルはローカル専用とし、コミットしないでください。`repo_path`は設定ファイルを基準とした相対パスとして解決されます。標準の`bottom-of-thirst`は、引き続き`BOTTOM_OF_THIRST_REPO_PATH`で利用できます。
 
-## Start locally
+## ローカルで起動する
 
-Stdio is the default transport for MCP clients that spawn a local server:
+MCPクライアントがローカルサーバーを起動する場合は、stdioトランスポートが標準です。
 
 ```powershell
 npm.cmd run dev
 ```
 
-For a local Streamable HTTP endpoint:
+ローカルのStreamable HTTPエンドポイントを使う場合は、次のように起動します。
 
 ```powershell
 npm.cmd run dev -- --http --host 127.0.0.1 --port 3000
 ```
 
-The endpoint is `http://127.0.0.1:3000/mcp`. The HTTP server binds to loopback by default. It uses stateful Streamable HTTP sessions and does not expose the project path or source documents until a valid tool call is made.
+エンドポイントは`http://127.0.0.1:3000/mcp`です。HTTPサーバーは標準でループバックアドレスにだけバインドされます。有効なツール呼び出しが行われるまで、プロジェクトパスや資料の内容は公開しません。
 
-## Connect from ChatGPT
+## ChatGPTから接続する
 
-For local ChatGPT use, keep the server on loopback and connect it through a Secure MCP Tunnel. The connection guide covers the tunnel, Developer mode, verification prompt, and the boundary between local testing and public deployment: [docs/chatgpt-connection.md](docs/chatgpt-connection.md).
+ローカルでChatGPTから利用する場合は、サーバーをループバックに限定し、Secure MCP Tunnel経由で接続してください。Tunnel、Developer mode、検証用プロンプト、ローカルテストと公開デプロイの境界については、[ChatGPT接続ガイド](docs/chatgpt-connection.md)を参照してください。
 
-The MCP server advertises read-only, idempotent tool metadata and a structured Generation Package output so ChatGPT can select `visual.prepare_generation` and consume its result reliably. The tool still prepares context only; it does not generate images or call an image API.
+MCPサーバーは、読み取り専用・冪等のツールメタデータと構造化されたGeneration Packageを公開します。そのためChatGPTは`visual.prepare_generation`を選択し、結果を安定して利用できます。このツールはコンテキストの準備だけを行い、画像生成や画像APIの呼び出しは行いません。
 
-## Example tool input
+## ツール入力の例
 
 ```json
 {
@@ -99,7 +105,7 @@ The MCP server advertises read-only, idempotent tool metadata and a structured G
 }
 ```
 
-The returned `reference_assets` contains the global style reference and the subject's Approved Anchor, for example:
+返却される`reference_assets`には、全体スタイル参照画像とキャラクターのApproved Anchorが含まれます。
 
 ```json
 [
@@ -108,11 +114,11 @@ The returned `reference_assets` contains the global style reference and the subj
 ]
 ```
 
-The paths are repository-relative so the calling model can resolve them against the configured project checkout. Visual Director does not pass the image bytes to the model.
+パスはプロジェクトリポジトリを基準とした相対パスです。呼び出し元のモデルは、設定されたプロジェクトチェックアウトを基準に参照できます。Visual Directorが画像バイト列をモデルへ渡すことはありません。
 
 ## MCP Inspector
 
-Build first if using the compiled server:
+コンパイル済みサーバーを使う場合は、先にビルドします。
 
 ```powershell
 npm.cmd run build
@@ -120,24 +126,24 @@ $env:BOTTOM_OF_THIRST_REPO_PATH = 'C:\path\to\---The-Bottom-of-Thirst'
 npx.cmd @modelcontextprotocol/inspector node dist/index.js
 ```
 
-With a multi-project config:
+複数ゲーム設定を使う場合は、次のように起動します。
 
 ```powershell
 npm.cmd run build
 npx.cmd @modelcontextprotocol/inspector node dist/index.js --projects-config C:\path\to\projects.json
 ```
 
-For HTTP inspection, start the HTTP server in one terminal and point MCP Inspector at `http://127.0.0.1:3000/mcp` in another. The inspector should show exactly one tool: `visual.prepare_generation`.
+HTTPを検査する場合は、1つのターミナルでHTTPサーバーを起動し、別のターミナルからMCP Inspectorを`http://127.0.0.1:3000/mcp`に接続します。Inspectorには`visual.prepare_generation`の1ツールだけが表示されます。
 
-## Verification
+## 検証
 
 ```powershell
 npm.cmd run typecheck
 npm.cmd test
 ```
 
-The tests cover Generation Package separation, Canon-derived anchor resolution, contiguous approved-anchor parsing, explicit unknown-subject errors, missing-anchor/manifest errors, MCP tool discovery, and MCP protocol invocation.
+テストでは、Generation Packageの分離、CanonからのAnchor解決、Approved Anchorの連続パス解析、未知のキャラクターに対する明示的エラー、Anchorやマニフェスト不足時のエラー、MCPツール検出、MCPプロトコル呼び出しを検証します。
 
-## Intentionally out of scope for v0.1
+## v0.1の対象外
 
-Image generation, Web UI, database storage, asset registration, candidate approval/rejection, Visual QA automation, LoRA, ControlNet, vector search, multi-model orchestration, and automatic writes to a game repository are future work.
+画像生成、Web UI、データベース保存、アセット登録、候補画像の承認・却下、Visual QA自動化、LoRA、ControlNet、ベクトル検索、複数モデルのオーケストレーション、ゲームリポジトリへの自動書き込みは、今後の対応範囲です。
