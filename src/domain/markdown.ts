@@ -23,12 +23,17 @@ export function subsection(markdown: string, heading: string): string {
 }
 
 function headingBlock(markdown: string, heading: string, level: number): string {
-  const escapedHeading = heading.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const hashes = '#'.repeat(level);
-  const match = markdown.match(
-    new RegExp(`^${hashes}\\s+${escapedHeading}\\s*$([\\s\\S]*?)(?=^#{1,${level}}\\s+|$(?![\\s\\S]))`, 'm'),
-  );
-  return match?.[1]?.trim() ?? '';
+  const lines = markdown.split(/\r?\n/);
+  const start = lines.findIndex((line) => line.trim() === `${hashes} ${heading}`);
+  if (start < 0) return '';
+
+  const relativeEnd = lines.slice(start + 1).findIndex((line) => {
+    const headingMatch = line.match(/^(#{1,6})\s+/);
+    return headingMatch !== null && (headingMatch[1]?.length ?? 0) <= level;
+  });
+  const end = relativeEnd < 0 ? lines.length : start + 1 + relativeEnd;
+  return lines.slice(start + 1, end).join('\n').trim();
 }
 
 export function bullets(markdown: string): string[] {
