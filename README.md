@@ -2,13 +2,13 @@
 
 Visual Director MCP v0.1は、ゲームのVisual Canon（ビジュアル設定資料）を読み取り、画像生成に必要なコンテキストを準備する、フェイルクローズ設計のMCPサーバーです。
 
-画像を生成したり、OpenAI Image APIを呼び出したり、ゲームリポジトリを変更したり、候補画像やレビューを管理したりはしません。
+画像を生成したり、OpenAI Image APIを呼び出したり、ゲームリポジトリを変更したり、候補画像やレビューを管理したりはしません。`visual.configure_project`は実行中のプロセス内にローカルリポジトリの紐づけを保持しますが、リポジトリや設定ファイルは変更せず、再起動後にも保持しません。
 
 標準搭載のプロジェクトAdapterは`bottom-of-thirst`で、`ryohryp/---The-Bottom-of-Thirst`を対象にしています。ローカルのJSON設定ファイルを使えば、MCPツールの契約を変更せずに他のゲームも追加できます。
 
 ## v0.1でできること
 
-`visual.prepare_generation`は、設定されたプロジェクトの正本資料を読み取り、以下の項目に分けたGeneration Packageを返します。
+`visual.configure_project`で既知のプロジェクトへローカルcloneのディレクトリを紐づけられます。続けて`visual.prepare_generation`を呼ぶと、設定されたプロジェクトの正本資料を読み取り、以下の項目に分けたGeneration Packageを返します。
 
 - 全体のビジュアルスタイル
 - キャラクターの同一性とApproved Anchor
@@ -22,10 +22,26 @@ Adapterは`CHARACTER_VISUAL_CANON.md`からApproved Anchorのパスを解決し�
 
 未知のプロジェクト、未知のキャラクター、資料不足、Anchor不足、スタイルロック不足は明示的なエラーとして返します。Legacyアセットや候補アセットを代替として使用することはありません。
 
+### 実行中のプロジェクト設定
+
+起動時に`BOTTOM_OF_THIRST_REPO_PATH`または`--repo-path`を指定していない場合でも、ユーザーが明示した既存のローカルcloneパスをMCPから設定できます。
+
+```json
+{
+  "project_id": "bottom-of-thirst",
+  "repository_path": "I:\\04_develop\\---The-Bottom-of-Thirst"
+}
+```
+
+この呼び出しは`visual.configure_project`が実行中のMCPサーバーだけに設定を保持します。パスの存在とディレクトリ性を検証し、成功後は同じセッションで`visual.prepare_generation`を呼び出します。パスを推測したり、設定ファイルへ保存したりはしません。
+
 ## アーキテクチャ
 
 ```text
 MCPクライアント / Inspector
+        |
+        v
+visual.configure_project（必要な場合）
         |
         v
 visual.prepare_generation
@@ -101,7 +117,7 @@ Copy-Item -LiteralPath (Join-Path $PWD 'plugin\visual-director\skills\visual-dir
 $visual-director 『渇きの底』で、水上沙耶の通常立ち絵を作って。
 ```
 
-スキルは、会話から判断できないゲームIDや人物IDだけを質問し、`visual.prepare_generation`の呼び出し、Generation Packageの適用、参照画像の確認までを案内します。スキル本体は[ChatGPTとCodex共通のプラグインパッケージ](plugin/visual-director)に含まれています。
+スキルは、会話から判断できないゲームIDや人物IDだけを質問し、必要なら明示されたローカルcloneパスで`visual.configure_project`を呼び出してから、`visual.prepare_generation`、Generation Packageの適用、参照画像の確認までを案内します。スキル本体は[ChatGPTとCodex共通のプラグインパッケージ](plugin/visual-director)に含まれています。
 
 ChatGPTで使う場合はVisual Director接続も有効にしてください。Codexでリポジトリ内のスキルだけを試す場合は、`plugin/visual-director/skills/visual-director`をユーザースキルの場所へインストールできます。プラグインをインストールした後は、新しいチャットまたはタスクを開始してください。
 
@@ -158,7 +174,7 @@ Visual Directorを使って、次の画像生成パッケージを作ってく�
 Canonの不足やエラーは推測で補完せず、そのまま報告してください。
 ```
 
-成功すると、ChatGPTは`visual.prepare_generation`を呼び出し、スタイル、キャラクター、禁止事項、参照アセットをまとめたGeneration Packageを受け取ります。
+起動時のリポジトリパスが未設定で、ユーザーがローカルcloneのパスを明示している場合、ChatGPTは先に`visual.configure_project`を呼び出します。その成功後、`visual.prepare_generation`からスタイル、キャラクター、禁止事項、参照アセットをまとめたGeneration Packageを受け取ります。
 
 Visual Director自身は画像を生成しません。Generation Packageを確認したあと、必要なら同じチャットで次のように依頼します。
 
@@ -179,7 +195,8 @@ Remove-Item Env:CONTROL_PLANE_API_KEY
 | 状況 | 確認すること |
 |---|---|
 | ChatGPTにVisual Directorが表示されない | Developer mode、プラグインの接続状態、Tunnelの起動状態を確認する |
-| `PROJECT_CONFIG_MISSING` | `BOTTOM_OF_THIRST_REPO_PATH`または`VISUAL_DIRECTOR_PROJECTS_CONFIG`を設定する |
+| `PROJECT_CONFIG_MISSING` | ローカルcloneのパスが明示されている場合は`visual.configure_project`を呼び出し、それ以外は`BOTTOM_OF_THIRST_REPO_PATH`または`VISUAL_DIRECTOR_PROJECTS_CONFIG`を設定する |
+| `PROJECT_REPOSITORY_INVALID` | 指定パスが存在しない、読めない、またはディレクトリではない。パスを修正して再設定する |
 | `PROJECT_NOT_FOUND` | プロンプトの`project_id`が設定済みのIDと一致しているか確認する |
 | `SUBJECT_NOT_FOUND` | `subject_ids`にプロジェクトで定義されたIDを指定する |
 | `REFERENCE_NOT_FOUND` | Canonに記載されたApproved Anchorが実際に存在するか確認する |
@@ -216,7 +233,7 @@ npm.cmd run dev -- --http --host 127.0.0.1 --port 3000
 
 ローカルでChatGPTから利用する場合は、サーバーをループバックに限定し、Secure MCP Tunnel経由で接続してください。Tunnel、Developer mode、検証用プロンプト、ローカルテストと公開デプロイの境界については、[ChatGPT接続ガイド](docs/chatgpt-connection.md)を参照してください。
 
-MCPサーバーは、読み取り専用・冪等のツールメタデータと構造化されたGeneration Packageを公開します。そのためChatGPTは`visual.prepare_generation`を選択し、結果を安定して利用できます。このツールはコンテキストの準備だけを行い、画像生成や画像APIの呼び出しは行いません。
+MCPサーバーは、実行時設定用の`visual.configure_project`と、読み取り専用・冪等の`visual.prepare_generation`を公開します。`visual.configure_project`はローカルリポジトリの存在を検証して実行中のサーバーにだけ紐づけます。`visual.prepare_generation`はコンテキストの準備だけを行い、画像生成や画像APIの呼び出しは行いません。
 
 ## ツール入力の例
 
@@ -257,7 +274,7 @@ npm.cmd run build
 npx.cmd @modelcontextprotocol/inspector node dist/index.js --projects-config C:\path\to\projects.json
 ```
 
-HTTPを検査する場合は、1つのターミナルでHTTPサーバーを起動し、別のターミナルからMCP Inspectorを`http://127.0.0.1:3000/mcp`に接続します。Inspectorには`visual.prepare_generation`の1ツールだけが表示されます。
+HTTPを検査する場合は、1つのターミナルでHTTPサーバーを起動し、別のターミナルからMCP Inspectorを`http://127.0.0.1:3000/mcp`に接続します。Inspectorには`visual.configure_project`と`visual.prepare_generation`の2ツールが表示されます。
 
 ## 検証
 

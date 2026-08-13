@@ -21,7 +21,44 @@ export function createVisualDirectorServer(options: VisualDirectorServerOptions 
     { name: 'visual-director', version: '0.1.0' },
     {
       instructions:
-        'Use visual.prepare_generation when the user asks to prepare a game image-generation package. Supply project_id, asset_type, subject_ids, request_text, and optional scene_context. This read-only tool validates the configured Visual Canon and never generates images or calls an image API. Report explicit errors and never invent a fallback package or substitute candidate or legacy assets.',
+        'When a known project needs a local repository path and the user explicitly provides that path, call visual.configure_project first. It validates and stores the path for this running MCP server only; it does not write the repository or persist across restart. Then use visual.prepare_generation with project_id, asset_type, subject_ids, request_text, and optional scene_context. visual.prepare_generation validates the configured Visual Canon and never generates images or calls an image API. Report explicit errors and never invent a fallback package or substitute candidate or legacy assets.',
+    },
+  );
+  server.registerTool(
+    'visual.configure_project',
+    {
+      title: 'Configure project repository',
+      description:
+        'Bind a known project to an existing local repository directory for this running MCP server. This changes runtime memory only; it does not write the repository or persist across restart.',
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
+      inputSchema: {
+        project_id: z.string().min(1),
+        repository_path: z.string().min(1),
+      },
+      outputSchema: {
+        project_id: z.string(),
+        repository_path: z.string(),
+        persistence: z.literal('runtime'),
+      },
+    },
+    async (input) => {
+      try {
+        const configuration = await registry.configureProject(input.project_id, input.repository_path);
+        return {
+          structuredContent: { ...configuration } as Record<string, unknown>,
+          content: [{ type: 'text' as const, text: JSON.stringify(configuration, null, 2) }],
+        };
+      } catch (error) {
+        return {
+          isError: true,
+          content: [{ type: 'text' as const, text: JSON.stringify(serializeError(error), null, 2) }],
+        };
+      }
     },
   );
   server.registerTool(

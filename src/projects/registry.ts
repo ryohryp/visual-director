@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs';
+import { stat } from 'node:fs/promises';
 import path from 'node:path';
 
 import { VisualDirectorError } from '../domain/types.js';
@@ -18,7 +19,14 @@ export interface ProjectRegistryOptions {
 }
 
 export interface ProjectRegistry {
+  configureProject(projectId: string, repositoryPath: string): Promise<ProjectConfiguration>;
   resolve(projectId: string): ProjectAdapter;
+}
+
+export interface ProjectConfiguration {
+  project_id: string;
+  repository_path: string;
+  persistence: 'runtime';
 }
 
 interface ProjectConfigFile {
@@ -75,6 +83,41 @@ export function createProjectRegistry(options: ProjectRegistryOptions = {}): Pro
   }
 
   return {
+    async configureProject(projectId: string, repositoryPath: string): Promise<ProjectConfiguration> {
+      if (!definitions.has(projectId)) {
+        throw new VisualDirectorError('PROJECT_NOT_FOUND', `Unsupported project_id: ${projectId}.`, {
+          known_project_ids: [...definitions.keys()],
+        });
+      }
+
+      const trimmedPath = repositoryPath.trim();
+      if (!trimmedPath) {
+        throw new VisualDirectorError('PROJECT_CONFIG_INVALID', 'repository_path must not be empty.', {
+          project_id: projectId,
+        });
+      }
+
+      const resolvedPath = path.resolve(trimmedPath);
+      let repositoryStats: Awaited<ReturnType<typeof stat>>;
+      try {
+        repositoryStats = await stat(resolvedPath);
+      } catch (error) {
+        throw new VisualDirectorError('PROJECT_REPOSITORY_INVALID', 'The configured repository path cannot be read.', {
+          project_id: projectId,
+          repository_path: resolvedPath,
+          reason: error instanceof Error ? error.message : String(error),
+        });
+      }
+      if (!repositoryStats.isDirectory()) {
+        throw new VisualDirectorError('PROJECT_REPOSITORY_INVALID', 'The configured repository path must be a directory.', {
+          project_id: projectId,
+          repository_path: resolvedPath,
+        });
+      }
+
+      repoPaths.set(projectId, resolvedPath);
+      return { project_id: projectId, repository_path: resolvedPath, persistence: 'runtime' };
+    },
     resolve(projectId: string): ProjectAdapter {
       const definition = definitions.get(projectId);
       if (!definition) {

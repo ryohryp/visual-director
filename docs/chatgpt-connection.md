@@ -1,6 +1,6 @@
 # Connect Visual Director to ChatGPT
 
-Visual Director exposes a read-only Streamable HTTP MCP endpoint. The recommended first connection is a Secure MCP Tunnel: ChatGPT can call the server while the game repository remains on the local Windows machine.
+Visual Director exposes a Streamable HTTP MCP endpoint with a runtime-only project configuration tool and a read-only generation-preparation tool. The recommended first connection is a Secure MCP Tunnel: ChatGPT can call the server while the game repository remains on the local Windows machine.
 
 Visual Director v0.1 prepares a Canon-backed Generation Package. It does not generate an image or call an image API. After the tool returns successfully, ChatGPT can use the package as context for its image-generation capability.
 
@@ -65,7 +65,7 @@ Visual Directorを使って、次の画像生成パッケージを作成して�
 生成パッケージのエラーや不足は補完せずに報告してください。成功した場合だけ、その結果を確認してから画像生成に進めてください。
 ```
 
-The ChatGPT connection should discover exactly one tool: `visual.prepare_generation`. A successful result includes `structuredContent` and repository-relative reference paths. An unknown project, subject, document, or approved anchor must remain an explicit error; the server must not return a fallback package.
+The ChatGPT connection should discover exactly two tools: `visual.configure_project` and `visual.prepare_generation`. If the server was started without a repository path and the user explicitly provides a local clone path, call `visual.configure_project` first; it validates and stores the path for the current server process only. A successful preparation result includes `structuredContent` and repository-relative reference paths. An unknown project, subject, document, or approved anchor must remain an explicit error; the server must not return a fallback package.
 
 ## Public deployment boundary
 

@@ -2,7 +2,9 @@
 
 ## Tool
 
-Use `visual.prepare_generation`. It is read-only and prepares context; it does not generate an image.
+Use `visual.prepare_generation` to prepare context; it does not generate an image. If the server returns `PROJECT_CONFIG_MISSING` and the user explicitly supplied a local clone path, call `visual.configure_project` first.
+
+`visual.configure_project` validates and binds a known project to a local repository directory for the current MCP server process. It is runtime-only: it does not write the repository or persist across restart. Do not infer a path or configure a project that the user did not identify.
 
 ## Input
 
@@ -41,7 +43,8 @@ Do not flatten allowed and forbidden changes into one prose prompt that loses th
 
 | Code | Response |
 |---|---|
-| `PROJECT_CONFIG_MISSING` | Ask the user to start Visual Director with a repository path or projects config. |
+| `PROJECT_CONFIG_MISSING` | If the user explicitly supplied a local clone path, call `visual.configure_project` once and retry preparation. Otherwise ask the user to start Visual Director with a repository path or projects config. |
+| `PROJECT_REPOSITORY_INVALID` | Report that the supplied repository path is missing, unreadable, or not a directory; do not retry with a guessed path. |
 | `PROJECT_NOT_FOUND` | Ask for a configured `project_id`. |
 | `SUBJECT_NOT_FOUND` | Ask for a configured subject ID; do not substitute another subject. |
 | `APPROVED_ANCHOR_NOT_FOUND` | Report that the subject or requested state has no Approved Anchor and stop. |

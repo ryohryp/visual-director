@@ -21,7 +21,7 @@ Visual Directorは画像を生成しない。画像生成を依頼された場�
    - `request_text`: ユーザーの依頼を意味を追加せず保持した文。
    - `scene_context`: 場所や物語状態が明示された場合だけ追加する。
 3. 不足している必須情報だけを短く質問する。既に会話で確定した値は再質問しない。
-4. 利用可能なMCPツールから`visual.prepare_generation`を探し、入力が揃ったら1回呼び出す。ホストによって名前空間が付いていても、同じツール名と説明を優先する。
+4. 利用可能なMCPツールから`visual.configure_project`と`visual.prepare_generation`を探す。`PROJECT_CONFIG_MISSING`で、かつユーザーがローカルcloneのパスを明示している場合だけ、先に`visual.configure_project`を1回呼び出し、その成功後に`visual.prepare_generation`を1回呼び出す。パスを推測して設定しない。ホストによって名前空間が付いていても、同じツール名と説明を優先する。
 5. エラー時は推測で再試行せず、エラーコードと次に必要な情報を伝える。詳細は[ツール契約](references/tool-contract.md)を参照する。
 6. 成功時はGeneration Packageを唯一の生成制約として扱う。
 
@@ -45,6 +45,8 @@ Visual Directorは画像を生成しない。画像生成を依頼された場�
 ## 境界
 
 - `visual.prepare_generation`が利用できない場合は、Visual Director MCP、Secure MCP Tunnel、またはVisual Director接続が有効か確認するよう案内する。架空の結果を作らない。
+- `visual.configure_project`は既知のプロジェクトへ実行中のMCPサーバーだけで使うリポジトリパスを設定する。リポジトリや設定ファイルを書き換えず、サーバー再起動後には保持されない。
+- `PROJECT_CONFIG_MISSING`でローカルcloneのパスが会話にない場合は、設定ツールを推測で呼ばず、サーバー起動時のリポジトリパスまたはプロジェクト設定を案内する。
 - `PROJECT_NOT_FOUND`、`SUBJECT_NOT_FOUND`、`REFERENCE_NOT_FOUND`などを別のプロジェクトやアセットへフォールバックさせない。
 - Canonの編集、候補登録、承認・却下、ゲームリポジトリへの書き込みは行わない。
 - ユーザーが画像生成を頼んでいない場合、Generation Packageの取得だけで終了する。

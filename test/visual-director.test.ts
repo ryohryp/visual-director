@@ -88,15 +88,50 @@ describe('BottomOfThirstAdapter', () => {
   });
 });
 
+describe('Project registry runtime configuration', () => {
+  it('binds a known project to a local repository for subsequent preparation', async () => {
+    const registry = createProjectRegistry();
+
+    await expect(registry.configureProject('bottom-of-thirst', fixtureRoot)).resolves.toEqual({
+      project_id: 'bottom-of-thirst',
+      repository_path: path.resolve(fixtureRoot),
+      persistence: 'runtime',
+    });
+
+    const result = await registry.resolve('bottom-of-thirst').prepare(input);
+    expect(result.project_id).toBe('bottom-of-thirst');
+  });
+
+  it('rejects an unreadable repository path before changing the runtime binding', async () => {
+    const registry = createProjectRegistry({ repoPath: fixtureRoot });
+
+    await expect(registry.configureProject('bottom-of-thirst', path.join(fixtureRoot, 'missing-repository'))).rejects.toMatchObject({
+      code: 'PROJECT_REPOSITORY_INVALID',
+    });
+
+    expect(await registry.resolve('bottom-of-thirst').prepare(input)).toMatchObject({ project_id: 'bottom-of-thirst' });
+  });
+});
+
 describe('MCP tool', () => {
   it('exposes visual.prepare_generation through the MCP protocol', async () => {
     const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
-    const server = createVisualDirectorServer({ repoPath: fixtureRoot });
+    const server = createVisualDirectorServer();
     const client = new Client({ name: 'visual-director-test-client', version: '0.1.0' });
     await server.connect(serverTransport);
     await client.connect(clientTransport);
 
     const tools = await client.listTools();
+    const configureTool = tools.tools.find((candidate) => candidate.name === 'visual.configure_project');
+    expect(configureTool).toMatchObject({
+      name: 'visual.configure_project',
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
+    });
     const tool = tools.tools.find((candidate) => candidate.name === 'visual.prepare_generation');
     expect(tool).toMatchObject({
       name: 'visual.prepare_generation',
@@ -109,6 +144,17 @@ describe('MCP tool', () => {
     });
     expect(tool?.outputSchema).toBeDefined();
     expect(client.getInstructions()).toContain('visual.prepare_generation');
+
+    const configureResult = await client.callTool({
+      name: 'visual.configure_project',
+      arguments: { project_id: 'bottom-of-thirst', repository_path: fixtureRoot },
+    });
+    expect(configureResult.isError).not.toBe(true);
+    expect(configureResult.structuredContent).toMatchObject({
+      project_id: 'bottom-of-thirst',
+      repository_path: path.resolve(fixtureRoot),
+      persistence: 'runtime',
+    });
 
     const result = await client.callTool({ name: 'visual.prepare_generation', arguments: input });
     expect(result.isError).not.toBe(true);
@@ -160,7 +206,7 @@ describe('MCP tool', () => {
       await client.connect(transport);
       const tools = await client.listTools();
 
-      expect(tools.tools.map((tool) => tool.name)).toEqual(['visual.prepare_generation']);
+      expect(tools.tools.map((tool) => tool.name)).toEqual(['visual.configure_project', 'visual.prepare_generation']);
       expect(client.getInstructions()).toContain('visual.prepare_generation');
     } finally {
       await client.close();
