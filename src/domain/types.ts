@@ -23,7 +23,8 @@ export interface PromptPackage {
   avoid_block: string[];
 }
 
-export interface GenerationPackage {
+export interface GenerationPackageContent {
+  schema_version: 1;
   project_id: string;
   asset_type: string;
   prompt_package: PromptPackage;
@@ -33,6 +34,15 @@ export interface GenerationPackage {
     must_not_chain_from_candidate: true;
     must_review_after_generation: true;
   };
+}
+
+export interface GenerationPackage extends GenerationPackageContent {
+  /**
+   * SHA-256 hex digest of the canonical JSON form of every other field in
+   * this package. Excluded from its own hash input; stable across process
+   * and clock differences for the same Canon, request, target, and settings.
+   */
+  fingerprint: string;
 }
 
 export interface ProjectAdapter {

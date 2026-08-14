@@ -10,6 +10,7 @@ Visual Director MCP v0.1は、ゲームのVisual Canon（ビジュアル設定�
 
 `visual.configure_project`で既知のプロジェクトへローカルcloneのディレクトリを紐づけられます。続けて`visual.prepare_generation`を呼ぶと、設定されたプロジェクトの正本資料を読み取り、以下の項目に分けたGeneration Packageを返します。
 
+- Generation Packageのスキーマ版（`schema_version`）
 - 全体のビジュアルスタイル
 - キャラクターの同一性とApproved Anchor
 - シーン要件
@@ -17,8 +18,11 @@ Visual Director MCP v0.1は、ゲームのVisual Canon（ビジュアル設定�
 - 禁止される変更
 - 参照アセット
 - 生成ポリシー
+- 内容同一性を判定するための決定論的fingerprint（`fingerprint`）
 
 Adapterは`CHARACTER_VISUAL_CANON.md`からApproved Anchorのパスを解決します。返却前に、全体ビジュアルスタイル、世界観設定、キャラクター設定、参照アセット一覧、Approved Anchor、全体スタイル参照画像を検証します。
+
+`schema_version`はGeneration Packageの構造バージョンで、現在は`1`固定です。`fingerprint`は、`fingerprint`自身を除いたPackageの内容（`schema_version`を含む）をキー順に依存しない正規化JSONへ直列化し、SHA-256でハッシュした64桁の小文字16進文字列です。同じCanon・同じrequest・同じ対象・同じ設定から作ったPackageは、プロセスや実行時刻が違っても同じfingerprintになります。実行時刻や絶対リポジトリパス、transport/sessionのようなプロセス実行に依存する値はPackageに含まれないため、fingerprintのハッシュ対象からも除外されます。
 
 未知のプロジェクト、未知のキャラクター、資料不足、Anchor不足、スタイルロック不足は明示的なエラーとして返します。Legacyアセットや候補アセットを代替として使用することはありません。
 
@@ -129,6 +133,21 @@ PowerShellを開き、このリポジトリで次を実行します。
 $env:BOTTOM_OF_THIRST_REPO_PATH = 'C:\path\to\---The-Bottom-of-Thirst'
 npm.cmd run dev -- --http --host 127.0.0.1 --port 3000
 ```
+
+起動中かどうか、ログ、停止は同じスクリプトから確認できます。状態ファイルとログはリポジトリ外の`%LOCALAPPDATA%\VisualDirector`（書き込み不可なら`%TEMP%\VisualDirector`）に保存されます。
+
+```powershell
+$serverScript = Join-Path (Get-Location) 'scripts\visual-director-server.ps1'
+$pwsh = (Get-Command pwsh.exe -ErrorAction SilentlyContinue).Source
+if (-not $pwsh) { $pwsh = (Get-Command powershell.exe).Source }
+
+& $pwsh -NoProfile -ExecutionPolicy Bypass -File $serverScript start -BottomOfThirstRepoPath 'C:\path\to\---The-Bottom-of-Thirst'
+& $pwsh -NoProfile -ExecutionPolicy Bypass -File $serverScript status
+& $pwsh -NoProfile -ExecutionPolicy Bypass -File $serverScript logs -Tail
+& $pwsh -NoProfile -ExecutionPolicy Bypass -File $serverScript stop
+```
+
+管理対象外のプロセスが同じポートを使っている場合は`CONFLICT`として表示し、勝手に停止しません。手動起動が必要な場合は、上の従来コマンドもそのまま使えます。
 
 次の表示が出れば起動成功です。このPowerShellは閉じずに残します。
 
@@ -283,7 +302,7 @@ npm.cmd run typecheck
 npm.cmd test
 ```
 
-テストでは、Generation Packageの分離、CanonからのAnchor解決、Approved Anchorの連続パス解析、未知のキャラクターに対する明示的エラー、Anchorやマニフェスト不足時のエラー、MCPツール検出、MCPプロトコル呼び出しを検証します。
+テストでは、Generation Packageの分離、CanonからのAnchor解決、Approved Anchorの連続パス解析、未知のキャラクターに対する明示的エラー、Anchorやマニフェスト不足時のエラー、MCPツール検出、MCPプロトコル呼び出し、fingerprintの安定性・キー順序非依存・内容変更時の変化・SHA-256形式を検証します。
 
 ## v0.1の対象外
 

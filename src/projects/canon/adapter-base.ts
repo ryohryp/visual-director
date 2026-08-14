@@ -1,9 +1,15 @@
 import { access } from 'node:fs/promises';
 import path from 'node:path';
 
+import { computeFingerprint } from '../../domain/fingerprint.js';
 import { bullets, fencedBlock, readUtf8File } from '../../domain/markdown.js';
 import { VisualDirectorError } from '../../domain/types.js';
-import type { GenerationPackage, PrepareGenerationInput, ProjectAdapter } from '../../domain/types.js';
+import type {
+  GenerationPackage,
+  GenerationPackageContent,
+  PrepareGenerationInput,
+  ProjectAdapter,
+} from '../../domain/types.js';
 import type { ProjectDocuments, ProjectLabels } from './types.js';
 
 export type CanonSubjectMode = 'approved_anchor' | 'new_anchor_candidate';
@@ -77,7 +83,8 @@ export abstract class CanonAdapterBase implements ProjectAdapter {
       throw new VisualDirectorError('GLOBAL_STYLE_INCOMPLETE', this.globalStyleIncompleteMessage());
     }
 
-    return {
+    const content: GenerationPackageContent = {
+      schema_version: 1,
       project_id: this.projectId,
       asset_type: input.asset_type,
       prompt_package: {
@@ -98,6 +105,8 @@ export abstract class CanonAdapterBase implements ProjectAdapter {
       ],
       policy: generationPolicy(preparingNewAnchor),
     };
+
+    return { ...content, fingerprint: computeFingerprint(content) };
   }
 
   protected abstract loadSubject(subjectId: string, canonMarkdown: string, assetType?: string): Promise<CanonSubject>;

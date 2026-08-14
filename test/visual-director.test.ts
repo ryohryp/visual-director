@@ -65,6 +65,25 @@ describe('BottomOfThirstAdapter', () => {
       must_not_chain_from_candidate: true,
       must_review_after_generation: true,
     });
+    expect(result.schema_version).toBe(1);
+    expect(result.fingerprint).toMatch(/^[0-9a-f]{64}$/);
+  });
+
+  it('gives the same fingerprint for the same Canon, request, and target across separate calls', async () => {
+    const first = await new BottomOfThirstAdapter({ repoPath: fixtureRoot }).prepare(input);
+    const second = await new BottomOfThirstAdapter({ repoPath: fixtureRoot }).prepare({ ...input });
+
+    expect(second.fingerprint).toBe(first.fingerprint);
+  });
+
+  it('changes the fingerprint when the Package content meaningfully changes', async () => {
+    const base = await new BottomOfThirstAdapter({ repoPath: fixtureRoot }).prepare(input);
+    const changed = await new BottomOfThirstAdapter({ repoPath: fixtureRoot }).prepare({
+      ...input,
+      request_text: '地下の記録保管庫で古い記録を確認しているイベントCG（別バリエーション）',
+    });
+
+    expect(changed.fingerprint).not.toBe(base.fingerprint);
   });
 
   it('fails closed for an unknown subject', async () => {
