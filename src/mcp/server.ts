@@ -21,7 +21,7 @@ export function createVisualDirectorServer(options: VisualDirectorServerOptions 
     { name: 'visual-director', version: '0.1.0' },
     {
       instructions:
-        'When a known project needs a local repository path and the user explicitly provides that path, call visual.configure_project first. It validates and stores the path for this running MCP server only; it does not write the repository or persist across restart. Then use visual.prepare_generation with project_id, asset_type, subject_ids, request_text, and optional scene_context. visual.prepare_generation validates the configured Visual Canon and never generates images or calls an image API. Report explicit errors and never invent a fallback package or substitute candidate or legacy assets.',
+        'When a known project needs a local repository path and the user explicitly provides that path, call visual.configure_project first. It validates and stores the path for this running MCP server only; it does not write the repository or persist across restart. If the client does not expose visual.configure_project because its tool catalog is stale, pass the explicit local clone path as scene_context.repository_path to visual.prepare_generation; the server uses it only to bootstrap the runtime binding and removes it before building the visual prompt. Then use visual.prepare_generation with project_id, asset_type, subject_ids, request_text, and optional scene_context. visual.prepare_generation validates the configured Visual Canon and never generates images or calls an image API. Report explicit errors and never invent a fallback package or substitute candidate or legacy assets.',
     },
   );
   server.registerTool(
@@ -66,7 +66,7 @@ export function createVisualDirectorServer(options: VisualDirectorServerOptions 
     {
       title: 'Prepare visual generation',
       description:
-        'Read the configured project Visual Canon and return a fail-closed Generation Package for an image model. This tool never generates images or calls an image API.',
+        'Read the configured project Visual Canon and return a fail-closed Generation Package for an image model. If visual.configure_project is unavailable in a stale client catalog, an explicitly supplied scene_context.repository_path can bootstrap the runtime repository binding and is stripped before prompt construction. This tool never generates images or calls an image API.',
       annotations: {
         readOnlyHint: true,
         destructiveHint: false,
@@ -107,8 +107,9 @@ export function createVisualDirectorServer(options: VisualDirectorServerOptions 
     },
     async (input) => {
       try {
+        const preparationInput = await bootstrapRepositoryFromSceneContext(registry, input);
         const adapter = registry.resolve(input.project_id);
-        const generationPackage = await adapter.prepare(input as PrepareGenerationInput);
+        const generationPackage = await adapter.prepare(preparationInput);
         return {
           structuredContent: { ...generationPackage } as Record<string, unknown>,
           content: [{ type: 'text' as const, text: JSON.stringify(generationPackage, null, 2) }],
@@ -122,6 +123,32 @@ export function createVisualDirectorServer(options: VisualDirectorServerOptions 
     },
   );
   return server;
+}
+
+async function bootstrapRepositoryFromSceneContext(
+  registry: ReturnType<typeof createProjectRegistry>,
+  input: PrepareGenerationInput,
+): Promise<PrepareGenerationInput> {
+  const sceneContext = input.scene_context;
+  if (!sceneContext || !Object.prototype.hasOwnProperty.call(sceneContext, 'repository_path')) {
+    return input;
+  }
+
+  const repositoryPath = sceneContext.repository_path;
+  if (typeof repositoryPath !== 'string' || !repositoryPath.trim()) {
+    throw new VisualDirectorError(
+      'PROJECT_CONFIG_INVALID',
+      'scene_context.repository_path must be a non-empty string when used to bootstrap the runtime project binding.',
+      { project_id: input.project_id },
+    );
+  }
+
+  await registry.configureProject(input.project_id, repositoryPath);
+  const { repository_path: _runtimeOnlyRepositoryPath, ...cleanedSceneContext } = sceneContext;
+  const { scene_context: _originalSceneContext, ...inputWithoutSceneContext } = input;
+  return Object.keys(cleanedSceneContext).length > 0
+    ? { ...inputWithoutSceneContext, scene_context: cleanedSceneContext }
+    : inputWithoutSceneContext;
 }
 
 function serializeError(error: unknown): Record<string, unknown> {
