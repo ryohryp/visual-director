@@ -251,6 +251,8 @@ describe('multi-project registry', () => {
 
     expect(result.project_id).toBe('other-game');
     expect(result.prompt_package.style_lock).toContain('OTHER GAME STYLE LOCK');
+    expect(result.prompt_package.allowed_changes).toEqual(['expression']);
+    expect(result.prompt_package.forbidden_changes).toEqual(expect.arrayContaining(['identity', 'Always use an approved anchor.']));
     expect(result.reference_assets).toEqual([
       { role: 'global_reference', path: 'docs/visual/assets/global_visual_style_reference.webp' },
       { role: 'subject_anchor', subject_id: 'hero', path: 'assets/hero/approved.avif' },
@@ -283,8 +285,8 @@ async function createFixture(root: string): Promise<void> {
 
 async function createOtherGameFixture(root: string): Promise<void> {
   const files: Record<string, string> = {
-    'docs/visual/GLOBAL_VISUAL_STYLE.md': `# Global Style\n\n## Global Visual Style Lock\n\n\`\`\`text\nOTHER GAME STYLE LOCK\n\`\`\`\n\n## Fixed Avoid Block\n\n\`\`\`text\nAVOID: glossy, 3d\n\`\`\`\n\n## Allowed Changes\n- expression\n\n## Forbidden Changes\n- identity\n`,
-    'docs/visual/CHARACTER_VISUAL_CANON.md': `# Canon\n\n## Common Rules\n- Always use an approved anchor.\n\n## The Hero\n\n### Approved Visual Anchor\n- \`assets/hero/approved.avif\`\n\n### Accepted Visual Conditions\n- blue coat\n`,
+    'docs/visual/GLOBAL_VISUAL_STYLE.md': `# Global Style\n\n## Global Visual Style Lock ##\n\n\`\`\`text\nOTHER GAME STYLE LOCK\n\`\`\`\n\n## Fixed Avoid Block ##\n\n\`\`\`text\nAVOID: glossy, 3d\n\`\`\`\n\n## Allowed Changes ##\n- expression\n\n## Forbidden Changes ##\n- identity\n`,
+    'docs/visual/CHARACTER_VISUAL_CANON.md': `# Canon\n\n## Common Rules ##\n- Always use an approved anchor.\n\n## The Hero ##\n\n### Approved Visual Anchor ###\n- \`assets/hero/approved.avif\`\n\n### Accepted Visual Conditions ###\n- blue coat\n`,
     'docs/WORLD_DIRECTION.md': '# World\n\n- grounded fantasy\n',
     'docs/characters/hero.md': '# Hero\n\n- reliable scout\n',
     'docs/visual/assets/README.md': '# Assets\n\n- global reference\n',
