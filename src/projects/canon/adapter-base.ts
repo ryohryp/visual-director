@@ -1,6 +1,7 @@
 import { access } from 'node:fs/promises';
 import path from 'node:path';
 
+import { fingerprintGenerationPackage } from '../../domain/fingerprint.js';
 import { bullets, fencedBlock, readUtf8File } from '../../domain/markdown.js';
 import { VisualDirectorError } from '../../domain/types.js';
 import type { GenerationPackage, PrepareGenerationInput, ProjectAdapter } from '../../domain/types.js';
@@ -77,7 +78,8 @@ export abstract class CanonAdapterBase implements ProjectAdapter {
       throw new VisualDirectorError('GLOBAL_STYLE_INCOMPLETE', this.globalStyleIncompleteMessage());
     }
 
-    return {
+    const generationPackage: Omit<GenerationPackage, 'fingerprint'> = {
+      schema_version: 1 as const,
       project_id: this.projectId,
       asset_type: input.asset_type,
       prompt_package: {
@@ -97,6 +99,10 @@ export abstract class CanonAdapterBase implements ProjectAdapter {
         ),
       ],
       policy: generationPolicy(preparingNewAnchor),
+    };
+    return {
+      ...generationPackage,
+      fingerprint: fingerprintGenerationPackage(generationPackage),
     };
   }
 

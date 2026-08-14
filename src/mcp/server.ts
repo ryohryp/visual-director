@@ -81,6 +81,8 @@ export function createVisualDirectorServer(options: VisualDirectorServerOptions 
         scene_context: z.record(z.string(), z.unknown()).optional(),
       },
       outputSchema: {
+        schema_version: z.literal(1),
+        fingerprint: z.string().regex(/^[0-9a-f]{64}$/),
         project_id: z.string(),
         asset_type: z.string(),
         prompt_package: z.object({

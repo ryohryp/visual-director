@@ -8,6 +8,7 @@ import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import { beforeEach, afterEach, describe, expect, it } from 'vitest';
 
+import { fingerprintGenerationPackage, sha256Fingerprint } from '../src/domain/fingerprint.js';
 import { createHttpServerForVisualDirector, createVisualDirectorServer } from '../src/mcp/server.js';
 import { approvedAnchorPaths, BottomOfThirstAdapter } from '../src/projects/bottom-of-thirst/adapter.js';
 import { createProjectRegistry } from '../src/projects/registry.js';
@@ -48,6 +49,8 @@ describe('BottomOfThirstAdapter', () => {
   it('builds a separated, canon-backed Generation Package', async () => {
     const result = await new BottomOfThirstAdapter({ repoPath: fixtureRoot }).prepare(input);
 
+    expect(result.schema_version).toBe(1);
+    expect(result.fingerprint).toMatch(/^[0-9a-f]{64}$/);
     expect(result.project_id).toBe('bottom-of-thirst');
     expect(result.prompt_package.style_lock).toContain('STYLE LOCK');
     expect(result.prompt_package.subject_lock[0]).toContain('Approved Visual Anchor');
@@ -65,6 +68,13 @@ describe('BottomOfThirstAdapter', () => {
       must_not_chain_from_candidate: true,
       must_review_after_generation: true,
     });
+  });
+
+  it('creates a stable fingerprint for the same Canon and input', async () => {
+    const adapter = new BottomOfThirstAdapter({ repoPath: fixtureRoot });
+    const [first, second] = await Promise.all([adapter.prepare(input), adapter.prepare(input)]);
+
+    expect(first.fingerprint).toBe(second.fingerprint);
   });
 
   it('fails closed for an unknown subject', async () => {
@@ -85,6 +95,27 @@ describe('BottomOfThirstAdapter', () => {
     await expect(new BottomOfThirstAdapter({ repoPath: fixtureRoot }).prepare(input)).rejects.toMatchObject({
       code: 'CANON_READ_FAILED',
     });
+  });
+});
+
+describe('Generation Package fingerprints', () => {
+  it('hashes equivalent object keys in a deterministic order', () => {
+    const first = { alpha: ['x', { beta: true }], gamma: 'value' };
+    const second = { gamma: 'value', alpha: ['x', { beta: true }] };
+
+    expect(sha256Fingerprint(first)).toBe(sha256Fingerprint(second));
+  });
+
+  it('changes when Generation Package content changes', async () => {
+    const result = await new BottomOfThirstAdapter({ repoPath: fixtureRoot }).prepare(input);
+    const { fingerprint, ...payload } = result;
+    const changedPayload = {
+      ...payload,
+      prompt_package: { ...payload.prompt_package, style_lock: 'Changed style lock.' },
+    };
+
+    expect(fingerprintGenerationPackage(payload)).toBe(fingerprint);
+    expect(fingerprintGenerationPackage(changedPayload)).not.toBe(fingerprint);
   });
 });
 
