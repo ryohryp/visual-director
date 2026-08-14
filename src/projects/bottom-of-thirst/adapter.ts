@@ -265,6 +265,12 @@ function normalizeSubjectId(subjectId: string): string {
   return canonical ?? subjectId.trim();
 }
 
+export function bottomOfThirstCanonSubject(subjectId: string): { id: string; canonHeading: string } | undefined {
+  const id = normalizeSubjectId(subjectId);
+  const subject = SUBJECTS[id];
+  return subject ? { id, canonHeading: subject.canonHeading } : undefined;
+}
+
 function buildSubjectAliasIndex(): Map<string, string> {
   const index = new Map<string, string>();
   for (const subject of Object.values(SUBJECTS)) {

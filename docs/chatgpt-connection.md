@@ -65,7 +65,9 @@ Visual Directorを使って、次の画像生成パッケージを作成して�
 生成パッケージのエラーや不足は補完せずに報告してください。成功した場合だけ、その結果を確認してから画像生成に進めてください。
 ```
 
-The ChatGPT connection should discover exactly two tools: `visual.configure_project` and `visual.prepare_generation`. If the server was started without a repository path and the user explicitly provides a local clone path, call `visual.configure_project` first; it validates and stores the path for the current server process only. A successful preparation result includes `structuredContent` and repository-relative reference paths. An unknown project, subject, document, or approved anchor must remain an explicit error; the server must not return a fallback package.
+The ChatGPT connection should discover exactly three tools: `visual.configure_project`, `visual.adopt_anchor`, and `visual.prepare_generation`. If the server was started without a repository path and the user explicitly provides a local clone path, call `visual.configure_project` first; it validates and stores the path for the current server process only. A successful preparation result includes `structuredContent` and repository-relative reference paths. An unknown project, subject, document, or approved anchor must remain an explicit error; the server must not return a fallback package.
+
+`visual.adopt_anchor` is the only repository-writing action. Call it only after the user explicitly approves the exact candidate. The candidate must already be an existing repository-relative file. The action registers it under the subject's `Approved Visual Anchor` Canon heading, is idempotent for the same path, and refuses to replace a different existing Approved Anchor.
 
 ## Public deployment boundary
 

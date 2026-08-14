@@ -2,7 +2,7 @@
 
 Visual Director MCP v0.1は、ゲームのVisual Canon（ビジュアル設定資料）を読み取り、画像生成に必要なコンテキストを準備する、フェイルクローズ設計のMCPサーバーです。
 
-画像を生成したり、OpenAI Image APIを呼び出したり、ゲームリポジトリを変更したり、候補画像やレビューを管理したりはしません。`visual.configure_project`は実行中のプロセス内にローカルリポジトリの紐づけを保持しますが、リポジトリや設定ファイルは変更せず、再起動後にも保持しません。
+画像を生成したり、OpenAI Image APIを呼び出したり、候補画像やレビューを管理したりはしません。ゲームリポジトリへの書き込みは、明示承認された候補をApproved AnchorとしてCanon登録する`visual.adopt_anchor`だけが行います。`visual.configure_project`は実行中のプロセス内にローカルリポジトリの紐づけを保持しますが、リポジトリや設定ファイルは変更せず、再起動後にも保持しません。
 
 標準搭載のプロジェクトAdapterは`bottom-of-thirst`で、`ryohryp/---The-Bottom-of-Thirst`を対象にしています。ローカルのJSON設定ファイルを使えば、MCPツールの契約を変更せずに他のゲームも追加できます。
 
@@ -233,7 +233,7 @@ npm.cmd run dev -- --http --host 127.0.0.1 --port 3000
 
 ローカルでChatGPTから利用する場合は、サーバーをループバックに限定し、Secure MCP Tunnel経由で接続してください。Tunnel、Developer mode、検証用プロンプト、ローカルテストと公開デプロイの境界については、[ChatGPT接続ガイド](docs/chatgpt-connection.md)を参照してください。
 
-MCPサーバーは、実行時設定用の`visual.configure_project`と、読み取り専用・冪等の`visual.prepare_generation`を公開します。`visual.configure_project`はローカルリポジトリの存在を検証して実行中のサーバーにだけ紐づけます。`visual.prepare_generation`はコンテキストの準備だけを行い、画像生成や画像APIの呼び出しは行いません。
+MCPサーバーは、実行時設定用の`visual.configure_project`、明示承認されたAnchorをCanon登録する`visual.adopt_anchor`、読み取り専用・冪等の`visual.prepare_generation`を公開します。`visual.configure_project`はローカルリポジトリの存在を検証して実行中のサーバーにだけ紐づけます。`visual.adopt_anchor`は既存のリポジトリ相対ファイルだけを登録し、別のApproved Anchorを上書きしません。`visual.prepare_generation`はコンテキストの準備だけを行い、画像生成や画像APIの呼び出しは行いません。
 
 ## ツール入力の例
 
@@ -274,7 +274,7 @@ npm.cmd run build
 npx.cmd @modelcontextprotocol/inspector node dist/index.js --projects-config C:\path\to\projects.json
 ```
 
-HTTPを検査する場合は、1つのターミナルでHTTPサーバーを起動し、別のターミナルからMCP Inspectorを`http://127.0.0.1:3000/mcp`に接続します。Inspectorには`visual.configure_project`と`visual.prepare_generation`の2ツールが表示されます。
+HTTPを検査する場合は、1つのターミナルでHTTPサーバーを起動し、別のターミナルからMCP Inspectorを`http://127.0.0.1:3000/mcp`に接続します。Inspectorには`visual.configure_project`、`visual.adopt_anchor`、`visual.prepare_generation`の3ツールが表示されます。
 
 ## 検証
 

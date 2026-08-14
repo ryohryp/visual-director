@@ -206,7 +206,11 @@ describe('MCP tool', () => {
       await client.connect(transport);
       const tools = await client.listTools();
 
-      expect(tools.tools.map((tool) => tool.name)).toEqual(['visual.configure_project', 'visual.prepare_generation']);
+      expect(tools.tools.map((tool) => tool.name)).toEqual([
+        'visual.configure_project',
+        'visual.adopt_anchor',
+        'visual.prepare_generation',
+      ]);
       expect(client.getInstructions()).toContain('visual.prepare_generation');
     } finally {
       await client.close();

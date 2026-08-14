@@ -8,6 +8,21 @@ export interface PrepareGenerationInput {
   scene_context?: SceneContext;
 }
 
+export interface AdoptAnchorInput {
+  project_id: string;
+  subject_id: string;
+  candidate_path: string;
+  approval: 'approve';
+}
+
+export interface AdoptAnchorResult {
+  project_id: string;
+  subject_id: string;
+  approved_anchor_path: string;
+  canon_path: string;
+  changed: boolean;
+}
+
 export interface ReferenceAsset {
   role: 'global_reference' | 'subject_anchor';
   path: string;

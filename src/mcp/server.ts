@@ -21,7 +21,7 @@ export function createVisualDirectorServer(options: VisualDirectorServerOptions 
     { name: 'visual-director', version: '0.1.0' },
     {
       instructions:
-        'Visual Director is a fail-closed gate before image generation. For any Canon-governed game image, call visual.prepare_generation and proceed to an image model only after that exact request returns a successful Generation Package with non-empty style_lock and subject_lock. If preparation returns any error, do not call an image generator and do not reconstruct or guess character facts from assistant memory, conversation history, another character, a legacy asset, or a prior candidate. Fix the reported error and prepare again. When a known project needs a local repository path and the user explicitly provides that path, call visual.configure_project first. It validates and stores the path for this running MCP server only; it does not write the repository or persist across restart. If the client does not expose visual.configure_project because its tool catalog is stale, pass the explicit local clone path as scene_context.repository_path to visual.prepare_generation; the server uses it only to bootstrap the runtime binding and removes it before building the visual prompt. The bottom-of-thirst adapter safely normalizes configured character-name aliases and visual_anchor to character_visual_anchor, but unknown aliases are never fuzzy-matched. visual.prepare_generation validates the configured Visual Canon and never generates images or calls an image API. Report explicit errors and never invent a fallback package or substitute candidate or legacy assets.',
+        'Visual Director is a fail-closed gate before image generation. For any Canon-governed game image, call visual.prepare_generation and proceed to an image model only after that exact request returns a successful Generation Package with non-empty style_lock and subject_lock. If preparation returns any error, do not call an image generator and do not reconstruct or guess character facts from assistant memory, conversation history, another character, a legacy asset, or a prior candidate. Fix the reported error and prepare again. When a known project needs a local repository path and the user explicitly provides that path, call visual.configure_project first. It validates and stores the path for this running MCP server only; it does not write the repository or persist across restart. Call visual.adopt_anchor only after the user explicitly approves the exact existing repository candidate; never infer approval or replace a different Approved Anchor. If the client does not expose visual.configure_project because its tool catalog is stale, pass the explicit local clone path as scene_context.repository_path to visual.prepare_generation; the server uses it only to bootstrap the runtime binding and removes it before building the visual prompt. The bottom-of-thirst adapter safely normalizes configured character-name aliases and visual_anchor to character_visual_anchor, but unknown aliases are never fuzzy-matched. visual.prepare_generation validates the configured Visual Canon and never generates images or calls an image API. Report explicit errors and never invent a fallback package or substitute candidate or legacy assets.',
     },
   );
   server.registerTool(
@@ -58,6 +58,44 @@ export function createVisualDirectorServer(options: VisualDirectorServerOptions 
           isError: true,
           content: [{ type: 'text' as const, text: JSON.stringify(serializeError(error), null, 2) }],
         };
+      }
+    },
+  );
+  server.registerTool(
+    'visual.adopt_anchor',
+    {
+      title: 'Adopt Anchor and register Canon',
+      description:
+        'After explicit user approval, register an existing repository image as the subject Approved Visual Anchor in the character Visual Canon. Refuses unknown subjects, unsafe paths, missing files, and replacement of an existing different Anchor.',
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
+      inputSchema: {
+        project_id: z.string().min(1),
+        subject_id: z.string().min(1),
+        candidate_path: z.string().min(1),
+        approval: z.literal('approve'),
+      },
+      outputSchema: {
+        project_id: z.string(),
+        subject_id: z.string(),
+        approved_anchor_path: z.string(),
+        canon_path: z.string(),
+        changed: z.boolean(),
+      },
+    },
+    async (input) => {
+      try {
+        const result = await registry.adoptAnchor(input);
+        return {
+          structuredContent: { ...result } as Record<string, unknown>,
+          content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }],
+        };
+      } catch (error) {
+        return { isError: true, content: [{ type: 'text' as const, text: JSON.stringify(serializeError(error), null, 2) }] };
       }
     },
   );

@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs';
-import { stat } from 'node:fs/promises';
+import { readFile, realpath, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
 import { VisualDirectorError } from '../domain/types.js';
@@ -11,6 +11,8 @@ import {
 } from './canon/adapter.js';
 import type { CanonProjectDefinition, ProjectDocuments, ProjectLabels, ProjectSubjectDefinition } from './canon/adapter.js';
 import { BottomOfThirstAdapter } from './bottom-of-thirst/adapter.js';
+import { bottomOfThirstCanonSubject } from './bottom-of-thirst/adapter.js';
+import type { AdoptAnchorInput, AdoptAnchorResult } from '../domain/types.js';
 import { bottomOfThirstDefinition } from './definitions.js';
 
 export interface ProjectRegistryOptions {
@@ -20,6 +22,7 @@ export interface ProjectRegistryOptions {
 
 export interface ProjectRegistry {
   configureProject(projectId: string, repositoryPath: string): Promise<ProjectConfiguration>;
+  adoptAnchor(input: AdoptAnchorInput): Promise<AdoptAnchorResult>;
   resolve(projectId: string): ProjectAdapter;
 }
 
@@ -118,6 +121,52 @@ export function createProjectRegistry(options: ProjectRegistryOptions = {}): Pro
       repoPaths.set(projectId, resolvedPath);
       return { project_id: projectId, repository_path: resolvedPath, persistence: 'runtime' };
     },
+    async adoptAnchor(input: AdoptAnchorInput): Promise<AdoptAnchorResult> {
+      const definition = definitions.get(input.project_id);
+      if (!definition) {
+        throw new VisualDirectorError('PROJECT_NOT_FOUND', `Unsupported project_id: ${input.project_id}.`);
+      }
+      const repoPath = repoPaths.get(input.project_id) ?? process.env.BOTTOM_OF_THIRST_REPO_PATH;
+      if (!repoPath) {
+        throw new VisualDirectorError('PROJECT_CONFIG_MISSING', `No repository path is configured for project_id: ${input.project_id}.`);
+      }
+      const subject = input.project_id === bottomOfThirstDefinition.projectId
+        ? bottomOfThirstCanonSubject(input.subject_id)
+        : definition.subjects[input.subject_id.trim()];
+      if (!subject) {
+        throw new VisualDirectorError('SUBJECT_NOT_FOUND', `Unknown subject_id: ${input.subject_id}.`);
+      }
+      const candidatePath = safeRepositoryRelativePath(input.candidate_path, 'candidate_path');
+      const candidateAbsolutePath = path.resolve(repoPath, candidatePath);
+      await ensureRegularFile(candidateAbsolutePath, 'ANCHOR_CANDIDATE_NOT_FOUND', candidatePath);
+      const [realRepositoryPath, realCandidatePath] = await Promise.all([realpath(repoPath), realpath(candidateAbsolutePath)]);
+      if (!isWithin(realRepositoryPath, realCandidatePath)) {
+        throw new VisualDirectorError('UNSAFE_REPOSITORY_PATH', 'candidate_path resolves outside the configured repository.', {
+          candidate_path: candidatePath,
+        });
+      }
+
+      const canonPath = safeRepositoryRelativePath(definition.documents.characterCanon, 'character_canon');
+      const canonAbsolutePath = path.resolve(repoPath, canonPath);
+      let canonMarkdown: string;
+      try {
+        canonMarkdown = await readFile(canonAbsolutePath, 'utf8');
+      } catch (error) {
+        throw new VisualDirectorError('CANON_READ_FAILED', 'Could not read the character Visual Canon.', {
+          path: canonPath,
+          reason: error instanceof Error ? error.message : String(error),
+        });
+      }
+      const updated = registerApprovedAnchor(canonMarkdown, subject.canonHeading, candidatePath);
+      if (updated !== canonMarkdown) await writeFile(canonAbsolutePath, updated, 'utf8');
+      return {
+        project_id: input.project_id,
+        subject_id: subject.id,
+        approved_anchor_path: candidatePath,
+        canon_path: canonPath,
+        changed: updated !== canonMarkdown,
+      };
+    },
     resolve(projectId: string): ProjectAdapter {
       const definition = definitions.get(projectId);
       if (!definition) {
@@ -137,6 +186,71 @@ export function createProjectRegistry(options: ProjectRegistryOptions = {}): Pro
       return new CanonProjectAdapter(definition, { repoPath });
     },
   };
+}
+
+function safeRepositoryRelativePath(value: string, field: string): string {
+  const normalized = value.trim().replace(/\\/g, '/');
+  if (!normalized || path.isAbsolute(normalized) || /^[a-zA-Z]:/.test(normalized) || normalized.split('/').includes('..')) {
+    throw new VisualDirectorError('UNSAFE_REPOSITORY_PATH', `${field} must be a repository-relative path.`, { [field]: value });
+  }
+  return normalized.replace(/^\.\//, '');
+}
+
+function isWithin(parent: string, candidate: string): boolean {
+  const relative = path.relative(parent, candidate);
+  return relative !== '' && !relative.startsWith(`..${path.sep}`) && relative !== '..' && !path.isAbsolute(relative);
+}
+
+async function ensureRegularFile(absolutePath: string, code: string, relativePath: string): Promise<void> {
+  try {
+    const fileStats = await stat(absolutePath);
+    if (!fileStats.isFile()) throw new Error('Path is not a regular file.');
+  } catch (error) {
+    throw new VisualDirectorError(code, 'The approved Anchor candidate must be an existing repository file.', {
+      path: relativePath,
+      reason: error instanceof Error ? error.message : String(error),
+    });
+  }
+}
+
+export function registerApprovedAnchor(markdown: string, canonHeading: string, anchorPath: string): string {
+  const newline = markdown.includes('\r\n') ? '\r\n' : '\n';
+  const headingPattern = new RegExp(`^##\\s+${escapeRegExp(canonHeading)}[ \\t]*$`, 'm');
+  const headingMatch = headingPattern.exec(markdown);
+  if (!headingMatch || headingMatch.index === undefined) {
+    throw new VisualDirectorError('CANON_SUBJECT_NOT_FOUND', 'The subject section is missing from the character Visual Canon.', {
+      canon_heading: canonHeading,
+    });
+  }
+  const sectionStart = headingMatch.index + headingMatch[0].length;
+  const rest = markdown.slice(sectionStart);
+  const nextHeadingOffset = rest.search(/^##\s+/m);
+  const sectionEnd = nextHeadingOffset >= 0 ? sectionStart + nextHeadingOffset : markdown.length;
+  const section = markdown.slice(sectionStart, sectionEnd);
+  const approvedHeading = /^###\s+Approved Visual Anchor[ \t]*$/m.exec(section);
+  if (approvedHeading?.index !== undefined) {
+    const afterHeading = approvedHeading.index + approvedHeading[0].length;
+    const approvedRest = section.slice(afterHeading);
+    const nextSubheading = approvedRest.search(/^###\s+/m);
+    const approvedEnd = nextSubheading >= 0 ? afterHeading + nextSubheading : section.length;
+    const existing = section.slice(afterHeading, approvedEnd).match(/^\s*-\s+`([^`]+)`\s*$/m)?.[1];
+    if (existing === anchorPath) return markdown;
+    if (existing) {
+      throw new VisualDirectorError('APPROVED_ANCHOR_CONFLICT', 'An Approved Visual Anchor is already registered for this subject.', {
+        existing_path: existing,
+        candidate_path: anchorPath,
+      });
+    }
+    const insertionPoint = sectionStart + afterHeading;
+    const entry = `${newline}- \`${anchorPath}\``;
+    return markdown.slice(0, insertionPoint) + entry + markdown.slice(insertionPoint);
+  }
+  const insertion = `${newline}${newline}### Approved Visual Anchor${newline}- \`${anchorPath}\``;
+  return markdown.slice(0, sectionStart) + insertion + markdown.slice(sectionStart);
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 function readProjectConfig(configPath: string): ProjectConfigFile {

@@ -4,6 +4,8 @@
 
 Use `visual.prepare_generation` to prepare context; it does not generate an image. If the server returns `PROJECT_CONFIG_MISSING` and the user explicitly supplied a local clone path, call `visual.configure_project` first.
 
+Use `visual.adopt_anchor` only after the user explicitly approves the exact candidate. Pass its existing repository-relative path and `approval: "approve"`. The tool registers that file under the subject's `Approved Visual Anchor` Canon heading. It refuses missing or out-of-repository files, unknown subjects, and replacement of a different existing Approved Anchor.
+
 `visual.configure_project` validates and binds a known project to a local repository directory for the current MCP server process. It is runtime-only: it does not write the repository or persist across restart. Do not infer a path or configure a project that the user did not identify.
 
 A successful `visual.prepare_generation` result is a **required gate** before image generation. If preparation fails, do not replace it with assistant memory, a hand-written prompt, another character's Anchor, a legacy asset, or a previous candidate image.
