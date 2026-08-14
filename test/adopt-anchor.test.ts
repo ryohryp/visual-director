@@ -121,6 +121,28 @@ describe('Anchor adoption and Canon registration', () => {
       });
       expect(repeated.isError).not.toBe(true);
       expect(repeated.structuredContent).toMatchObject({ changed: false });
+
+      const prepared = await client.callTool({
+        name: 'visual.prepare_generation',
+        arguments: {
+          project_id: 'game',
+          asset_type: 'character_portrait',
+          subject_ids: ['hero'],
+          request_text: 'Prepare a portrait using the adopted Hero Anchor.',
+        },
+      });
+      expect(prepared.isError).not.toBe(true);
+      expect(prepared.structuredContent).toMatchObject({
+        project_id: 'game',
+        policy: {
+          must_use_approved_anchor: true,
+          must_not_chain_from_candidate: true,
+        },
+        reference_assets: [
+          { role: 'global_reference', path: 'docs/visual/assets/global_visual_style_reference.webp' },
+          { role: 'subject_anchor', subject_id: 'hero', path: 'assets/hero/candidate.png' },
+        ],
+      });
     } finally {
       await client.close();
       await server.close();

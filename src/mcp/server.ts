@@ -9,14 +9,17 @@ import { z } from 'zod';
 import { VisualDirectorError } from '../domain/types.js';
 import type { PrepareGenerationInput } from '../domain/types.js';
 import { createProjectRegistry } from '../projects/registry.js';
+import type { ProjectRegistry } from '../projects/registry.js';
 
 export interface VisualDirectorServerOptions {
   repoPath?: string;
   projectsConfigPath?: string;
 }
 
-export function createVisualDirectorServer(options: VisualDirectorServerOptions = {}): McpServer {
-  const registry = createProjectRegistry(options);
+export function createVisualDirectorServer(
+  options: VisualDirectorServerOptions = {},
+  registry: ProjectRegistry = createProjectRegistry(options),
+): McpServer {
   const server = new McpServer(
     { name: 'visual-director', version: '0.1.0' },
     {
@@ -230,8 +233,9 @@ export function createHttpServerForVisualDirector(
   options: VisualDirectorServerOptions = {},
 ): { httpServer: Server; sessions: Map<string, HttpSession> } {
   const sessions = new Map<string, HttpSession>();
+  const registry = createProjectRegistry(options);
   const httpServer = createHttpServer((req, res) => {
-    void handleHttpRequest(req, res, options, sessions);
+    void handleHttpRequest(req, res, options, sessions, registry);
   });
   return { httpServer, sessions };
 }
@@ -241,6 +245,7 @@ async function handleHttpRequest(
   res: ServerResponse,
   options: VisualDirectorServerOptions,
   sessions: Map<string, HttpSession>,
+  registry: ProjectRegistry,
 ): Promise<void> {
   if (req.url !== '/mcp') {
     writeJson(res, 404, { error: 'not_found' });
@@ -267,7 +272,7 @@ async function handleHttpRequest(
   }
 
   if (!session) {
-    const server = createVisualDirectorServer(options);
+    const server = createVisualDirectorServer(options, registry);
     const transport = new StreamableHTTPServerTransport({
       sessionIdGenerator: () => randomUUID(),
       enableJsonResponse: true,

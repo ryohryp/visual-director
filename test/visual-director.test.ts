@@ -122,6 +122,13 @@ describe('MCP tool', () => {
     await client.connect(clientTransport);
 
     const tools = await client.listTools();
+    const expectedToolNames = [
+      'visual.configure_project',
+      'visual.adopt_anchor',
+      'visual.prepare_generation',
+    ];
+    expect(tools.tools.map((candidate) => candidate.name)).toEqual(expectedToolNames);
+    expect((await client.listTools()).tools.map((candidate) => candidate.name)).toEqual(expectedToolNames);
     const configureTool = tools.tools.find((candidate) => candidate.name === 'visual.configure_project');
     expect(configureTool).toMatchObject({
       name: 'visual.configure_project',
@@ -169,6 +176,7 @@ describe('MCP tool', () => {
       project_id: 'bottom-of-thirst',
       asset_type: 'event_cg',
     });
+    expect((await client.listTools()).tools.map((candidate) => candidate.name)).toEqual(expectedToolNames);
 
     await client.close();
     await server.close();

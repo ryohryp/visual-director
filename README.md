@@ -198,6 +198,8 @@ Canonの不足やエラーは推測で補完せず、そのまま報告してく
 
 起動時のリポジトリパスが未設定で、ユーザーがローカルcloneのパスを明示している場合、ChatGPTは先に`visual.configure_project`を呼び出します。その成功後、`visual.prepare_generation`からスタイル、キャラクター、禁止事項、参照アセットをまとめたGeneration Packageを受け取ります。
 
+HTTP transportでは、同じVisual Directorプロセス内のMCP sessionがこのruntime bindingを共有します。別プロセス・別worker・再起動後へbindingを推測共有することはなく、その場合は起動時の`BOTTOM_OF_THIRST_REPO_PATH`／`VISUAL_DIRECTOR_PROJECTS_CONFIG`、または明示された`scene_context.repository_path`によるbootstrapが必要です。
+
 Visual Director自身は画像を生成しません。Generation Packageを確認したあと、必要なら同じチャットで次のように依頼します。
 
 ```text

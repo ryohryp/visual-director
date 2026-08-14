@@ -9,6 +9,7 @@ import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { createHttpServerForVisualDirector, createVisualDirectorServer } from '../src/mcp/server.js';
+import { createProjectRegistry } from '../src/projects/registry.js';
 
 let fixtureRoot: string;
 
@@ -115,6 +116,77 @@ describe('prepare_generation repository-path bootstrap compatibility', () => {
       await new Promise<void>((resolve, reject) => {
         httpServer.close((error) => (error ? reject(error) : resolve()));
       });
+    }
+  });
+
+  it('retains configure_project binding across MCP sessions in one HTTP server lifecycle', async () => {
+    const { httpServer, sessions } = createHttpServerForVisualDirector();
+    await new Promise<void>((resolve) => httpServer.listen(0, '127.0.0.1', resolve));
+
+    const address = httpServer.address();
+    expect(address && typeof address !== 'string').toBe(true);
+    if (!address || typeof address === 'string') {
+      throw new Error('Expected an ephemeral HTTP server address.');
+    }
+
+    const endpoint = new URL(`http://127.0.0.1:${(address as AddressInfo).port}/mcp`);
+    const configureClient = new Client({ name: 'binding-configure-client', version: '0.1.0' });
+    const prepareClient = new Client({ name: 'binding-prepare-client', version: '0.1.0' });
+    const configureTransport = new StreamableHTTPClientTransport(endpoint);
+    const prepareTransport = new StreamableHTTPClientTransport(endpoint);
+    const input = {
+      project_id: 'bottom-of-thirst',
+      asset_type: 'event_cg',
+      subject_ids: ['souma'],
+      request_text: '地下の記録保管庫で記録を確認する',
+    };
+
+    try {
+      await configureClient.connect(configureTransport);
+      await prepareClient.connect(prepareTransport);
+
+      const configured = await configureClient.callTool({
+        name: 'visual.configure_project',
+        arguments: { project_id: input.project_id, repository_path: fixtureRoot },
+      });
+      const prepared = await prepareClient.callTool({ name: 'visual.prepare_generation', arguments: input });
+
+      expect(configured.isError).not.toBe(true);
+      expect(prepared.isError).not.toBe(true);
+      expect(prepared.structuredContent).toMatchObject({
+        project_id: 'bottom-of-thirst',
+        policy: {
+          must_use_approved_anchor: true,
+          must_not_chain_from_candidate: true,
+        },
+        reference_assets: [
+          { role: 'global_reference', path: 'docs/visual/assets/global_visual_style_reference.webp' },
+          { role: 'subject_anchor', subject_id: 'souma', path: 'public/images/characters/souma/v2/default.avif' },
+        ],
+      });
+      expect(sessions.size).toBe(2);
+    } finally {
+      await configureClient.close();
+      await prepareClient.close();
+      await new Promise<void>((resolve, reject) => {
+        httpServer.close((error) => (error ? reject(error) : resolve()));
+      });
+    }
+  });
+
+  it('fails closed when no binding exists and never reuses another project binding', async () => {
+    const previousBottomOfThirstPath = process.env.BOTTOM_OF_THIRST_REPO_PATH;
+    delete process.env.BOTTOM_OF_THIRST_REPO_PATH;
+    try {
+      const registry = createProjectRegistry();
+      await registry.configureProject('personal-orbit', fixtureRoot);
+
+      expect(() => registry.resolve('bottom-of-thirst')).toThrowError(
+        expect.objectContaining({ code: 'PROJECT_CONFIG_MISSING' }),
+      );
+    } finally {
+      if (previousBottomOfThirstPath === undefined) delete process.env.BOTTOM_OF_THIRST_REPO_PATH;
+      else process.env.BOTTOM_OF_THIRST_REPO_PATH = previousBottomOfThirstPath;
     }
   });
 
