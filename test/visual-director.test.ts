@@ -49,6 +49,8 @@ describe('BottomOfThirstAdapter', () => {
     const result = await new BottomOfThirstAdapter({ repoPath: fixtureRoot }).prepare(input);
 
     expect(result.project_id).toBe('bottom-of-thirst');
+    expect(result.schema_version).toBe(1);
+    expect(result.fingerprint).toMatch(/^[0-9a-f]{64}$/);
     expect(result.prompt_package.style_lock).toContain('STYLE LOCK');
     expect(result.prompt_package.subject_lock[0]).toContain('Approved Visual Anchor');
     expect(result.prompt_package.subject_lock[0]).toContain('相馬 健人');
@@ -85,6 +87,25 @@ describe('BottomOfThirstAdapter', () => {
     await expect(new BottomOfThirstAdapter({ repoPath: fixtureRoot }).prepare(input)).rejects.toMatchObject({
       code: 'CANON_READ_FAILED',
     });
+  });
+});
+
+describe('Generation Package fingerprint', () => {
+  it('is stable for the same Canon, request, subjects, and configuration across independent calls', async () => {
+    const first = await new BottomOfThirstAdapter({ repoPath: fixtureRoot }).prepare(input);
+    const second = await new BottomOfThirstAdapter({ repoPath: fixtureRoot }).prepare({ ...input });
+
+    expect(second.fingerprint).toBe(first.fingerprint);
+  });
+
+  it('changes when the Package meaning changes', async () => {
+    const baseline = await new BottomOfThirstAdapter({ repoPath: fixtureRoot }).prepare(input);
+    const changed = await new BottomOfThirstAdapter({ repoPath: fixtureRoot }).prepare({
+      ...input,
+      request_text: `${input.request_text}（差分あり）`,
+    });
+
+    expect(changed.fingerprint).not.toBe(baseline.fingerprint);
   });
 });
 

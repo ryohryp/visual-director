@@ -23,9 +23,12 @@ export interface PromptPackage {
   avoid_block: string[];
 }
 
+export const GENERATION_PACKAGE_SCHEMA_VERSION = 1;
+
 export interface GenerationPackage {
   project_id: string;
   asset_type: string;
+  schema_version: number;
   prompt_package: PromptPackage;
   reference_assets: ReferenceAsset[];
   policy: {
@@ -33,7 +36,11 @@ export interface GenerationPackage {
     must_not_chain_from_candidate: true;
     must_review_after_generation: true;
   };
+  fingerprint: string;
 }
+
+/** The Generation Package fields the fingerprint is computed over. */
+export type FingerprintedGenerationPackage = Omit<GenerationPackage, 'fingerprint'>;
 
 export interface ProjectAdapter {
   projectId: string;

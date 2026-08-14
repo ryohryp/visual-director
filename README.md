@@ -18,6 +18,8 @@ Visual Director MCP v0.1は、ゲームのVisual Canon（ビジュアル設定�
 - 参照アセット
 - 生成ポリシー
 
+Generation Packageには`schema_version`（現時点では`1`）と`fingerprint`も含まれます。`fingerprint`はPackageの意味内容（`fingerprint`自身は除く）から算出したSHA-256のlowercase hex文字列で、オブジェクトのキー順序に依存せず、同じCanon・同じrequest・同じ対象・同じ設定からは常に同じ値になります。呼び出し側はこれを使って、以前生成したPackageと内容が同一かどうかを判定できます。
+
 Adapterは`CHARACTER_VISUAL_CANON.md`からApproved Anchorのパスを解決します。返却前に、全体ビジュアルスタイル、世界観設定、キャラクター設定、参照アセット一覧、Approved Anchor、全体スタイル参照画像を検証します。
 
 未知のプロジェクト、未知のキャラクター、資料不足、Anchor不足、スタイルロック不足は明示的なエラーとして返します。Legacyアセットや候補アセットを代替として使用することはありません。
