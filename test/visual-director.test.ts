@@ -48,6 +48,8 @@ describe('BottomOfThirstAdapter', () => {
   it('builds a separated, canon-backed Generation Package', async () => {
     const result = await new BottomOfThirstAdapter({ repoPath: fixtureRoot }).prepare(input);
 
+    expect(result.schema_version).toBe(1);
+    expect(result.fingerprint).toMatch(/^[0-9a-f]{64}$/);
     expect(result.project_id).toBe('bottom-of-thirst');
     expect(result.prompt_package.style_lock).toContain('STYLE LOCK');
     expect(result.prompt_package.subject_lock[0]).toContain('Approved Visual Anchor');
@@ -159,8 +161,10 @@ describe('MCP tool', () => {
     const result = await client.callTool({ name: 'visual.prepare_generation', arguments: input });
     expect(result.isError).not.toBe(true);
     expect(result.structuredContent).toMatchObject({
+      schema_version: 1,
       project_id: 'bottom-of-thirst',
       asset_type: 'event_cg',
+      fingerprint: expect.stringMatching(/^[0-9a-f]{64}$/),
     });
     const content = result.content as Array<{ type: string; text?: string }>;
     const text = content[0];

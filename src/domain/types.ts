@@ -24,6 +24,7 @@ export interface PromptPackage {
 }
 
 export interface GenerationPackage {
+  schema_version: 1;
   project_id: string;
   asset_type: string;
   prompt_package: PromptPackage;
@@ -33,6 +34,7 @@ export interface GenerationPackage {
     must_not_chain_from_candidate: true;
     must_review_after_generation: true;
   };
+  fingerprint: string;
 }
 
 export interface ProjectAdapter {

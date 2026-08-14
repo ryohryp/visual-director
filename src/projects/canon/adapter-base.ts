@@ -1,6 +1,7 @@
 import { access } from 'node:fs/promises';
 import path from 'node:path';
 
+import { withGenerationPackageFingerprint } from '../../domain/fingerprint.js';
 import { bullets, fencedBlock, readUtf8File } from '../../domain/markdown.js';
 import { VisualDirectorError } from '../../domain/types.js';
 import type { GenerationPackage, PrepareGenerationInput, ProjectAdapter } from '../../domain/types.js';
@@ -77,7 +78,8 @@ export abstract class CanonAdapterBase implements ProjectAdapter {
       throw new VisualDirectorError('GLOBAL_STYLE_INCOMPLETE', this.globalStyleIncompleteMessage());
     }
 
-    return {
+    return withGenerationPackageFingerprint({
+      schema_version: 1,
       project_id: this.projectId,
       asset_type: input.asset_type,
       prompt_package: {
@@ -97,7 +99,7 @@ export abstract class CanonAdapterBase implements ProjectAdapter {
         ),
       ],
       policy: generationPolicy(preparingNewAnchor),
-    };
+    });
   }
 
   protected abstract loadSubject(subjectId: string, canonMarkdown: string, assetType?: string): Promise<CanonSubject>;
@@ -190,6 +192,7 @@ export abstract class CanonAdapterBase implements ProjectAdapter {
 
   private sceneRequirements(input: PrepareGenerationInput, worldMarkdown: string): string[] {
     const context = Object.entries(input.scene_context ?? {})
+      .sort(([left], [right]) => compareStrings(left, right))
       .map(([key, value]) => `${key}: ${String(value)}`)
       .join(', ');
     return [
@@ -199,6 +202,12 @@ export abstract class CanonAdapterBase implements ProjectAdapter {
       ...bullets(worldMarkdown).slice(0, 8).map((rule) => `World direction: ${rule}`),
     ];
   }
+}
+
+function compareStrings(left: string, right: string): number {
+  if (left < right) return -1;
+  if (left > right) return 1;
+  return 0;
 }
 
 function fencedBlockAfter(markdown: string, heading: string): string {
