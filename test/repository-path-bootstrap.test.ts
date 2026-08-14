@@ -1,12 +1,14 @@
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import type { AddressInfo } from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
 
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
+import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { createVisualDirectorServer } from '../src/mcp/server.js';
+import { createHttpServerForVisualDirector, createVisualDirectorServer } from '../src/mcp/server.js';
 
 let fixtureRoot: string;
 
@@ -56,6 +58,66 @@ describe('prepare_generation repository-path bootstrap compatibility', () => {
     }
   });
 
+  it('keeps the same HTTP MCP session usable for a second new-anchor preparation', async () => {
+    const { httpServer, sessions } = createHttpServerForVisualDirector();
+    await new Promise<void>((resolve) => httpServer.listen(0, '127.0.0.1', resolve));
+
+    const address = httpServer.address();
+    expect(address && typeof address !== 'string').toBe(true);
+    if (!address || typeof address === 'string') {
+      throw new Error('Expected an ephemeral HTTP server address.');
+    }
+
+    const client = new Client({ name: 'bootstrap-repeat-test-client', version: '0.1.0' });
+    const transport = new StreamableHTTPClientTransport(new URL(`http://127.0.0.1:${(address as AddressInfo).port}/mcp`));
+    const baseInput = {
+      project_id: 'bottom-of-thirst',
+      asset_type: 'character_visual_anchor',
+      subject_ids: ['kamino_kyosuke'],
+      request_text: 'Prepare the current Visual Anchor package for Kamino Kyosuke.',
+    };
+
+    try {
+      await client.connect(transport);
+
+      const first = await client.callTool({
+        name: 'visual.prepare_generation',
+        arguments: {
+          ...baseInput,
+          scene_context: { repository_path: fixtureRoot },
+        },
+      });
+      const second = await client.callTool({ name: 'visual.prepare_generation', arguments: baseInput });
+
+      expect(first.isError).not.toBe(true);
+      expect(second.isError).not.toBe(true);
+      expect(first.structuredContent).toMatchObject({
+        project_id: 'bottom-of-thirst',
+        asset_type: 'character_visual_anchor',
+        policy: {
+          must_use_approved_anchor: false,
+          must_not_chain_from_candidate: true,
+          must_review_after_generation: true,
+        },
+      });
+      expect(second.structuredContent).toMatchObject({
+        project_id: 'bottom-of-thirst',
+        asset_type: 'character_visual_anchor',
+        policy: {
+          must_use_approved_anchor: false,
+          must_not_chain_from_candidate: true,
+          must_review_after_generation: true,
+        },
+      });
+      expect(sessions.size).toBe(1);
+    } finally {
+      await client.close();
+      await new Promise<void>((resolve, reject) => {
+        httpServer.close((error) => (error ? reject(error) : resolve()));
+      });
+    }
+  });
+
   it('fails explicitly when the compatibility repository path is invalid', async () => {
     const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
     const server = createVisualDirectorServer();
@@ -93,6 +155,8 @@ async function createFixture(root: string): Promise<void> {
     'docs/visual/CHARACTER_VISUAL_CANON.md': `# Canon\n\n## 共通ルール\n- Always use an approved anchor.\n\n## 相馬 健人\n\n### Approved Visual Anchor\n- \`public/images/characters/souma/v2/default.avif\`\n\n### 採用する視覚条件\n- 32歳の契約記者\n- 色褪せた濃紺のジャケット\n\n### Canonical state model\n- Use one default anchor.\n`,
     'docs/WORLD_DIRECTION.md': '# World\n\n- grounded and observational\n- ordinary light\n',
     'docs/characters/soma.md': '# Soma\n\n- contract reporter\n- careful with records\n',
+    'docs/characters/kyosuke.md': '# Kyosuke\n\n- 24歳の動画配信者\n- ジンバルを使う\n',
+    'docs/visual/KYOSUKE_VISUAL_ANCHOR_V2_REQUIREMENTS.md': '# Requirements\n\n- 24歳の動画配信者\n- ジンバルを使う\n',
     'docs/visual/assets/README.md': '# Assets\n',
   };
 
