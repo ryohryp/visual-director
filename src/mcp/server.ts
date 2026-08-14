@@ -144,8 +144,10 @@ async function bootstrapRepositoryFromSceneContext(
   }
 
   await registry.configureProject(input.project_id, repositoryPath);
-  const { repository_path: _runtimeOnlyRepositoryPath, ...cleanedSceneContext } = sceneContext;
-  const { scene_context: _originalSceneContext, ...inputWithoutSceneContext } = input;
+  const cleanedSceneContext = { ...sceneContext };
+  delete cleanedSceneContext.repository_path;
+  const inputWithoutSceneContext = { ...input };
+  delete inputWithoutSceneContext.scene_context;
   return Object.keys(cleanedSceneContext).length > 0
     ? { ...inputWithoutSceneContext, scene_context: cleanedSceneContext }
     : inputWithoutSceneContext;
