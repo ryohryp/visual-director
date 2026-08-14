@@ -12,7 +12,7 @@ export const personalOrbitDefinition: PersonalOrbitProjectDefinition = {
     characterCanon: 'public/dashboard/agent-town-orby-canvas.js',
     worldDirection: 'public/dashboard/agent-town-world.js',
     assetManifest: 'public/dashboard/agent-town.html',
-    globalReference: 'public/dashboard/assets/agent-town/agent-town-map.png',
+    globalReference: 'public/dashboard/assets/agent-town/orby-town-visual-anchor.webp',
   },
   subjects: {
     'orby-town': {
@@ -24,6 +24,6 @@ export const personalOrbitDefinition: PersonalOrbitProjectDefinition = {
   },
   labels: { ...DEFAULT_PROJECT_LABELS },
   approvedAnchors: {
-    'orby-town': 'public/dashboard/assets/agent-town/agent-town-map.png',
+    'orby-town': 'public/dashboard/assets/agent-town/orby-town-visual-anchor.webp',
   },
 };

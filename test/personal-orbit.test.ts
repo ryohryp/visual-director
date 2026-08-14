@@ -36,11 +36,14 @@ describe('PersonalOrbitAdapter', () => {
     expect(result.prompt_package.style_lock).toContain('ORBY TOWN STYLE LOCK');
     expect(result.prompt_package.subject_lock.join(' ')).toContain('Approved Visual Anchor');
     expect(result.prompt_package.scene_requirements).toContain('Scene context: state: normal_operations');
+    expect(personalOrbitDefinition.documents.globalReference).toBe(
+      'public/dashboard/assets/agent-town/orby-town-visual-anchor.webp',
+    );
     expect(result.reference_assets).toEqual([
       {
         role: 'subject_anchor',
         subject_id: 'orby-town',
-        path: 'public/dashboard/assets/agent-town/agent-town-map.png',
+        path: 'public/dashboard/assets/agent-town/orby-town-visual-anchor.webp',
       },
     ]);
     expect(result.policy).toEqual({
@@ -51,7 +54,7 @@ describe('PersonalOrbitAdapter', () => {
   });
 
   it('fails closed when the approved Orby Town anchor is missing', async () => {
-    await rm(path.join(fixtureRoot, 'public/dashboard/assets/agent-town/agent-town-map.png'));
+    await rm(path.join(fixtureRoot, 'public/dashboard/assets/agent-town/orby-town-visual-anchor.webp'));
 
     await expect(
       new PersonalOrbitAdapter(personalOrbitDefinition, { repoPath: fixtureRoot }).prepare(input),
@@ -107,7 +110,7 @@ async function createPersonalOrbitFixture(root: string): Promise<void> {
     'public/dashboard/agent-town-world.js': 'globalThis.AgentTownWorldCore = { WORLD_WIDTH: 1440, WORLD_HEIGHT: 960 };',
     'public/dashboard/agent-town-orby-canvas.js': 'globalThis.OrbyTownVisual = { agent: "orby" };',
     'public/dashboard/agent-town.html': '<main class="town-map"><div id="townWorld"></div></main>',
-    'public/dashboard/assets/agent-town/agent-town-map.png': Buffer.from('approved-orby-town-anchor'),
+    'public/dashboard/assets/agent-town/orby-town-visual-anchor.webp': Buffer.from('approved-orby-town-anchor'),
   };
 
   for (const [relativePath, content] of Object.entries(files)) {
