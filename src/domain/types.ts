@@ -29,7 +29,7 @@ export interface GenerationPackage {
   prompt_package: PromptPackage;
   reference_assets: ReferenceAsset[];
   policy: {
-    must_use_approved_anchor: true;
+    must_use_approved_anchor: boolean;
     must_not_chain_from_candidate: true;
     must_review_after_generation: true;
   };
