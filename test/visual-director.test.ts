@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import type { AddressInfo } from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
@@ -9,6 +9,7 @@ import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/
 import { beforeEach, afterEach, describe, expect, it } from 'vitest';
 
 import { createHttpServerForVisualDirector, createVisualDirectorServer } from '../src/mcp/server.js';
+import { section, subsection } from '../src/domain/markdown.js';
 import { approvedAnchorPaths, BottomOfThirstAdapter } from '../src/projects/bottom-of-thirst/adapter.js';
 import { createProjectRegistry } from '../src/projects/registry.js';
 
@@ -30,6 +31,31 @@ const input = {
   request_text: '地下の記録保管庫で古い記録を確認しているイベントCG',
   scene_context: { location: '地下の記録保管庫', story_state: 'present_day_investigation' },
 };
+
+describe('Markdown heading extraction', () => {
+  it('recognizes existing and closing-hash ATX headings at supported levels', () => {
+    expect(section('## Heading\nplain body', 'Heading')).toBe('plain body');
+    expect(section('## Heading ##\nclosing body', 'Heading')).toBe('closing body');
+    expect(subsection('### Details ###\nsubsection body', 'Details')).toBe('subsection body');
+    expect(section('## Different Heading ##\nbody', 'Heading')).toBe('');
+  });
+
+  it('stops at the next same-level or higher-level heading', () => {
+    const markdown = [
+      '## Target ##',
+      'target body',
+      '### Nested ###',
+      'nested body',
+      '## Sibling ##',
+      'sibling body',
+      '# Parent #',
+      'parent body',
+    ].join('\n');
+
+    expect(section(markdown, 'Target')).toBe('target body\n### Nested ###\nnested body');
+    expect(subsection(markdown, 'Nested')).toBe('nested body');
+  });
+});
 
 describe('BottomOfThirstAdapter', () => {
   it('keeps only contiguous exact anchor paths before metadata and legacy bullets', () => {
@@ -64,6 +90,22 @@ describe('BottomOfThirstAdapter', () => {
       must_use_approved_anchor: true,
       must_not_chain_from_candidate: true,
       must_review_after_generation: true,
+    });
+  });
+
+  it('builds a Generation Package when required Canon headings use closing hashes', async () => {
+    await addClosingHashesToFixtureHeadings(fixtureRoot);
+
+    const result = await new BottomOfThirstAdapter({ repoPath: fixtureRoot }).prepare(input);
+
+    expect(result.prompt_package.style_lock).toContain('STYLE LOCK');
+    expect(result.prompt_package.subject_lock[0]).toContain('相馬 健人');
+    expect(result.prompt_package.allowed_changes).toEqual(['small facial expression', 'gaze', 'hand position']);
+    expect(result.prompt_package.forbidden_changes).toContain('face identity');
+    expect(result.reference_assets).toContainEqual({
+      role: 'subject_anchor',
+      subject_id: 'souma',
+      path: 'public/images/characters/souma/v2/default.avif',
     });
   });
 
@@ -298,5 +340,33 @@ async function createOtherGameFixture(root: string): Promise<void> {
     const absolutePath = path.join(root, relativePath);
     await mkdir(path.dirname(absolutePath), { recursive: true });
     await writeFile(absolutePath, Buffer.from('fixture'));
+  }
+}
+
+async function addClosingHashesToFixtureHeadings(root: string): Promise<void> {
+  const headingsByFile: Record<string, Array<[level: number, heading: string]>> = {
+    'docs/visual/GLOBAL_VISUAL_STYLE.md': [
+      [2, 'Global Visual Style Lock'],
+      [2, 'Fixed Avoid Block'],
+      [3, '変更してよいもの'],
+      [3, '変更してはいけないもの'],
+    ],
+    'docs/visual/CHARACTER_VISUAL_CANON.md': [
+      [2, '共通ルール'],
+      [2, '相馬 健人'],
+      [3, 'Approved Visual Anchor'],
+      [3, '採用する視覚条件'],
+      [3, 'Canonical state model'],
+    ],
+  };
+
+  for (const [relativePath, headings] of Object.entries(headingsByFile)) {
+    const absolutePath = path.join(root, relativePath);
+    let markdown = await readFile(absolutePath, 'utf8');
+    for (const [level, heading] of headings) {
+      const hashes = '#'.repeat(level);
+      markdown = markdown.replace(`${hashes} ${heading}`, `${hashes} ${heading} ${hashes}`);
+    }
+    await writeFile(absolutePath, markdown, 'utf8');
   }
 }

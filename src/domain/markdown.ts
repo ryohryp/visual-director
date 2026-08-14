@@ -23,17 +23,29 @@ export function subsection(markdown: string, heading: string): string {
 }
 
 function headingBlock(markdown: string, heading: string, level: number): string {
-  const hashes = '#'.repeat(level);
   const lines = markdown.split(/\r?\n/);
-  const start = lines.findIndex((line) => line.trim() === `${hashes} ${heading}`);
+  const start = lines.findIndex((line) => {
+    const parsed = parseAtxHeading(line);
+    return parsed?.level === level && parsed.text === heading;
+  });
   if (start < 0) return '';
 
   const relativeEnd = lines.slice(start + 1).findIndex((line) => {
-    const headingMatch = line.match(/^(#{1,6})\s+/);
-    return headingMatch !== null && (headingMatch[1]?.length ?? 0) <= level;
+    const parsed = parseAtxHeading(line);
+    return parsed !== null && parsed.level <= level;
   });
   const end = relativeEnd < 0 ? lines.length : start + 1 + relativeEnd;
   return lines.slice(start + 1, end).join('\n').trim();
+}
+
+function parseAtxHeading(line: string): { level: number; text: string } | null {
+  const match = line.trim().match(/^(#{1,6})(?:[ \t]+|$)(.*)$/);
+  if (!match?.[1]) return null;
+
+  return {
+    level: match[1].length,
+    text: (match[2] ?? '').replace(/[ \t]+#+[ \t]*$/, '').trim(),
+  };
 }
 
 export function bullets(markdown: string): string[] {
@@ -77,7 +89,8 @@ export function bulletsAfterLabel(markdown: string, label: string): string[] {
   const lines = markdown.split(/\r?\n/);
   const labelIndex = lines.findIndex((line) => {
     const trimmed = line.trim();
-    return trimmed === `${label}:` || trimmed === `### ${label}`;
+    const heading = parseAtxHeading(line);
+    return trimmed === `${label}:` || (heading?.level === 3 && heading.text === label);
   });
   if (labelIndex < 0) return [];
   const collected: string[] = [];

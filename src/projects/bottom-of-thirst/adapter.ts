@@ -128,7 +128,7 @@ export class BottomOfThirstAdapter extends CanonAdapterBase {
       this.resolvePath(configured.characterFile),
       `Character facts for ${subjectId}`,
     );
-    const canonSection = characterSection(canonMarkdown, configured.canonHeading);
+    const canonSection = section(canonMarkdown, configured.canonHeading);
     const anchorSection = canonSection ? subsection(canonSection, 'Approved Visual Anchor') : '';
     const anchorPaths = approvedAnchorPaths(anchorSection);
     const anchorPath = anchorPaths[0];
@@ -305,23 +305,6 @@ function validateRequiredNewAnchorTerms(
       { subject_id: configured.id, missing_terms: missingTerms },
     );
   }
-}
-
-function characterSection(markdown: string, heading: string): string {
-  const headingPattern = new RegExp(`^##\\s+${escapeRegExp(heading)}\\s*$`, 'm');
-  const match = headingPattern.exec(markdown);
-  if (!match || match.index === undefined) return '';
-  const start = match.index + match[0].length;
-  const rest = markdown.slice(start);
-  const nextCharacter = rest.search(/^##\\s+(?:水上 沙耶|相馬 健人|氷川 瑠花|鏡 玲央|鬼頭 厳山|御子柴 徹|神野 恭介)\\s*$/m);
-  const nextTopLevel = rest.search(/^##\\s+/m);
-  const boundaries = [nextCharacter, nextTopLevel].filter((index) => index >= 0);
-  const end = boundaries.length > 0 ? Math.min(...boundaries) : rest.length;
-  return rest.slice(0, end).trim();
-}
-
-function escapeRegExp(value: string): string {
-  return value.replace(/[.*+?^${}()|[\\]\\]/g, '\\$&');
 }
 
 export function approvedAnchorPaths(anchorSection: string): string[] {
