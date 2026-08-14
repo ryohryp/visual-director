@@ -16,6 +16,7 @@ interface SubjectAnchor extends ProjectSubjectDefinition {
   anchorPath: string;
   canonSection: string;
   characterMarkdown: string;
+  mode?: 'approved_anchor';
 }
 
 export class CanonProjectAdapter extends CanonAdapterBase {
@@ -50,7 +51,7 @@ export class CanonProjectAdapter extends CanonAdapterBase {
       this.resolvePath(configured.characterFile),
       `Character facts for ${subjectId}`,
     );
-    return { ...configured, anchorPath, canonSection, characterMarkdown };
+    return { ...configured, anchorPath, canonSection, characterMarkdown, mode: 'approved_anchor' };
   }
 
   protected subjectLock(subject: SubjectAnchor): string {

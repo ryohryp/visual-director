@@ -6,12 +6,17 @@ import { VisualDirectorError } from '../../domain/types.js';
 import type { GenerationPackage, PrepareGenerationInput, ProjectAdapter } from '../../domain/types.js';
 import type { ProjectDocuments, ProjectLabels } from './types.js';
 
+export type CanonSubjectMode = 'approved_anchor' | 'new_anchor_candidate';
+
 export interface CanonSubject {
   id: string;
   displayName: string;
-  anchorPath: string;
+  anchorPath?: string;
+  anchorFallback?: string;
   canonSection: string;
   characterMarkdown: string;
+  requirementsMarkdown?: string;
+  mode?: CanonSubjectMode;
 }
 
 interface CanonAdapterBaseOptions {
@@ -53,7 +58,17 @@ export abstract class CanonAdapterBase implements ProjectAdapter {
     this.validateInput(input);
 
     const documents = await this.readDocuments();
-    const subjects = await Promise.all(input.subject_ids.map((subjectId) => this.loadSubject(subjectId, documents.canonMarkdown)));
+    const subjects = await Promise.all(
+      input.subject_ids.map((subjectId) => this.loadSubject(subjectId, documents.canonMarkdown, input.asset_type)),
+    );
+    const preparingNewAnchor = subjects.some((subject) => subject.mode === 'new_anchor_candidate');
+    if (preparingNewAnchor && (input.asset_type !== this.newAnchorAssetType() || subjects.length !== 1)) {
+      throw new VisualDirectorError(
+        'NEW_ANCHOR_CONTEXT_INVALID',
+        'A new Visual Anchor candidate must be prepared as a single-subject character_visual_anchor request.',
+        { subject_ids: input.subject_ids, asset_type: input.asset_type },
+      );
+    }
     await this.ensureFile(this.resolvePath(this.documents.globalReference), 'Global Visual Reference');
 
     const styleLock = fencedBlock(documents.styleMarkdown, 'text');
@@ -69,29 +84,37 @@ export abstract class CanonAdapterBase implements ProjectAdapter {
         style_lock: styleLock,
         subject_lock: subjects.map((subject) => this.subjectLock(subject)),
         scene_requirements: this.sceneRequirements(input, documents.worldMarkdown),
-        allowed_changes: this.allowedChanges(documents.styleMarkdown),
-        forbidden_changes: this.forbiddenChanges(documents.canonMarkdown, documents.styleMarkdown),
+        allowed_changes: this.allowedChanges(documents.styleMarkdown, preparingNewAnchor),
+        forbidden_changes: this.forbiddenChanges(documents.canonMarkdown, documents.styleMarkdown, preparingNewAnchor),
         avoid_block: splitAvoidBlock(avoidBlock),
       },
       reference_assets: [
         { role: 'global_reference', path: this.documents.globalReference },
-        ...subjects.map((subject) => ({
-          role: 'subject_anchor' as const,
-          subject_id: subject.id,
-          path: subject.anchorPath,
-        })),
+        ...subjects.flatMap((subject) =>
+          subject.anchorPath
+            ? [{ role: 'subject_anchor' as const, subject_id: subject.id, path: subject.anchorPath }]
+            : [],
+        ),
       ],
-      policy: generationPolicy(),
+      policy: generationPolicy(preparingNewAnchor),
     };
   }
 
-  protected abstract loadSubject(subjectId: string, canonMarkdown: string): Promise<CanonSubject>;
+  protected abstract loadSubject(subjectId: string, canonMarkdown: string, assetType?: string): Promise<CanonSubject>;
 
-  protected abstract subjectLock(subject: CanonSubject): string;
+  protected abstract subjectLock(subject: CanonSubject, preparingNewAnchor?: boolean): string;
 
-  protected abstract allowedChanges(styleMarkdown: string): string[];
+  protected abstract allowedChanges(styleMarkdown: string, preparingNewAnchor?: boolean): string[];
 
-  protected abstract forbiddenChanges(canonMarkdown: string, styleMarkdown: string): string[];
+  protected abstract forbiddenChanges(
+    canonMarkdown: string,
+    styleMarkdown: string,
+    preparingNewAnchor?: boolean,
+  ): string[];
+
+  protected newAnchorAssetType(): string {
+    return 'character_visual_anchor';
+  }
 
   protected validateInput(input: PrepareGenerationInput): void {
     if (input.project_id !== this.projectId) {
@@ -190,9 +213,9 @@ function splitAvoidBlock(avoidBlock: string): string[] {
     .filter(Boolean);
 }
 
-function generationPolicy(): GenerationPackage['policy'] {
+function generationPolicy(preparingNewAnchor: boolean): GenerationPackage['policy'] {
   return {
-    must_use_approved_anchor: true,
+    must_use_approved_anchor: !preparingNewAnchor,
     must_not_chain_from_candidate: true,
     must_review_after_generation: true,
   };
