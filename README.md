@@ -10,6 +10,8 @@ Visual Director MCP v0.1は、ゲームのVisual Canon（ビジュアル設定�
 
 `visual.configure_project`で既知のプロジェクトへローカルcloneのディレクトリを紐づけられます。続けて`visual.prepare_generation`を呼ぶと、設定されたプロジェクトの正本資料を読み取り、以下の項目に分けたGeneration Packageを返します。
 
+- スキーマ版（`schema_version`、初期値: `1`）
+- 決定論的フィンガープリント（`fingerprint`、内容同一性判定用SHA-256）
 - 全体のビジュアルスタイル
 - キャラクターの同一性とApproved Anchor
 - シーン要件
