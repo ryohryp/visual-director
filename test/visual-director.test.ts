@@ -67,6 +67,20 @@ describe('BottomOfThirstAdapter', () => {
     });
   });
 
+  it('creates a Generation Package when Canon headings use closing sequences', async () => {
+    await writeFile(
+      path.join(fixtureRoot, 'docs/visual/CHARACTER_VISUAL_CANON.md'),
+      `# Canon\n\n## 共通ルール ##\n- Always use an approved anchor.\n\n## 相馬 健人 ##\n\n### Approved Visual Anchor ###\n- \`public/images/characters/souma/v2/default.avif\`\n\n### 採用する視覚条件 ###\n- 32歳の契約記者\n\n### Canonical state model ###\n- Use one default anchor.\n\n## 水上 沙耶 ##\n\n### Approved Visual Anchor ###\n- \`public/images/characters/saya/v2/default.avif\`\n`,
+      'utf8',
+    );
+
+    const result = await new BottomOfThirstAdapter({ repoPath: fixtureRoot }).prepare(input);
+
+    expect(result.prompt_package.subject_lock[0]).toContain('Approved Visual Anchor');
+    expect(result.prompt_package.subject_lock[0]).toContain('32歳の契約記者');
+    expect(result.prompt_package.forbidden_changes).toContain('Always use an approved anchor.');
+  });
+
   it('fails closed for an unknown subject', async () => {
     await expect(
       new BottomOfThirstAdapter({ repoPath: fixtureRoot }).prepare({ ...input, subject_ids: ['does-not-exist'] }),

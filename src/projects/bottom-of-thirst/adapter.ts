@@ -308,7 +308,7 @@ function validateRequiredNewAnchorTerms(
 }
 
 function characterSection(markdown: string, heading: string): string {
-  const headingPattern = new RegExp(`^##\\s+${escapeRegExp(heading)}\\s*$`, 'm');
+  const headingPattern = new RegExp(`^##\\s+${escapeRegExp(heading)}(?:\\s+#+)?\\s*$`, 'm');
   const match = headingPattern.exec(markdown);
   if (!match || match.index === undefined) return '';
   const start = match.index + match[0].length;

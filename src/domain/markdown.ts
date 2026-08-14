@@ -23,9 +23,8 @@ export function subsection(markdown: string, heading: string): string {
 }
 
 function headingBlock(markdown: string, heading: string, level: number): string {
-  const hashes = '#'.repeat(level);
   const lines = markdown.split(/\r?\n/);
-  const start = lines.findIndex((line) => line.trim() === `${hashes} ${heading}`);
+  const start = lines.findIndex((line) => isHeading(line, heading, level));
   if (start < 0) return '';
 
   const relativeEnd = lines.slice(start + 1).findIndex((line) => {
@@ -34,6 +33,16 @@ function headingBlock(markdown: string, heading: string, level: number): string 
   });
   const end = relativeEnd < 0 ? lines.length : start + 1 + relativeEnd;
   return lines.slice(start + 1, end).join('\n').trim();
+}
+
+function isHeading(line: string, heading: string, level: number): boolean {
+  const hashes = '#'.repeat(level);
+  const pattern = new RegExp(`^${hashes}\\s+${escapeRegExp(heading)}(?:\\s+#+)?\\s*$`);
+  return pattern.test(line.trim());
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 export function bullets(markdown: string): string[] {
@@ -77,7 +86,7 @@ export function bulletsAfterLabel(markdown: string, label: string): string[] {
   const lines = markdown.split(/\r?\n/);
   const labelIndex = lines.findIndex((line) => {
     const trimmed = line.trim();
-    return trimmed === `${label}:` || trimmed === `### ${label}`;
+    return trimmed === `${label}:` || isHeading(line, label, 3);
   });
   if (labelIndex < 0) return [];
   const collected: string[] = [];
