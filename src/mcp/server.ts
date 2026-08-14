@@ -83,6 +83,7 @@ export function createVisualDirectorServer(options: VisualDirectorServerOptions 
       outputSchema: {
         project_id: z.string(),
         asset_type: z.string(),
+        schema_version: z.literal(1),
         prompt_package: z.object({
           style_lock: z.string(),
           subject_lock: z.array(z.string()),
@@ -103,6 +104,7 @@ export function createVisualDirectorServer(options: VisualDirectorServerOptions 
           must_not_chain_from_candidate: z.literal(true),
           must_review_after_generation: z.literal(true),
         }),
+        fingerprint: z.string().regex(/^[0-9a-f]{64}$/),
       },
     },
     async (input) => {

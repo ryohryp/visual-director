@@ -49,6 +49,8 @@ describe('BottomOfThirstAdapter', () => {
     const result = await new BottomOfThirstAdapter({ repoPath: fixtureRoot }).prepare(input);
 
     expect(result.project_id).toBe('bottom-of-thirst');
+    expect(result.schema_version).toBe(1);
+    expect(result.fingerprint).toMatch(/^[0-9a-f]{64}$/);
     expect(result.prompt_package.style_lock).toContain('STYLE LOCK');
     expect(result.prompt_package.subject_lock[0]).toContain('Approved Visual Anchor');
     expect(result.prompt_package.subject_lock[0]).toContain('相馬 健人');
@@ -85,6 +87,28 @@ describe('BottomOfThirstAdapter', () => {
     await expect(new BottomOfThirstAdapter({ repoPath: fixtureRoot }).prepare(input)).rejects.toMatchObject({
       code: 'CANON_READ_FAILED',
     });
+  });
+});
+
+describe('Generation Package fingerprint', () => {
+  it('is stable across separate preparations and scene-context key order', async () => {
+    const first = await new BottomOfThirstAdapter({ repoPath: fixtureRoot }).prepare(input);
+    const second = await new BottomOfThirstAdapter({ repoPath: fixtureRoot }).prepare({
+      ...input,
+      scene_context: { story_state: 'present_day_investigation', location: '地下の記録保管庫' },
+    });
+
+    expect(second.fingerprint).toBe(first.fingerprint);
+  });
+
+  it('changes when a meaningful Generation Package value changes', async () => {
+    const first = await new BottomOfThirstAdapter({ repoPath: fixtureRoot }).prepare(input);
+    const second = await new BottomOfThirstAdapter({ repoPath: fixtureRoot }).prepare({
+      ...input,
+      request_text: `${input.request_text}（差分あり）`,
+    });
+
+    expect(second.fingerprint).not.toBe(first.fingerprint);
   });
 });
 
@@ -161,6 +185,7 @@ describe('MCP tool', () => {
     expect(result.structuredContent).toMatchObject({
       project_id: 'bottom-of-thirst',
       asset_type: 'event_cg',
+      schema_version: 1,
     });
     const content = result.content as Array<{ type: string; text?: string }>;
     const text = content[0];

@@ -1,9 +1,15 @@
 import { access } from 'node:fs/promises';
 import path from 'node:path';
 
+import { computeFingerprint } from '../../domain/fingerprint.js';
 import { bullets, fencedBlock, readUtf8File } from '../../domain/markdown.js';
-import { VisualDirectorError } from '../../domain/types.js';
-import type { GenerationPackage, PrepareGenerationInput, ProjectAdapter } from '../../domain/types.js';
+import { GENERATION_PACKAGE_SCHEMA_VERSION, VisualDirectorError } from '../../domain/types.js';
+import type {
+  FingerprintedGenerationPackage,
+  GenerationPackage,
+  PrepareGenerationInput,
+  ProjectAdapter,
+} from '../../domain/types.js';
 import type { ProjectDocuments, ProjectLabels } from './types.js';
 
 export type CanonSubjectMode = 'approved_anchor' | 'new_anchor_candidate';
@@ -77,9 +83,10 @@ export abstract class CanonAdapterBase implements ProjectAdapter {
       throw new VisualDirectorError('GLOBAL_STYLE_INCOMPLETE', this.globalStyleIncompleteMessage());
     }
 
-    return {
+    const fingerprintedPackage: FingerprintedGenerationPackage = {
       project_id: this.projectId,
       asset_type: input.asset_type,
+      schema_version: GENERATION_PACKAGE_SCHEMA_VERSION,
       prompt_package: {
         style_lock: styleLock,
         subject_lock: subjects.map((subject) => this.subjectLock(subject)),
@@ -97,6 +104,11 @@ export abstract class CanonAdapterBase implements ProjectAdapter {
         ),
       ],
       policy: generationPolicy(preparingNewAnchor),
+    };
+
+    return {
+      ...fingerprintedPackage,
+      fingerprint: computeFingerprint(fingerprintedPackage),
     };
   }
 
@@ -190,6 +202,7 @@ export abstract class CanonAdapterBase implements ProjectAdapter {
 
   private sceneRequirements(input: PrepareGenerationInput, worldMarkdown: string): string[] {
     const context = Object.entries(input.scene_context ?? {})
+      .sort(([left], [right]) => left.localeCompare(right))
       .map(([key, value]) => `${key}: ${String(value)}`)
       .join(', ');
     return [
