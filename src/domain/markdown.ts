@@ -43,6 +43,36 @@ export function bullets(markdown: string): string[] {
     .filter((value): value is string => Boolean(value));
 }
 
+export function tableFacts(markdown: string): string[] {
+  const facts: string[] = [];
+  for (const line of markdown.split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (!trimmed.startsWith('|') || !trimmed.endsWith('|')) continue;
+
+    const cells = trimmed
+      .slice(1, -1)
+      .split('|')
+      .map((cell) => cleanMarkdownCell(cell));
+    if (cells.length < 2) continue;
+    if (cells.every((cell) => /^:?-{3,}:?$/.test(cell))) continue;
+
+    const [label, value] = cells;
+    if (!label || !value) continue;
+    if (label === '項目' && value === '内容') continue;
+    facts.push(`${label}: ${value}`);
+  }
+  return facts;
+}
+
+function cleanMarkdownCell(value: string): string {
+  return value
+    .trim()
+    .replace(/\*\*(.*?)\*\*/g, '$1')
+    .replace(/`([^`]*)`/g, '$1')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 export function bulletsAfterLabel(markdown: string, label: string): string[] {
   const lines = markdown.split(/\r?\n/);
   const labelIndex = lines.findIndex((line) => {
