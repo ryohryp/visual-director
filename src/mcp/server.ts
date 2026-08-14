@@ -99,7 +99,7 @@ export function createVisualDirectorServer(options: VisualDirectorServerOptions 
           }),
         ),
         policy: z.object({
-          must_use_approved_anchor: z.literal(true),
+          must_use_approved_anchor: z.boolean(),
           must_not_chain_from_candidate: z.literal(true),
           must_review_after_generation: z.literal(true),
         }),
