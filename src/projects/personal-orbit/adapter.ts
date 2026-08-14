@@ -55,12 +55,12 @@ export class PersonalOrbitAdapter implements ProjectAdapter {
         style_lock: [
           'ORBY TOWN STYLE LOCK',
           'Use the Approved Visual Anchor as the visual parent.',
-          'Preserve the current warm miniature-town presentation: light green outdoor ground, warm cream rooms, soft organic shadows, rounded building silhouettes, central paths/plaza, and compact agent scale.',
+          'Preserve the adopted practical, slightly near-future AI operations town: charcoal building exteriors, warm interior lighting, a clear central plaza and circulation paths, restrained greenery or water accents, readable facility signage, and compact agent scale.',
           'Keep the town itself visually distinct from the broader dark tactical dashboard shell; do not turn the scene into a panel-heavy cyber-noir dashboard.',
         ].join('\n'),
         subject_lock: [
           `${subject.displayName} (${subject.id}) - Approved Visual Anchor: ${approvedAnchor}.`,
-          'Preserve the established town topology, room zoning, miniature scale, and readable agent-to-room relationship.',
+          'Preserve the established facility layout, central plaza and circulation, miniature scale, and readable agent-to-facility relationship.',
         ],
         scene_requirements: [
           `Asset type: ${input.asset_type}.`,
@@ -70,19 +70,22 @@ export class PersonalOrbitAdapter implements ProjectAdapter {
           `Town world source: ${this.definition.documents.worldDirection}.`,
         ],
         allowed_changes: [
-          'Agent positions and activity-specific props may vary while preserving room identity and town topology.',
+          'Agent positions and activity-specific props may vary while preserving facility identity and town circulation.',
           'Small ambient details, lighting nuance, and non-canonical decorative accents may vary when requested.',
           'Framing and crop may vary as long as the town remains immediately recognizable from the Approved Visual Anchor.',
         ],
         forbidden_changes: [
           'Do not replace the Approved Visual Anchor with a candidate, derivative, legacy, or unrelated image as the generation parent.',
-          'Do not redesign the room topology, central circulation, or miniature-world scale unless the request explicitly changes the canon.',
-          'Do not replace the warm town scene with a photorealistic city, glossy 3D dashboard, or full-screen tactical UI.',
+          'Do not redesign the facility layout, central plaza and circulation, or miniature-world scale unless the request explicitly changes the canon.',
+          'Do not replace the practical AI operations town with a fairy-tale village, medieval European town, photorealistic city, glossy sci-fi base, or full-screen tactical UI.',
           'Do not obscure the town with dense dashboard cards or text-heavy overlays.',
         ],
         avoid_block: [
+          'fairy-tale village',
+          'medieval European town',
+          'pastel miniature village',
           'photorealistic city',
-          'glossy 3D dashboard',
+          'glossy sci-fi base',
           'dense dashboard cards over the town',
           'dark full-screen tactical UI replacing the town scene',
           'candidate-derived identity drift',
