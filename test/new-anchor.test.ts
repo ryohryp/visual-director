@@ -58,6 +58,8 @@ describe('new Visual Anchor candidate mode', () => {
       scene_context: { state: 'default/framing' },
     });
 
+    expect(result.schema_version).toBe(1);
+    expect(result.fingerprint).toMatch(/^[0-9a-f]{64}$/);
     expect(result.asset_type).toBe('character_visual_anchor');
     expect(result.policy.must_use_approved_anchor).toBe(false);
     expect(result.reference_assets).toEqual([

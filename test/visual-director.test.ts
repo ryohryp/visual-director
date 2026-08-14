@@ -48,6 +48,8 @@ describe('BottomOfThirstAdapter', () => {
   it('builds a separated, canon-backed Generation Package', async () => {
     const result = await new BottomOfThirstAdapter({ repoPath: fixtureRoot }).prepare(input);
 
+    expect(result.schema_version).toBe(1);
+    expect(result.fingerprint).toMatch(/^[0-9a-f]{64}$/);
     expect(result.project_id).toBe('bottom-of-thirst');
     expect(result.prompt_package.style_lock).toContain('STYLE LOCK');
     expect(result.prompt_package.subject_lock[0]).toContain('Approved Visual Anchor');
@@ -65,6 +67,27 @@ describe('BottomOfThirstAdapter', () => {
       must_not_chain_from_candidate: true,
       must_review_after_generation: true,
     });
+  });
+
+  it('produces a deterministic fingerprint that is invariant to scene_context key order and sensitive to content changes', async () => {
+    const adapter = new BottomOfThirstAdapter({ repoPath: fixtureRoot });
+    const result1 = await adapter.prepare(input);
+    const result2 = await adapter.prepare(input);
+
+    expect(result1.fingerprint).toBe(result2.fingerprint);
+
+    // Permuted scene_context keys produce identical fingerprint
+    const permutedInput = {
+      ...input,
+      scene_context: { story_state: 'present_day_investigation', location: '地下の記録保管庫' },
+    };
+    const resultPermuted = await adapter.prepare(permutedInput);
+    expect(resultPermuted.fingerprint).toBe(result1.fingerprint);
+
+    // Meaningful change produces different fingerprint
+    const modifiedInput = { ...input, request_text: '地下の記録保管庫で資料を整理しているイベントCG' };
+    const resultModified = await adapter.prepare(modifiedInput);
+    expect(resultModified.fingerprint).not.toBe(result1.fingerprint);
   });
 
   it('fails closed for an unknown subject', async () => {
@@ -159,6 +182,8 @@ describe('MCP tool', () => {
     const result = await client.callTool({ name: 'visual.prepare_generation', arguments: input });
     expect(result.isError).not.toBe(true);
     expect(result.structuredContent).toMatchObject({
+      schema_version: 1,
+      fingerprint: expect.stringMatching(/^[0-9a-f]{64}$/),
       project_id: 'bottom-of-thirst',
       asset_type: 'event_cg',
     });
@@ -166,6 +191,8 @@ describe('MCP tool', () => {
     const text = content[0];
     expect(text?.type).toBe('text');
     expect(JSON.parse(text?.type === 'text' ? text.text ?? '{}' : '{}')).toMatchObject({
+      schema_version: 1,
+      fingerprint: expect.stringMatching(/^[0-9a-f]{64}$/),
       project_id: 'bottom-of-thirst',
       asset_type: 'event_cg',
     });

@@ -24,6 +24,8 @@ export interface PromptPackage {
 }
 
 export interface GenerationPackage {
+  schema_version: number;
+  fingerprint: string;
   project_id: string;
   asset_type: string;
   prompt_package: PromptPackage;

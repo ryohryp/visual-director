@@ -10,6 +10,7 @@ Visual Director MCP v0.1は、ゲームのVisual Canon（ビジュアル設定�
 
 `visual.configure_project`で既知のプロジェクトへローカルcloneのディレクトリを紐づけられます。続けて`visual.prepare_generation`を呼ぶと、設定されたプロジェクトの正本資料を読み取り、以下の項目に分けたGeneration Packageを返します。
 
+- スキーマ版（`schema_version`）と内容同一性判定用の決定論的ハッシュ（`fingerprint`）
 - 全体のビジュアルスタイル
 - キャラクターの同一性とApproved Anchor
 - シーン要件
@@ -246,7 +247,7 @@ MCPサーバーは、実行時設定用の`visual.configure_project`と、読み
 }
 ```
 
-返却される`reference_assets`には、全体スタイル参照画像とキャラクターのApproved Anchorが含まれます。
+返却されるGeneration Packageには、スキーマ版（`schema_version`、初期値: `1`）およびパッケージの意味内容から決定論的に算出されるSHA-256（`fingerprint`）が含まれ、全体スタイル参照画像やキャラクターのApproved Anchorを含む`reference_assets`などと共に返却されます。
 
 ```json
 [
