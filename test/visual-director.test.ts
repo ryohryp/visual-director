@@ -67,6 +67,33 @@ describe('BottomOfThirstAdapter', () => {
     });
   });
 
+  it('builds a Generation Package when Canon markdown headings contain closing hashes', async () => {
+    await writeFile(
+      path.join(fixtureRoot, 'docs/visual/GLOBAL_VISUAL_STYLE.md'),
+      `# Global Style #\n\n## Global Visual Style Lock ##\n\n\`\`\`text\nSTYLE LOCK\n\`\`\`\n\n## Fixed Avoid Block ##\n\n\`\`\`text\nAVOID: photorealism, anime\n\`\`\`\n\n## 既存キャラクター差分生成フロー ##\n\n### 変更してよいもの ###\n- small facial expression\n- gaze\n- hand position\n\n### 変更してはいけないもの ###\n- face identity\n`,
+      'utf8',
+    );
+    await writeFile(
+      path.join(fixtureRoot, 'docs/visual/CHARACTER_VISUAL_CANON.md'),
+      `# Canon #\n\n## 共通ルール ##\n- Always use an approved anchor.\n\n## 相馬 健人 ##\n\n### Approved Visual Anchor ###\n- \`public/images/characters/souma/v2/default.avif\`\n\n### 採用する視覚条件 ###\n- 32歳の契約記者\n- 色褪せた濃紺のジャケット\n\n### Canonical state model ###\n- Use one default anchor.\n\n## 水上 沙耶 ##\n\n### Approved Visual Anchor ###\n- \`public/images/characters/saya/v2/default.avif\`\n`,
+      'utf8',
+    );
+
+    const result = await new BottomOfThirstAdapter({ repoPath: fixtureRoot }).prepare(input);
+
+    expect(result.project_id).toBe('bottom-of-thirst');
+    expect(result.prompt_package.style_lock).toContain('STYLE LOCK');
+    expect(result.prompt_package.subject_lock[0]).toContain('Approved Visual Anchor');
+    expect(result.prompt_package.subject_lock[0]).toContain('相馬 健人');
+    expect(result.prompt_package.allowed_changes).toEqual(['small facial expression', 'gaze', 'hand position']);
+    expect(result.prompt_package.forbidden_changes.join(' ')).toContain('Approved Visual Anchor');
+    expect(result.prompt_package.avoid_block).toEqual(['photorealism', 'anime']);
+    expect(result.reference_assets).toEqual([
+      { role: 'global_reference', path: 'docs/visual/assets/global_visual_style_reference.webp' },
+      { role: 'subject_anchor', subject_id: 'souma', path: 'public/images/characters/souma/v2/default.avif' },
+    ]);
+  });
+
   it('fails closed for an unknown subject', async () => {
     await expect(
       new BottomOfThirstAdapter({ repoPath: fixtureRoot }).prepare({ ...input, subject_ids: ['does-not-exist'] }),
