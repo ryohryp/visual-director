@@ -2,8 +2,11 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 
+import { Client } from '@modelcontextprotocol/sdk/client/index.js';
+import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
+import { createVisualDirectorServer } from '../src/mcp/server.js';
 import { createProjectRegistry, registerApprovedAnchor } from '../src/projects/registry.js';
 
 let fixtureRoot: string;
@@ -32,6 +35,65 @@ afterEach(async () => {
 });
 
 describe('Anchor adoption and Canon registration', () => {
+  it('registers an Approved Anchor through the MCP tools/call protocol', async () => {
+    const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+    const server = createVisualDirectorServer({ projectsConfigPath: path.join(fixtureRoot, 'projects.json') });
+    const client = new Client({ name: 'visual-director-adopt-anchor-test-client', version: '0.1.0' });
+
+    try {
+      await server.connect(serverTransport);
+      await client.connect(clientTransport);
+
+      const tools = await client.listTools();
+      expect(tools.tools.find((tool) => tool.name === 'visual.adopt_anchor')).toMatchObject({
+        name: 'visual.adopt_anchor',
+        annotations: {
+          readOnlyHint: false,
+          destructiveHint: false,
+          idempotentHint: true,
+          openWorldHint: false,
+        },
+      });
+
+      const result = await client.callTool({
+        name: 'visual.adopt_anchor',
+        arguments: {
+          project_id: 'game',
+          subject_id: 'hero',
+          candidate_path: 'assets/hero/candidate.avif',
+          approval: 'approve',
+        },
+      });
+
+      expect(result.isError).not.toBe(true);
+      expect(result.structuredContent).toMatchObject({
+        project_id: 'game',
+        subject_id: 'hero',
+        approved_anchor_path: 'assets/hero/candidate.avif',
+        canon_path: 'docs/visual/CHARACTER_VISUAL_CANON.md',
+        changed: true,
+      });
+
+      const repeated = await client.callTool({
+        name: 'visual.adopt_anchor',
+        arguments: {
+          project_id: 'game',
+          subject_id: 'hero',
+          candidate_path: 'assets/hero/candidate.avif',
+          approval: 'approve',
+        },
+      });
+      expect(repeated.isError).not.toBe(true);
+      expect(repeated.structuredContent).toMatchObject({ changed: false });
+    } finally {
+      await client.close();
+      await server.close();
+    }
+
+    const canon = await readFile(path.join(fixtureRoot, 'docs/visual/CHARACTER_VISUAL_CANON.md'), 'utf8');
+    expect(canon).toContain('### Approved Visual Anchor\n- `assets/hero/candidate.avif`');
+  });
+
   it('registers an explicitly approved repository candidate and is idempotent', async () => {
     const registry = createProjectRegistry({ projectsConfigPath: path.join(fixtureRoot, 'projects.json') });
     const input = {
