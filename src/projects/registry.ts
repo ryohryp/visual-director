@@ -12,6 +12,8 @@ import {
 import type { CanonProjectDefinition, ProjectDocuments, ProjectLabels, ProjectSubjectDefinition } from './canon/adapter.js';
 import { BottomOfThirstAdapter } from './bottom-of-thirst/adapter.js';
 import { bottomOfThirstDefinition } from './definitions.js';
+import { PersonalOrbitAdapter } from './personal-orbit/adapter.js';
+import { personalOrbitDefinition } from './personal-orbit/definition.js';
 
 export interface ProjectRegistryOptions {
   repoPath?: string;
@@ -63,7 +65,10 @@ interface ProjectSubjectConfig {
 }
 
 export function createProjectRegistry(options: ProjectRegistryOptions = {}): ProjectRegistry {
-  const definitions = new Map<string, CanonProjectDefinition>([[bottomOfThirstDefinition.projectId, bottomOfThirstDefinition]]);
+  const definitions = new Map<string, CanonProjectDefinition>([
+    [bottomOfThirstDefinition.projectId, bottomOfThirstDefinition],
+    [personalOrbitDefinition.projectId, personalOrbitDefinition],
+  ]);
   const repoPaths = new Map<string, string>();
   if (options.repoPath) repoPaths.set(bottomOfThirstDefinition.projectId, options.repoPath);
 
@@ -125,7 +130,8 @@ export function createProjectRegistry(options: ProjectRegistryOptions = {}): Pro
           known_project_ids: [...definitions.keys()],
         });
       }
-      const repoPath = repoPaths.get(projectId) ?? process.env.BOTTOM_OF_THIRST_REPO_PATH;
+      const repoPath = repoPaths.get(projectId)
+        ?? (projectId === bottomOfThirstDefinition.projectId ? process.env.BOTTOM_OF_THIRST_REPO_PATH : undefined);
       if (!repoPath) {
         throw new VisualDirectorError('PROJECT_CONFIG_MISSING', `No repository path is configured for project_id: ${projectId}.`, {
           project_id: projectId,
@@ -133,6 +139,9 @@ export function createProjectRegistry(options: ProjectRegistryOptions = {}): Pro
       }
       if (projectId === bottomOfThirstDefinition.projectId) {
         return new BottomOfThirstAdapter({ repoPath });
+      }
+      if (projectId === personalOrbitDefinition.projectId) {
+        return new PersonalOrbitAdapter(personalOrbitDefinition, { repoPath });
       }
       return new CanonProjectAdapter(definition, { repoPath });
     },
