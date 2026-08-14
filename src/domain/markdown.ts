@@ -22,15 +22,31 @@ export function subsection(markdown: string, heading: string): string {
   return headingBlock(markdown, heading, 3);
 }
 
+interface AtxHeading {
+  level: number;
+  text: string;
+}
+
+// ATX headings may end with an optional closing sequence of `#`s (e.g. `## Heading ##`),
+// which is semantically identical to the same heading without it.
+function parseAtxHeading(line: string): AtxHeading | null {
+  const match = line.trim().match(/^(#{1,6})(?:[ \t]+(.*))?$/);
+  if (!match?.[1]) return null;
+  const text = (match[2] ?? '').replace(/[ \t]+#+[ \t]*$/, '').trim();
+  return { level: match[1].length, text };
+}
+
 function headingBlock(markdown: string, heading: string, level: number): string {
-  const hashes = '#'.repeat(level);
   const lines = markdown.split(/\r?\n/);
-  const start = lines.findIndex((line) => line.trim() === `${hashes} ${heading}`);
+  const start = lines.findIndex((line) => {
+    const parsed = parseAtxHeading(line);
+    return parsed !== null && parsed.level === level && parsed.text === heading;
+  });
   if (start < 0) return '';
 
   const relativeEnd = lines.slice(start + 1).findIndex((line) => {
-    const headingMatch = line.match(/^(#{1,6})\s+/);
-    return headingMatch !== null && (headingMatch[1]?.length ?? 0) <= level;
+    const parsed = parseAtxHeading(line);
+    return parsed !== null && parsed.level <= level;
   });
   const end = relativeEnd < 0 ? lines.length : start + 1 + relativeEnd;
   return lines.slice(start + 1, end).join('\n').trim();
@@ -76,8 +92,9 @@ function cleanMarkdownCell(value: string): string {
 export function bulletsAfterLabel(markdown: string, label: string): string[] {
   const lines = markdown.split(/\r?\n/);
   const labelIndex = lines.findIndex((line) => {
-    const trimmed = line.trim();
-    return trimmed === `${label}:` || trimmed === `### ${label}`;
+    if (line.trim() === `${label}:`) return true;
+    const parsed = parseAtxHeading(line);
+    return parsed !== null && parsed.level === 3 && parsed.text === label;
   });
   if (labelIndex < 0) return [];
   const collected: string[] = [];

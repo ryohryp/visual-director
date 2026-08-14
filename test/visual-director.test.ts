@@ -88,6 +88,33 @@ describe('BottomOfThirstAdapter', () => {
   });
 });
 
+describe('BottomOfThirstAdapter with ATX closing-# headings', () => {
+  it('builds the same Generation Package when Canon headings use a closing sequence', async () => {
+    const closingHashRoot = await mkdtemp(path.join(os.tmpdir(), 'visual-director-fixture-closing-hash-'));
+    try {
+      await createClosingHashFixture(closingHashRoot);
+      const result = await new BottomOfThirstAdapter({ repoPath: closingHashRoot }).prepare(input);
+
+      expect(result.prompt_package.style_lock).toContain('STYLE LOCK');
+      expect(result.prompt_package.allowed_changes).toEqual(['small facial expression', 'gaze', 'hand position']);
+      expect(result.prompt_package.avoid_block).toEqual(['photorealism', 'anime']);
+      expect(result.prompt_package.subject_lock[0]).toContain('Approved Visual Anchor');
+      expect(result.prompt_package.subject_lock[0]).toContain('32歳の契約記者');
+      // The next same-level heading (水上 沙耶) must not leak into 相馬 健人's section.
+      expect(result.prompt_package.subject_lock[0]).not.toContain('水上');
+      expect(result.prompt_package.forbidden_changes).toEqual(
+        expect.arrayContaining(['face identity', 'Always use an approved anchor.']),
+      );
+      expect(result.reference_assets).toEqual([
+        { role: 'global_reference', path: 'docs/visual/assets/global_visual_style_reference.webp' },
+        { role: 'subject_anchor', subject_id: 'souma', path: 'public/images/characters/souma/v2/default.avif' },
+      ]);
+    } finally {
+      await rm(closingHashRoot, { recursive: true, force: true });
+    }
+  });
+});
+
 describe('Project registry runtime configuration', () => {
   it('binds a known project to a local repository for subsequent preparation', async () => {
     const registry = createProjectRegistry();
@@ -262,6 +289,29 @@ async function createFixture(root: string): Promise<void> {
   const files: Record<string, string> = {
     'docs/visual/GLOBAL_VISUAL_STYLE.md': `# Global Style\n\n## Global Visual Style Lock\n\n\`\`\`text\nSTYLE LOCK\n\`\`\`\n\n## Fixed Avoid Block\n\n\`\`\`text\nAVOID: photorealism, anime\n\`\`\`\n\n## 既存キャラクター差分生成フロー\n\n### 変更してよいもの\n- small facial expression\n- gaze\n- hand position\n\n### 変更してはいけないもの\n- face identity\n`,
     'docs/visual/CHARACTER_VISUAL_CANON.md': `# Canon\n\n## 共通ルール\n- Always use an approved anchor.\n\n## 相馬 健人\n\n### Approved Visual Anchor\n- \`public/images/characters/souma/v2/default.avif\`\n\n### 採用する視覚条件\n- 32歳の契約記者\n- 色褪せた濃紺のジャケット\n\n### Canonical state model\n- Use one default anchor.\n\n## 水上 沙耶\n\n### Approved Visual Anchor\n- \`public/images/characters/saya/v2/default.avif\`\n`,
+    'docs/WORLD_DIRECTION.md': '# World\n\n- grounded and observational\n- ordinary light\n',
+    'docs/characters/soma.md': '# Soma\n\n- contract reporter\n- careful with records\n',
+    'docs/visual/assets/README.md': '# Assets\n',
+  };
+  for (const [relativePath, content] of Object.entries(files)) {
+    const absolutePath = path.join(root, relativePath);
+    await mkdir(path.dirname(absolutePath), { recursive: true });
+    await writeFile(absolutePath, content, 'utf8');
+  }
+  for (const relativePath of [
+    'docs/visual/assets/global_visual_style_reference.webp',
+    'public/images/characters/souma/v2/default.avif',
+  ]) {
+    const absolutePath = path.join(root, relativePath);
+    await mkdir(path.dirname(absolutePath), { recursive: true });
+    await writeFile(absolutePath, Buffer.from('fixture'));
+  }
+}
+
+async function createClosingHashFixture(root: string): Promise<void> {
+  const files: Record<string, string> = {
+    'docs/visual/GLOBAL_VISUAL_STYLE.md': `# Global Style\n\n## Global Visual Style Lock ##\n\n\`\`\`text\nSTYLE LOCK\n\`\`\`\n\n## Fixed Avoid Block ##\n\n\`\`\`text\nAVOID: photorealism, anime\n\`\`\`\n\n## 既存キャラクター差分生成フロー ##\n\n### 変更してよいもの ###\n- small facial expression\n- gaze\n- hand position\n\n### 変更してはいけないもの ###\n- face identity\n`,
+    'docs/visual/CHARACTER_VISUAL_CANON.md': `# Canon\n\n## 共通ルール ##\n- Always use an approved anchor.\n\n## 相馬 健人 ##\n\n### Approved Visual Anchor ###\n- \`public/images/characters/souma/v2/default.avif\`\n\n### 採用する視覚条件 ###\n- 32歳の契約記者\n- 色褪せた濃紺のジャケット\n\n### Canonical state model ###\n- Use one default anchor.\n\n## 水上 沙耶 ##\n\n### Approved Visual Anchor ###\n- \`public/images/characters/saya/v2/default.avif\`\n`,
     'docs/WORLD_DIRECTION.md': '# World\n\n- grounded and observational\n- ordinary light\n',
     'docs/characters/soma.md': '# Soma\n\n- contract reporter\n- careful with records\n',
     'docs/visual/assets/README.md': '# Assets\n',
