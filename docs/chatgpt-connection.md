@@ -67,7 +67,22 @@ Visual Directorを使って、次の画像生成パッケージを作成して�
 
 The ChatGPT connection should discover exactly three tools: `visual.configure_project`, `visual.adopt_anchor`, and `visual.prepare_generation`. If the server was started without a repository path and the user explicitly provides a local clone path, call `visual.configure_project` first; it validates and stores the path for the current server process only. A successful preparation result includes `structuredContent` and repository-relative reference paths. An unknown project, subject, document, or approved anchor must remain an explicit error; the server must not return a fallback package.
 
-`visual.adopt_anchor` is the only repository-writing action. Call it only after the user explicitly approves the exact candidate. The candidate must already be an existing repository-relative file. The action registers it under the subject's `Approved Visual Anchor` Canon heading, is idempotent for the same path, and refuses to replace a different existing Approved Anchor.
+`visual.adopt_anchor` is the only repository-writing action. Call it only after the user explicitly approves the exact image. For a ChatGPT-generated or uploaded image, pass the OpenAI file reference in the top-level `candidate_file` field:
+
+```json
+{
+  "candidate_file": {
+    "download_url": "https://files.example/...",
+    "file_id": "file_...",
+    "mime_type": "image/png",
+    "file_name": "anchor.png"
+  }
+}
+```
+
+The tool descriptor declares `candidate_file` in `_meta["openai/fileParams"]`; ChatGPT supplies `download_url` and `file_id` and may omit the MIME/name fields. The server downloads the temporary HTTPS URL, validates the image, and chooses the subject-defined `public/images/characters/<subject_id>/v2/default.<extension>` destination. It never reads `/mnt/data/...` as a Windows path and never accepts a caller-supplied final destination. `candidate_path` remains the backward-compatible repository-relative input. The two inputs cannot be combined, and an existing different Approved Anchor is never replaced. A successful result contains `status`, `anchor_path`, `sha256`, `mime_type`, `width`, and `height`.
+
+After changing this tool's name, description, schema, annotations, or `_meta`, restart or redeploy the MCP server, open the ChatGPT connection settings, select **Refresh**, confirm the new metadata, then start a new conversation and rerun the affected tests. This is required in addition to restarting the server.
 
 ## Public deployment boundary
 

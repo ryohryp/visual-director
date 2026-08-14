@@ -2,7 +2,7 @@
 
 Visual Director MCP v0.1は、ゲームのVisual Canon（ビジュアル設定資料）を読み取り、画像生成に必要なコンテキストを準備する、フェイルクローズ設計のMCPサーバーです。
 
-画像を生成したり、OpenAI Image APIを呼び出したり、候補画像やレビューを管理したりはしません。ゲームリポジトリへの書き込みは、明示承認された候補をApproved AnchorとしてCanon登録する`visual.adopt_anchor`だけが行います。`visual.configure_project`は実行中のプロセス内にローカルリポジトリの紐づけを保持しますが、リポジトリや設定ファイルは変更せず、再起動後にも保持しません。
+画像を生成したり、OpenAI Image APIを呼び出したり、レビューを管理したりはしません。ゲームリポジトリへの書き込みは、明示承認された画像をApproved Anchorとして保存・Canon登録する`visual.adopt_anchor`だけが行います。`visual.configure_project`は実行中のプロセス内にローカルリポジトリの紐づけを保持しますが、リポジトリや設定ファイルは変更せず、再起動後にも保持しません。
 
 標準搭載のプロジェクトAdapterは`bottom-of-thirst`で、`ryohryp/---The-Bottom-of-Thirst`を対象にしています。ローカルのJSON設定ファイルを使えば、MCPツールの契約を変更せずに他のゲームも追加できます。
 
@@ -35,6 +35,26 @@ Adapterは`CHARACTER_VISUAL_CANON.md`からApproved Anchorのパスを解決し�
 
 この呼び出しは`visual.configure_project`が実行中のMCPサーバーだけに設定を保持します。パスの存在とディレクトリ性を検証し、成功後は同じセッションで`visual.prepare_generation`を呼び出します。パスを推測したり、設定ファイルへ保存したりはしません。
 
+### Approved Anchorの採用
+
+ユーザーが画像を明示承認した場合は`visual.adopt_anchor`を1回呼び出せます。ChatGPT接続では、OpenAI Apps SDKの正式なファイル参照を`candidate_file`へ渡します。サーバーは`download_url`から画像を取得し、`file_id`は受信確認にだけ使います。`/mnt/data/...`などChatGPT側の一時パスをWindowsのローカルパスとして解釈しません。
+
+```json
+{
+  "project_id": "bottom-of-thirst",
+  "subject_id": "kamino_kyosuke",
+  "candidate_file": {
+    "download_url": "https://files.example/...",
+    "file_id": "file_...",
+    "mime_type": "image/png",
+    "file_name": "kyosuke.png"
+  },
+  "approval": "approve"
+}
+```
+
+`candidate_file`と`candidate_path`は同時に指定できません。`candidate_path`は既存のリポジトリ相対画像を採用する後方互換入力です。外部ファイルの保存先は呼び出し元が指定できず、Canonのsubject IDから`public/images/characters/<subject_id>/v2/default.<拡張子>`として決定されます。既存Approved Anchorは置換せず、画像の取得・MIME・デコード・サイズ・パス安全性・SHA-256を検証してから、一時ファイルとrollback可能なCanon更新を行います。
+
 ## アーキテクチャ
 
 ```text
@@ -65,6 +85,8 @@ Adapterの境界は意図的に分離されています。標準のプロジェ�
 ## セットアップ
 
 Node.js 20以降が必要です。
+
+現行の依存関係は`@modelcontextprotocol/sdk` 1.30.0、Zod 4.4.3です。OpenAI Apps SDK専用パッケージは使用せず、標準MCP SDKのtool descriptor `_meta["openai/fileParams"]`でChatGPTの正式なfile reference入力と互換にしています。
 
 ```powershell
 npm.cmd install
@@ -233,7 +255,7 @@ npm.cmd run dev -- --http --host 127.0.0.1 --port 3000
 
 ローカルでChatGPTから利用する場合は、サーバーをループバックに限定し、Secure MCP Tunnel経由で接続してください。Tunnel、Developer mode、検証用プロンプト、ローカルテストと公開デプロイの境界については、[ChatGPT接続ガイド](docs/chatgpt-connection.md)を参照してください。
 
-MCPサーバーは、実行時設定用の`visual.configure_project`、明示承認されたAnchorをCanon登録する`visual.adopt_anchor`、読み取り専用・冪等の`visual.prepare_generation`を公開します。`visual.configure_project`はローカルリポジトリの存在を検証して実行中のサーバーにだけ紐づけます。`visual.adopt_anchor`は既存のリポジトリ相対ファイルだけを登録し、別のApproved Anchorを上書きしません。`visual.prepare_generation`はコンテキストの準備だけを行い、画像生成や画像APIの呼び出しは行いません。
+MCPサーバーは、実行時設定用の`visual.configure_project`、明示承認された画像を保存・Canon登録する`visual.adopt_anchor`、読み取り専用・冪等の`visual.prepare_generation`を公開します。`visual.configure_project`はローカルリポジトリの存在を検証して実行中のサーバーにだけ紐づけます。`visual.adopt_anchor`はOpenAI file referenceまたは既存のリポジトリ相対ファイルを受け付け、別のApproved Anchorを上書きしません。`visual.prepare_generation`はコンテキストの準備だけを行い、画像生成や画像APIの呼び出しは行いません。
 
 ## ツール入力の例
 
@@ -245,6 +267,8 @@ MCPサーバーは、実行時設定用の`visual.configure_project`、明示承
   "request_text": "水上沙耶の通常立ち絵"
 }
 ```
+
+Anchorを採用する場合の成功レスポンスには、`status: "approved"`、Canon上の`anchor_path`、`sha256`、`mime_type`、`width`、`height`が含まれます。`approved_anchor_path`は既存クライアント向けに残しています。
 
 返却される`reference_assets`には、全体スタイル参照画像とキャラクターのApproved Anchorが含まれます。
 
@@ -276,6 +300,10 @@ npx.cmd @modelcontextprotocol/inspector node dist/index.js --projects-config C:\
 
 HTTPを検査する場合は、1つのターミナルでHTTPサーバーを起動し、別のターミナルからMCP Inspectorを`http://127.0.0.1:3000/mcp`に接続します。Inspectorには`visual.configure_project`、`visual.adopt_anchor`、`visual.prepare_generation`の3ツールが表示されます。
 
+## ツールスキーマを変更した後のRefresh
+
+`candidate_file`や`openai/fileParams`などツール名・説明・スキーマ・メタデータを変更した場合は、MCPサーバーを再起動するだけではChatGPT側へ反映されません。サーバーを再起動または再デプロイし、ChatGPTの接続設定で**Refresh**を実行し、ツールメタデータを確認してから新しい会話で再テストしてください。公式の接続手順は[Connect and test your plugin](https://developers.openai.com/plugins/deploy/connect-chatgpt)を参照してください。
+
 ## 検証
 
 ```powershell
@@ -283,8 +311,8 @@ npm.cmd run typecheck
 npm.cmd test
 ```
 
-テストでは、Generation Packageの分離、CanonからのAnchor解決、Approved Anchorの連続パス解析、未知のキャラクターに対する明示的エラー、Anchorやマニフェスト不足時のエラー、MCPツール検出、MCPプロトコル呼び出しを検証します。
+テストでは、Generation Packageの分離、CanonからのAnchor解決、OpenAI file referenceの画像取り込み、PNG/JPEG検証、SHA-256、rollback、既存Anchor保護、未知のキャラクターに対する明示的エラー、Anchorやマニフェスト不足時のエラー、MCPツール検出、MCPプロトコル呼び出しを検証します。
 
 ## v0.1の対象外
 
-画像生成、Web UI、データベース保存、アセット登録、候補画像の承認・却下、Visual QA自動化、LoRA、ControlNet、ベクトル検索、複数モデルのオーケストレーション、ゲームリポジトリへの自動書き込みは、今後の対応範囲です。
+画像生成、Web UI、データベース保存、レビューUI、Visual QA自動化、LoRA、ControlNet、ベクトル検索、複数モデルのオーケストレーションは、今後の対応範囲です。

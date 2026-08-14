@@ -11,16 +11,30 @@ export interface PrepareGenerationInput {
 export interface AdoptAnchorInput {
   project_id: string;
   subject_id: string;
-  candidate_path: string;
+  candidate_file?: OpenAIFileReference;
+  candidate_path?: string;
   approval: 'approve';
+}
+
+export interface OpenAIFileReference {
+  download_url: string;
+  file_id: string;
+  mime_type?: string;
+  file_name?: string;
 }
 
 export interface AdoptAnchorResult {
   project_id: string;
   subject_id: string;
+  status: 'approved';
+  anchor_path: string;
   approved_anchor_path: string;
   canon_path: string;
   changed: boolean;
+  sha256: string;
+  mime_type: string;
+  width: number;
+  height: number;
 }
 
 export interface ReferenceAsset {

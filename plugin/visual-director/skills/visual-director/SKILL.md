@@ -34,7 +34,7 @@ Visual Directorは画像を生成しない。画像生成を依頼された場�
    - `scene_context`: 場所や物語状態が明示された場合だけ追加する。
 3. 不足している必須情報だけを短く質問する。既に会話で確定した値は再質問しない。
 4. 利用可能なMCPツールから`visual.configure_project`と`visual.prepare_generation`を探す。`PROJECT_CONFIG_MISSING`で、かつユーザーがローカルcloneのパスを明示している場合だけ、先に`visual.configure_project`を1回呼び出し、その成功後に`visual.prepare_generation`を1回呼び出す。パスを推測して設定しない。ホストによって名前空間が付いていても、同じツール名と説明を優先する。
-5. ユーザーが候補画像を明示的に採用した場合だけ`visual.adopt_anchor`を呼ぶ。対象候補のリポジトリ相対パスと`approval: "approve"`を渡し、別の既存Approved Anchorとの競合時は停止する。
+5. ユーザーが画像を明示的に採用した場合だけ`visual.adopt_anchor`を呼ぶ。ChatGPT由来の画像はOpenAI file referenceを`candidate_file`へ渡し、既存repo画像の後方互換入力には`candidate_path`を使う。`approval: "approve"`を必ず渡し、両方を同時指定せず、別の既存Approved Anchorとの競合時は停止する。`/mnt/data/...`をrepoパスとして解釈しない。
 6. エラー時は推測で再試行せず、エラーコードと次に必要な情報を伝える。詳細は[ツール契約](references/tool-contract.md)を参照する。
 7. 成功時はGeneration Packageを唯一の生成制約として扱う。
 8. 画像生成後は、Generation Packageのhard factsと見た目を照合する。年齢、職業、必須小物、服装、人物同一性、Global Styleのいずれかが外れていれば候補をRejectし、採用・登録・Canon反映へ進めない。
@@ -66,4 +66,5 @@ Visual Directorは画像を生成しない。画像生成を依頼された場�
 - `PROJECT_CONFIG_MISSING`でローカルcloneのパスが会話にない場合は、設定ツールを推測で呼ばず、サーバー起動時のリポジトリパスまたはプロジェクト設定を案内する。
 - `PROJECT_NOT_FOUND`、`SUBJECT_NOT_FOUND`、`REFERENCE_NOT_FOUND`などを別のプロジェクトやアセットへフォールバックさせない。
 - `visual.adopt_anchor`以外ではCanonの編集、候補登録、承認・却下、ゲームリポジトリへの書き込みは行わない。このアクションもユーザーが対象候補を明示的に採用した場合だけ使う。
+- `visual.adopt_anchor`のツール名、説明、schema、annotations、`openai/fileParams`が更新された場合は、MCPサーバー再起動後にChatGPT接続のRefreshを実行し、新しい会話で再テストする。
 - ユーザーが画像生成を頼んでいない場合、Generation Packageの取得だけで終了する。
