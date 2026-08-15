@@ -5,6 +5,8 @@
   "rewrites": [
     { "source": "/", "destination": "/api/dashboard" },
     { "source": "/dashboard", "destination": "/api/dashboard" },
+    { "source": "/anchor", "destination": "/api/anchor" },
+    { "source": "/anchor-detail", "destination": "/api/anchor-detail" },
     { "source": "/overview", "destination": "/api/overview" },
     { "source": "/asset", "destination": "/api/asset" },
     { "source": "/mcp", "destination": "/api/mcp" },
