@@ -1,4 +1,4 @@
-import { readFile } from 'node:fs/promises';
+import { access, readFile } from 'node:fs/promises';
 import path from 'node:path';
 
 import { VisualDirectorError } from '../domain/types.js';
@@ -41,9 +41,10 @@ export class OpenAIImageGenerator implements ImageGenerator {
     form.set('size', '1024x1536');
 
     for (const reference of references) {
-      const absolute = path.resolve(input.repository_path, safeRelativePath(reference.path));
+      const transportPath = await supportedTransportPath(input.repository_path, safeRelativePath(reference.path));
+      const absolute = path.resolve(input.repository_path, transportPath);
       const bytes = await readFile(absolute);
-      form.append('image[]', new Blob([bytes], { type: mimeType(reference.path) }), path.basename(reference.path));
+      form.append('image[]', new Blob([bytes], { type: mimeType(transportPath) }), path.basename(transportPath));
     }
 
     let response: Response;
@@ -84,6 +85,27 @@ export class OpenAIImageGenerator implements ImageGenerator {
   }
 }
 
+async function supportedTransportPath(repositoryPath: string, canonicalPath: string): Promise<string> {
+  const lower = canonicalPath.toLowerCase();
+  if (lower.endsWith('.png') || lower.endsWith('.webp') || lower.endsWith('.jpg') || lower.endsWith('.jpeg')) return canonicalPath;
+  if (lower.endsWith('.avif') || lower.endsWith('.svg')) {
+    const sibling = canonicalPath.replace(/\.(avif|svg)$/i, '.webp');
+    try {
+      await access(path.resolve(repositoryPath, sibling));
+      return sibling;
+    } catch {
+      throw new VisualDirectorError(
+        'GENERATOR_REFERENCE_UNSUPPORTED',
+        'The canonical reference format is not accepted by the initial OpenAI transport and no same-generation WebP sibling exists.',
+        { canonical_path: canonicalPath, expected_transport_path: sibling },
+      );
+    }
+  }
+  throw new VisualDirectorError('GENERATOR_REFERENCE_UNSUPPORTED', 'Reference image format is not supported by the initial generator adapter.', {
+    path: canonicalPath,
+  });
+}
+
 function safeRelativePath(value: string): string {
   const normalized = value.replace(/\\/g, '/').replace(/^\.\//, '');
   if (!normalized || normalized.startsWith('/') || /^[a-zA-Z]:/.test(normalized) || normalized.split('/').includes('..')) {
@@ -97,7 +119,6 @@ function mimeType(filePath: string): string {
   if (lower.endsWith('.png')) return 'image/png';
   if (lower.endsWith('.webp')) return 'image/webp';
   if (lower.endsWith('.jpg') || lower.endsWith('.jpeg')) return 'image/jpeg';
-  if (lower.endsWith('.avif')) return 'image/avif';
   throw new VisualDirectorError('GENERATOR_REFERENCE_UNSUPPORTED', 'Reference image format is not supported by the initial generator adapter.', { path: filePath });
 }
 
