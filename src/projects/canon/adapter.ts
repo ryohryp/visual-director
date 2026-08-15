@@ -1,5 +1,6 @@
 import { bullets, bulletsAfterLabel, section, subsection } from '../../domain/markdown.js';
 import { VisualDirectorError } from '../../domain/types.js';
+import type { ApprovedAnchorSummary } from '../../domain/types.js';
 import { LocalRepositorySource } from '../repository-source.js';
 import { CanonAdapterBase, globalForbiddenChanges } from './adapter-base.js';
 import type { CanonProjectDefinition, CanonProjectAdapterOptions, ProjectSubjectDefinition } from './types.js';
@@ -54,6 +55,24 @@ export class CanonProjectAdapter extends CanonAdapterBase {
     await this.source.ensureFile(anchorPath, `Approved Anchor for ${subjectId}`);
     const characterMarkdown = await this.source.readText(configured.characterFile, `Character facts for ${subjectId}`);
     return { ...configured, anchorPath, canonSection, characterMarkdown, mode: 'approved_anchor' };
+  }
+
+  protected async listApprovedAnchors(canonMarkdown: string): Promise<ApprovedAnchorSummary[]> {
+    const anchors: ApprovedAnchorSummary[] = [];
+    for (const configured of Object.values(this.definition.subjects)) {
+      const canonSection = section(canonMarkdown, configured.canonHeading);
+      const anchorPath = approvedAnchorPaths(subsection(canonSection, 'Approved Visual Anchor'))[0];
+      if (!anchorPath) continue;
+      await this.source.ensureFile(anchorPath, `Approved Anchor for ${configured.id}`);
+      anchors.push({
+        subject_id: configured.id,
+        display_name: configured.displayName,
+        asset_type: 'character_visual_anchor',
+        path: anchorPath,
+        status: 'approved',
+      });
+    }
+    return anchors;
   }
 
   protected subjectLock(subject: SubjectAnchor): string {
