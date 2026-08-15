@@ -1,3 +1,4 @@
+import { createHostedHttpServerForVisualDirector } from './mcp/hosted-server.js';
 import { createHttpServerForVisualDirector, runStdio } from './mcp/server.js';
 
 const isVercel = process.env.VERCEL === '1';
@@ -11,7 +12,9 @@ if (isHttp) {
   if (!Number.isInteger(port) || port < 1 || port > 65_535) {
     throw new Error(`Invalid port: ${port}`);
   }
-  const { httpServer } = createHttpServerForVisualDirector({ repoPath, projectsConfigPath });
+  const httpServer = isVercel
+    ? createHostedHttpServerForVisualDirector({ repoPath, projectsConfigPath })
+    : createHttpServerForVisualDirector({ repoPath, projectsConfigPath }).httpServer;
   httpServer.listen(port, host, () => {
     process.stderr.write(`Visual Director MCP listening on http://${host}:${port}/mcp\n`);
   });
