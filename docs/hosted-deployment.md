@@ -14,7 +14,9 @@ ChatGPT
 
 Hosted `visual.prepare_generation` reads Canon and checks Approved Anchor objects through GitHub. It does not receive repository write permission.
 
-`visual.adopt_anchor` is deliberately disabled when hosted GitHub mode is active and returns `HOSTED_WRITE_DISABLED`. Anchor adoption must remain on a separately reviewed write path.
+`visual.adopt_anchor`, Candidate lifecycle mutations, and hosted generation persistence are deliberately disabled and return `HOSTED_WRITE_DISABLED`. Do not broaden the existing read credential to enable them.
+
+The reviewed prerequisites for any future hosted mutation path are defined in [`hosted-write-boundary.md`](./hosted-write-boundary.md). That document is an enablement gate, not an instruction to turn writes on.
 
 Never expose the GitHub token in source control, MCP output, logs, prompt packages, or error details.
 
