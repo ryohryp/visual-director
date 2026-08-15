@@ -311,3 +311,7 @@ Visual Director 自身には次を持たせません。
 - candidate / legacy asset への自動 fallback
 
 Visual Director は「画像を作るAI」ではなく、**確定済み Visual Canon を画像生成へ安全に適用する Canon compiler / gatekeeper** として扱います。
+
+## v0.2 の実リポジトリ確認
+
+`bottom-of-thirst` の正本側では、神野恭介の Approved Visual Anchor として `public/images/characters/kamino_kyosuke/v2/default.avif` が Canon に登録され、同じ `v2` ディレクトリに実ファイルが存在することを確認している。ローカル MCP を v0.2 へ更新後は、この実データを使って `reference_assets` の `subject_anchor` と `policy.must_use_approved_anchor = true` を最終 E2E 確認する。
