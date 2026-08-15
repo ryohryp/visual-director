@@ -128,7 +128,26 @@ export abstract class CanonAdapterBase implements ProjectAdapter {
 
   protected abstract loadSubject(subjectId: string, canonMarkdown: string, assetType?: string): Promise<CanonSubject>;
 
-  protected abstract listApprovedAnchors(canonMarkdown: string): Promise<ApprovedAnchorSummary[]>;
+  protected async listApprovedAnchors(canonMarkdown: string): Promise<ApprovedAnchorSummary[]> {
+    const anchors: ApprovedAnchorSummary[] = [];
+    for (const subjectId of this.subjectIds) {
+      try {
+        const subject = await this.loadSubject(subjectId, canonMarkdown, '__visual_overview__');
+        if (!subject.anchorPath) continue;
+        anchors.push({
+          subject_id: subject.id,
+          display_name: subject.displayName,
+          asset_type: 'character_visual_anchor',
+          path: subject.anchorPath,
+          status: 'approved',
+        });
+      } catch (error) {
+        if (error instanceof VisualDirectorError && error.code === 'APPROVED_ANCHOR_NOT_FOUND') continue;
+        throw error;
+      }
+    }
+    return anchors;
+  }
 
   protected abstract subjectLock(subject: CanonSubject, preparingNewAnchor?: boolean): string;
 
