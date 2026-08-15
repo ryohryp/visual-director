@@ -10,33 +10,12 @@ import type {
 export const WORKFLOW_INDEX_PATH = '.visual-director/asset-index.json' as const;
 
 const JOB_STATUSES = new Set<GenerationJobStatus>([
-  'requested',
-  'prepared',
-  'generating',
-  'generated',
-  'candidate',
-  'approved',
-  'rejected',
-  'registered',
-  'superseded',
-  'failed',
+  'requested', 'prepared', 'generating', 'generated', 'candidate', 'approved', 'rejected', 'registered', 'superseded', 'failed',
 ]);
-
-const ASSET_STATUSES = new Set<ManagedAssetStatus>([
-  'candidate',
-  'approved',
-  'rejected',
-  'registered',
-  'superseded',
-]);
+const ASSET_STATUSES = new Set<ManagedAssetStatus>(['candidate', 'approved', 'rejected', 'registered', 'superseded']);
 
 export function emptyWorkflowSummary(): ProjectWorkflowSummary {
-  return {
-    metadata_path: WORKFLOW_INDEX_PATH,
-    available: false,
-    jobs: [],
-    assets: [],
-  };
+  return { metadata_path: WORKFLOW_INDEX_PATH, available: false, jobs: [], assets: [] };
 }
 
 export function parseWorkflowIndex(markdown: string): ProjectWorkflowSummary {
@@ -46,16 +25,10 @@ export function parseWorkflowIndex(markdown: string): ProjectWorkflowSummary {
   } catch (error) {
     throw invalidIndex('Workflow asset index is not valid JSON.', error);
   }
-  if (!isRecord(parsed)) {
-    throw invalidIndex('Workflow asset index must be a JSON object.');
-  }
-
+  if (!isRecord(parsed)) throw invalidIndex('Workflow asset index must be a JSON object.');
   const jobs = parsed.jobs ?? [];
   const assets = parsed.assets ?? [];
-  if (!Array.isArray(jobs) || !Array.isArray(assets)) {
-    throw invalidIndex('Workflow asset index jobs and assets must be arrays.');
-  }
-
+  if (!Array.isArray(jobs) || !Array.isArray(assets)) throw invalidIndex('Workflow asset index jobs and assets must be arrays.');
   return {
     metadata_path: WORKFLOW_INDEX_PATH,
     available: true,
@@ -74,7 +47,6 @@ function parseJob(value: unknown, index: number): GenerationJobSummary {
   if (!Array.isArray(value.subject_ids) || !value.subject_ids.every(isNonEmptyString)) {
     throw invalidIndex(`jobs[${index}].subject_ids must be an array of non-empty strings.`);
   }
-
   return compact({
     job_id: jobId,
     asset_type: assetType,
@@ -99,7 +71,6 @@ function parseAsset(value: unknown, index: number): ManagedVisualAssetSummary {
   if (!Array.isArray(referencePaths) || !referencePaths.every(isNonEmptyString)) {
     throw invalidIndex(`assets[${index}].reference_paths must be an array of non-empty strings.`);
   }
-
   return compact({
     asset_id: assetId,
     asset_type: assetType,
@@ -108,6 +79,7 @@ function parseAsset(value: unknown, index: number): ManagedVisualAssetSummary {
     source_job_id: optionalString(value.source_job_id),
     candidate_path: optionalString(value.candidate_path),
     registered_path: optionalString(value.registered_path),
+    archived_path: optionalString(value.archived_path),
     generator: optionalString(value.generator),
     generation_package_fingerprint: optionalString(value.generation_package_fingerprint),
     reference_paths: referencePaths.map((item) => item.trim()),
@@ -121,28 +93,23 @@ function requiredString(value: unknown, field: string): string {
   if (!isNonEmptyString(value)) throw invalidIndex(`${field} must be a non-empty string.`);
   return value.trim();
 }
-
 function optionalString(value: unknown): string | undefined {
   if (value === undefined || value === null) return undefined;
   if (!isNonEmptyString(value)) throw invalidIndex('Optional workflow string values must be non-empty when present.');
   return value.trim();
 }
-
 function compact<T extends Record<string, unknown>>(value: T): T {
   return Object.fromEntries(Object.entries(value).filter(([, item]) => item !== undefined)) as T;
 }
-
 function invalidIndex(message: string, error?: unknown): VisualDirectorError {
   return new VisualDirectorError('WORKFLOW_INDEX_INVALID', message, {
     path: WORKFLOW_INDEX_PATH,
     ...(error ? { reason: error instanceof Error ? error.message : String(error) } : {}),
   });
 }
-
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
-
 function isNonEmptyString(value: unknown): value is string {
   return typeof value === 'string' && value.trim().length > 0;
 }

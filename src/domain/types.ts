@@ -13,6 +13,44 @@ export interface ProjectVisualOverviewInput {
   repository_path?: string;
 }
 
+export interface RegisterCandidateInput {
+  project_id: string;
+  repository_path: string;
+  job: {
+    job_id: string;
+    asset_type: string;
+    subject_ids: string[];
+    request_text: string;
+    generator?: string;
+    generation_package_fingerprint?: string;
+    created_at?: string;
+  };
+  asset: {
+    asset_id: string;
+    asset_type: string;
+    subject_id?: string;
+    candidate_path: string;
+    reference_paths?: string[];
+    generator?: string;
+    generation_package_fingerprint?: string;
+    created_at?: string;
+  };
+}
+
+export interface ReviewCandidateInput {
+  project_id: string;
+  repository_path: string;
+  asset_id: string;
+  decision: 'approve' | 'reject';
+  production_path?: string;
+}
+
+export interface CandidateWorkflowResult {
+  project_id: string;
+  asset: ManagedVisualAssetSummary;
+  workflow: ProjectWorkflowSummary;
+}
+
 export interface AdoptAnchorInput {
   project_id: string;
   subject_id: string;
@@ -118,6 +156,7 @@ export interface ManagedVisualAssetSummary {
   source_job_id?: string;
   candidate_path?: string;
   registered_path?: string;
+  archived_path?: string;
   generator?: string;
   generation_package_fingerprint?: string;
   reference_paths: string[];
