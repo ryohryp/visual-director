@@ -1,5 +1,12 @@
 import { VisualDirectorError } from '../domain/types.js';
-import type { AdoptAnchorInput, AdoptAnchorResult, GenerationPackage, PrepareGenerationInput } from '../domain/types.js';
+import type {
+  AdoptAnchorInput,
+  AdoptAnchorResult,
+  GenerationPackage,
+  PrepareGenerationInput,
+  ProjectVisualOverview,
+  ProjectVisualOverviewInput,
+} from '../domain/types.js';
 import { BottomOfThirstAdapter } from '../projects/bottom-of-thirst/adapter.js';
 import { createProjectRegistry } from '../projects/registry.js';
 import type { ProjectConfiguration, ProjectRegistry, ProjectRegistryOptions } from '../projects/registry.js';
@@ -9,6 +16,7 @@ export type VisualDirectorCoreOptions = ProjectRegistryOptions;
 
 export interface VisualDirectorCore {
   prepareGeneration(input: PrepareGenerationInput): Promise<GenerationPackage>;
+  getProjectVisualOverview(input: ProjectVisualOverviewInput): Promise<ProjectVisualOverview>;
   configureProject(projectId: string, repositoryPath: string): Promise<ProjectConfiguration>;
   adoptAnchor(input: AdoptAnchorInput): Promise<AdoptAnchorResult>;
 }
@@ -21,8 +29,6 @@ export function createVisualDirectorCore(
     async prepareGeneration(input: PrepareGenerationInput): Promise<GenerationPackage> {
       const repositoryPath = repositoryPathFromSceneContext(input);
       if (repositoryPath) {
-        // Explicit repository_path is request-scoped. Use a fresh registry so preparation
-        // does not depend on, or mutate, an MCP/session runtime binding.
         const requestRegistry = createProjectRegistry(options);
         await requestRegistry.configureProject(input.project_id, repositoryPath);
         return requestRegistry.resolve(input.project_id).prepare(stripRepositoryPath(input));
@@ -35,6 +41,31 @@ export function createVisualDirectorCore(
         const hostedAdapter = hostedAdapterFromEnvironment(input.project_id, options.fetchImpl);
         if (!hostedAdapter) throw error;
         return hostedAdapter.prepare(input);
+      }
+    },
+
+    async getProjectVisualOverview(input: ProjectVisualOverviewInput): Promise<ProjectVisualOverview> {
+      const repositoryPath = input.repository_path?.trim();
+      if (input.repository_path !== undefined && !repositoryPath) {
+        throw new VisualDirectorError(
+          'PROJECT_CONFIG_INVALID',
+          'repository_path must be a non-empty string when supplied for visual overview resolution.',
+          { project_id: input.project_id },
+        );
+      }
+      if (repositoryPath) {
+        const requestRegistry = createProjectRegistry(options);
+        await requestRegistry.configureProject(input.project_id, repositoryPath);
+        return requestRegistry.resolve(input.project_id).getVisualOverview();
+      }
+
+      try {
+        return await registry.resolve(input.project_id).getVisualOverview();
+      } catch (error) {
+        if (!(error instanceof VisualDirectorError) || error.code !== 'PROJECT_CONFIG_MISSING') throw error;
+        const hostedAdapter = hostedAdapterFromEnvironment(input.project_id, options.fetchImpl);
+        if (!hostedAdapter) throw error;
+        return hostedAdapter.getVisualOverview();
       }
     },
 
