@@ -1,6 +1,6 @@
 {
   "name": "visual-director",
-  "version": "0.1.0",
+  "version": "0.1.0+codex.20260815000145",
   "description": "Prepare Canon-safe game image generation packages with Visual Director MCP.",
   "author": {
     "name": "ryohryp",
