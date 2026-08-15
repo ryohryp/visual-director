@@ -17,6 +17,13 @@ interface RepositoryRoot {
   realPath: string;
 }
 
+interface Promotion {
+  candidatePath: string;
+  productionPath: string;
+  supersededAssetId?: string;
+  archivedPath?: string;
+}
+
 export async function registerCandidate(input: RegisterCandidateInput): Promise<CandidateWorkflowResult> {
   validateProjectInput(input.project_id, input.repository_path);
   const repository = await resolveRepository(input.repository_path, input.project_id);
@@ -88,8 +95,12 @@ export async function reviewCandidate(input: ReviewCandidateInput): Promise<Cand
       status: current.status,
     });
   }
+
   const now = new Date().toISOString();
+  const assets = [...workflow.assets];
   let updated: ManagedVisualAssetSummary;
+  let promotion: Promotion | undefined;
+
   if (input.decision === 'reject') {
     if (input.production_path !== undefined) {
       throw new VisualDirectorError('INVALID_INPUT', 'production_path is not allowed when rejecting a Candidate.');
@@ -104,14 +115,34 @@ export async function reviewCandidate(input: ReviewCandidateInput): Promise<Cand
         production_path: productionPath,
       });
     }
-    if (candidatePath === productionPath) {
-      throw new VisualDirectorError('INVALID_INPUT', 'production_path must differ from candidate_path.');
-    }
+    if (candidatePath === productionPath) throw new VisualDirectorError('INVALID_INPUT', 'production_path must differ from candidate_path.');
     await ensureExistingFile(repository, candidatePath, 'CANDIDATE_NOT_FOUND');
-    if (await pathExists(path.resolve(repository.absolutePath, productionPath))) {
-      throw new VisualDirectorError('PRODUCTION_ASSET_CONFLICT', 'The production path already exists.', { production_path: productionPath });
+
+    const existingIndex = workflow.assets.findIndex((asset) => asset.status === 'registered' && asset.registered_path === productionPath);
+    const productionExists = await pathExists(path.resolve(repository.absolutePath, productionPath));
+    if (productionExists && existingIndex < 0) {
+      throw new VisualDirectorError('PRODUCTION_ASSET_CONFLICT', 'The production path already exists and is not managed by Visual Director.', {
+        production_path: productionPath,
+      });
     }
-    await promoteCandidate(repository, candidatePath, productionPath);
+    if (!productionExists && existingIndex >= 0) {
+      throw new VisualDirectorError('WORKFLOW_INDEX_INVALID', 'A Registered asset points to a missing production file.', {
+        asset_id: workflow.assets[existingIndex]?.asset_id,
+        production_path: productionPath,
+      });
+    }
+
+    const existing = existingIndex >= 0 ? workflow.assets[existingIndex] : undefined;
+    promotion = await promoteCandidate(repository, candidatePath, productionPath, existing);
+    if (existing && existingIndex >= 0 && promotion.archivedPath) {
+      const { registered_path: _registeredPath, ...oldRest } = existing;
+      void _registeredPath;
+      assets[existingIndex] = {
+        ...oldRest,
+        status: 'superseded',
+        archived_path: promotion.archivedPath,
+      };
+    }
     const { candidate_path: _candidatePath, ...rest } = current;
     void _candidatePath;
     updated = {
@@ -119,10 +150,10 @@ export async function reviewCandidate(input: ReviewCandidateInput): Promise<Cand
       status: 'registered',
       registered_path: productionPath,
       approved_at: now,
+      ...(promotion.supersededAssetId ? { supersedes: promotion.supersededAssetId } : {}),
     };
   }
 
-  const assets = [...workflow.assets];
   assets[assetIndex] = updated;
   const jobs = workflow.jobs.map((job) => job.job_id === current.source_job_id
     ? { ...job, status: input.decision === 'reject' ? 'rejected' as const : 'registered' as const, updated_at: now }
@@ -131,9 +162,7 @@ export async function reviewCandidate(input: ReviewCandidateInput): Promise<Cand
   try {
     await writeWorkflow(repository, next);
   } catch (error) {
-    if (input.decision === 'approve' && updated.registered_path && current.candidate_path) {
-      await rollbackPromotion(repository, current.candidate_path, updated.registered_path);
-    }
+    if (promotion) await rollbackPromotion(repository, promotion);
     throw error;
   }
   return { project_id: input.project_id, asset: updated, workflow: next };
@@ -141,9 +170,7 @@ export async function reviewCandidate(input: ReviewCandidateInput): Promise<Cand
 
 async function readWorkflow(repository: RepositoryRoot): Promise<ProjectWorkflowSummary> {
   const indexPath = path.resolve(repository.absolutePath, WORKFLOW_INDEX_PATH);
-  if (!(await pathExists(indexPath))) {
-    return { metadata_path: WORKFLOW_INDEX_PATH, available: false, jobs: [], assets: [] };
-  }
+  if (!(await pathExists(indexPath))) return { metadata_path: WORKFLOW_INDEX_PATH, available: false, jobs: [], assets: [] };
   try {
     return parseWorkflowIndex(await readFile(indexPath, 'utf8'));
   } catch (error) {
@@ -173,20 +200,62 @@ async function writeWorkflow(repository: RepositoryRoot, workflow: ProjectWorkfl
   }
 }
 
-async function promoteCandidate(repository: RepositoryRoot, candidatePath: string, productionPath: string): Promise<void> {
-  const source = path.resolve(repository.absolutePath, safeRelativePath(candidatePath, 'candidate_path'));
-  const destination = path.resolve(repository.absolutePath, productionPath);
-  await ensureInside(repository, destination, productionPath);
-  await mkdir(path.dirname(destination), { recursive: true });
-  await rename(source, destination);
+async function promoteCandidate(
+  repository: RepositoryRoot,
+  candidatePath: string,
+  productionPath: string,
+  existing?: ManagedVisualAssetSummary,
+): Promise<Promotion> {
+  const candidateAbsolute = path.resolve(repository.absolutePath, safeRelativePath(candidatePath, 'candidate_path'));
+  const productionAbsolute = path.resolve(repository.absolutePath, productionPath);
+  await ensureInside(repository, productionAbsolute, productionPath);
+  await mkdir(path.dirname(productionAbsolute), { recursive: true });
+
+  let archivedPath: string | undefined;
+  if (existing) {
+    archivedPath = `.visual-director/superseded/${safeId(existing.asset_id)}/${path.basename(productionPath)}`;
+    const archivedAbsolute = path.resolve(repository.absolutePath, archivedPath);
+    await ensureInside(repository, archivedAbsolute, archivedPath);
+    if (await pathExists(archivedAbsolute)) {
+      throw new VisualDirectorError('SUPERSEDED_ASSET_CONFLICT', 'The superseded archive path already exists.', { archived_path: archivedPath });
+    }
+    await mkdir(path.dirname(archivedAbsolute), { recursive: true });
+    await rename(productionAbsolute, archivedAbsolute);
+  }
+
+  try {
+    await rename(candidateAbsolute, productionAbsolute);
+  } catch (error) {
+    if (archivedPath) {
+      const archivedAbsolute = path.resolve(repository.absolutePath, archivedPath);
+      if (await pathExists(archivedAbsolute)) await rename(archivedAbsolute, productionAbsolute);
+    }
+    throw new VisualDirectorError('ASSET_PROMOTION_FAILED', 'Candidate could not be promoted to the production path.', {
+      candidate_path: candidatePath,
+      production_path: productionPath,
+      reason: error instanceof Error ? error.message : String(error),
+    });
+  }
+
+  return {
+    candidatePath,
+    productionPath,
+    ...(existing ? { supersededAssetId: existing.asset_id } : {}),
+    ...(archivedPath ? { archivedPath } : {}),
+  };
 }
 
-async function rollbackPromotion(repository: RepositoryRoot, candidatePath: string, productionPath: string): Promise<void> {
-  const source = path.resolve(repository.absolutePath, productionPath);
-  const destination = path.resolve(repository.absolutePath, safeRelativePath(candidatePath, 'candidate_path'));
+async function rollbackPromotion(repository: RepositoryRoot, promotion: Promotion): Promise<void> {
+  const production = path.resolve(repository.absolutePath, promotion.productionPath);
+  const candidate = path.resolve(repository.absolutePath, safeRelativePath(promotion.candidatePath, 'candidate_path'));
   try {
-    await mkdir(path.dirname(destination), { recursive: true });
-    if (await pathExists(source)) await rename(source, destination);
+    await mkdir(path.dirname(candidate), { recursive: true });
+    if (await pathExists(production)) await rename(production, candidate);
+    if (promotion.archivedPath) {
+      const archived = path.resolve(repository.absolutePath, promotion.archivedPath);
+      await mkdir(path.dirname(production), { recursive: true });
+      if (await pathExists(archived)) await rename(archived, production);
+    }
   } catch {
     // Best-effort rollback; the workflow write error remains the primary failure.
   }
@@ -241,6 +310,13 @@ function safeRelativePath(value: string, field: string): string {
     throw new VisualDirectorError('UNSAFE_REPOSITORY_PATH', `${field} must be a safe repository-relative path.`, { [field]: value });
   }
   return normalized;
+}
+
+function safeId(value: string): string {
+  if (!/^[a-zA-Z0-9_-]+$/.test(value)) {
+    throw new VisualDirectorError('UNSAFE_REPOSITORY_PATH', 'asset_id cannot be used for a superseded archive path.', { asset_id: value });
+  }
+  return value;
 }
 
 function required(value: string | undefined, field: string): string {
