@@ -77,7 +77,57 @@ describe('candidate workflow', () => {
     expect(result.workflow.jobs[0]?.status).toBe('registered');
   });
 
-  it('fails closed for unsafe or conflicting production paths', async () => {
+  it('archives a managed Registered asset when a new Candidate replaces its production path', async () => {
+    const core = createVisualDirectorCore();
+    await core.registerCandidate(candidateInput());
+    await core.reviewCandidate({
+      project_id: 'bottom-of-thirst',
+      repository_path: root,
+      asset_id: 'asset-1',
+      decision: 'approve',
+      production_path: 'public/images/characters/kamino_kyosuke/portrait/reviewed.webp',
+    });
+
+    await writeRepoFile('.visual-director/candidates/gen-2/candidate.webp', 'candidate2');
+    await core.registerCandidate({
+      ...candidateInput(),
+      job: {
+        ...candidateInput().job,
+        job_id: 'gen-2',
+        request_text: '神野恭介のポートレートを再生成',
+      },
+      asset: {
+        ...candidateInput().asset,
+        asset_id: 'asset-2',
+        candidate_path: '.visual-director/candidates/gen-2/candidate.webp',
+      },
+    });
+
+    const result = await core.reviewCandidate({
+      project_id: 'bottom-of-thirst',
+      repository_path: root,
+      asset_id: 'asset-2',
+      decision: 'approve',
+      production_path: 'public/images/characters/kamino_kyosuke/portrait/reviewed.webp',
+    });
+
+    expect(result.asset).toMatchObject({
+      asset_id: 'asset-2',
+      status: 'registered',
+      supersedes: 'asset-1',
+      registered_path: 'public/images/characters/kamino_kyosuke/portrait/reviewed.webp',
+    });
+    const old = result.workflow.assets.find((asset) => asset.asset_id === 'asset-1');
+    expect(old).toMatchObject({
+      status: 'superseded',
+      archived_path: '.visual-director/superseded/asset-1/reviewed.webp',
+    });
+    expect(old?.registered_path).toBeUndefined();
+    expect(await readFile(path.join(root, '.visual-director/superseded/asset-1/reviewed.webp'), 'utf8')).toBe('candidate');
+    expect(await readFile(path.join(root, 'public/images/characters/kamino_kyosuke/portrait/reviewed.webp'), 'utf8')).toBe('candidate2');
+  });
+
+  it('fails closed for unsafe or unmanaged conflicting production paths', async () => {
     const core = createVisualDirectorCore();
     await core.registerCandidate(candidateInput());
 
