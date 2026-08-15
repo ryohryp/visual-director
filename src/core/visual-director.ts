@@ -43,7 +43,7 @@ export function createVisualDirectorCore(
     },
 
     adoptAnchor(input: AdoptAnchorInput): Promise<AdoptAnchorResult> {
-      if (hostedAdapterFromEnvironment(input.project_id, options.fetchImpl)) {
+      if (isHostedReadOnlyMode() && hostedAdapterFromEnvironment(input.project_id, options.fetchImpl)) {
         return Promise.reject(new VisualDirectorError(
           'HOSTED_WRITE_DISABLED',
           'visual.adopt_anchor is disabled in hosted read-only mode. Adopt Anchors through a separately reviewed write path.',
@@ -73,6 +73,10 @@ function hostedAdapterFromEnvironment(projectId: string, fetchImpl?: typeof fetc
   const ref = process.env.VISUAL_DIRECTOR_BOTTOM_OF_THIRST_GITHUB_REF?.trim() || 'main';
   const source = new GitHubRepositorySource({ owner, repo, ref, token, fetchImpl });
   return new BottomOfThirstAdapter({ source });
+}
+
+function isHostedReadOnlyMode(): boolean {
+  return process.env.VERCEL === '1' || process.env.VISUAL_DIRECTOR_HOSTED_READ_ONLY === '1';
 }
 
 function repositoryPathFromSceneContext(input: PrepareGenerationInput): string | undefined {
