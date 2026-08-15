@@ -16,6 +16,13 @@ import type { ImageGenerator } from '../generators/types.js';
 import { OpenAIImageGenerator } from '../generators/openai-image-generator.js';
 import { BottomOfThirstAdapter } from '../projects/bottom-of-thirst/adapter.js';
 import { BottomOfThirstVisualAdapter } from '../projects/bottom-of-thirst/visual-adapter.js';
+import { loadProjectCatalog, summarizeProject } from '../projects/catalog.js';
+import type { ProjectCatalog, ProjectCatalogEntry, ProjectSummary } from '../projects/catalog.js';
+import {
+  CanonProjectAdapter,
+  DEFAULT_PROJECT_DOCUMENTS,
+  DEFAULT_PROJECT_LABELS,
+} from '../projects/canon/adapter.js';
 import { createProjectRegistry } from '../projects/registry.js';
 import type { ProjectConfiguration, ProjectRegistry, ProjectRegistryOptions } from '../projects/registry.js';
 import { GitHubRepositorySource } from '../projects/repository-source.js';
@@ -24,12 +31,16 @@ import { runImageGeneration } from './image-generation-service.js';
 
 export type VisualDirectorCoreOptions = ProjectRegistryOptions & {
   imageGenerator?: ImageGenerator;
+  projectCatalog?: ProjectCatalog;
+  projectCatalogPath?: string;
+  projectOverviewLoader?: (entry: ProjectCatalogEntry) => Promise<ProjectVisualOverview>;
 };
 
 export interface VisualDirectorCore {
   prepareGeneration(input: PrepareGenerationInput): Promise<GenerationPackage>;
   generateImage(input: GenerateImageInput): Promise<GenerateImageResult>;
   getProjectVisualOverview(input: ProjectVisualOverviewInput): Promise<ProjectVisualOverview>;
+  listProjects(): Promise<ProjectSummary[]>;
   registerCandidate(input: RegisterCandidateInput): Promise<CandidateWorkflowResult>;
   reviewCandidate(input: ReviewCandidateInput): Promise<CandidateWorkflowResult>;
   configureProject(projectId: string, repositoryPath: string): Promise<ProjectConfiguration>;
@@ -105,6 +116,12 @@ export function createVisualDirectorCore(
       }
     },
 
+    async listProjects(): Promise<ProjectSummary[]> {
+      const catalog = resolveProjectCatalog(options);
+      const loadOverview = options.projectOverviewLoader ?? ((entry: ProjectCatalogEntry) => loadCatalogOverview(entry, options));
+      return Promise.all(catalog.list().map(async (entry) => summarizeProject(entry, await loadOverview(entry))));
+    },
+
     async registerCandidate(input: RegisterCandidateInput): Promise<CandidateWorkflowResult> {
       if (isHostedReadOnlyMode()) throw hostedWorkflowWriteDisabled(input.project_id);
       await validateWorkflowRepository(options, input.project_id, input.repository_path);
@@ -132,6 +149,45 @@ export function createVisualDirectorCore(
       return registry.adoptAnchor(input);
     },
   };
+}
+
+function resolveProjectCatalog(options: VisualDirectorCoreOptions): ProjectCatalog {
+  if (options.projectCatalog) return options.projectCatalog;
+  const catalogPath = options.projectCatalogPath?.trim() || process.env.VISUAL_DIRECTOR_PROJECT_CATALOG?.trim();
+  if (catalogPath) return loadProjectCatalog(catalogPath);
+  throw new VisualDirectorError(
+    'PROJECT_CATALOG_MISSING',
+    'No Project Catalog is configured. Set VISUAL_DIRECTOR_PROJECT_CATALOG or pass projectCatalog/projectCatalogPath.',
+  );
+}
+
+async function loadCatalogOverview(
+  entry: ProjectCatalogEntry,
+  options: VisualDirectorCoreOptions,
+): Promise<ProjectVisualOverview> {
+  const token = process.env.VISUAL_DIRECTOR_GITHUB_TOKEN?.trim();
+  if (!token) {
+    throw new VisualDirectorError('PROJECT_CONFIG_MISSING', 'VISUAL_DIRECTOR_GITHUB_TOKEN is required to read catalog repositories.', {
+      project_id: entry.project_id,
+    });
+  }
+  const source = new GitHubRepositorySource({
+    owner: entry.repository.owner,
+    repo: entry.repository.name,
+    ref: entry.ref,
+    token,
+    fetchImpl: options.fetchImpl,
+  });
+  if (entry.adapter_type === 'bottom-of-thirst') {
+    return new BottomOfThirstVisualAdapter({ source }).getVisualOverview();
+  }
+  const definition = {
+    projectId: entry.project_id,
+    documents: { ...DEFAULT_PROJECT_DOCUMENTS },
+    labels: { ...DEFAULT_PROJECT_LABELS },
+    subjects: {},
+  };
+  return new CanonProjectAdapter(definition, { source }).getVisualOverview();
 }
 
 async function validateWorkflowRepository(
