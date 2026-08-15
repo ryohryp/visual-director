@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 
 import { VisualDirectorError } from '../domain/types.js';
 import type { ProjectVisualOverview } from '../domain/types.js';
+import type { ProjectDiagnostics } from './diagnostics.js';
 
 export type ProjectAdapterType = 'bottom-of-thirst' | 'generic';
 
@@ -27,7 +28,8 @@ export interface ProjectSummary {
   candidates: number;
   jobs: number;
   failed_jobs: number;
-  repository_status: 'ready';
+  repository_status: ProjectDiagnostics['state'];
+  diagnostics: ProjectDiagnostics;
 }
 
 export interface ProjectCatalog {
@@ -112,7 +114,11 @@ export function createProjectCatalog(entries: readonly ProjectCatalogEntry[]): P
   };
 }
 
-export function summarizeProject(entry: ProjectCatalogEntry, overview: ProjectVisualOverview): ProjectSummary {
+export function summarizeProject(
+  entry: ProjectCatalogEntry,
+  overview: ProjectVisualOverview,
+  diagnostics: ProjectDiagnostics = readyDiagnostics(entry.project_id),
+): ProjectSummary {
   if (overview.project_id !== entry.project_id) {
     throw new VisualDirectorError('PROJECT_SUMMARY_MISMATCH', 'Project overview does not belong to the requested catalog entry.', {
       expected_project_id: entry.project_id,
@@ -123,18 +129,40 @@ export function summarizeProject(entry: ProjectCatalogEntry, overview: ProjectVi
     ?? overview.visual_direction.global_style.asset_path
     ?? null;
   return {
-    project_id: entry.project_id,
-    display_name: entry.display_name,
-    repository: `${entry.repository.owner}/${entry.repository.name}`,
-    ref: entry.ref,
-    adapter_type: entry.adapter_type,
+    ...baseSummary(entry, diagnostics),
     thumbnail,
     anchors: overview.approved_anchors.length,
     candidates: overview.workflow.assets.filter((asset) => asset.status === 'candidate').length,
     jobs: overview.workflow.jobs.length,
     failed_jobs: overview.workflow.jobs.filter((job) => job.status === 'failed').length,
-    repository_status: 'ready',
   };
+}
+
+export function summarizeUnavailableProject(entry: ProjectCatalogEntry, diagnostics: ProjectDiagnostics): ProjectSummary {
+  return {
+    ...baseSummary(entry, diagnostics),
+    thumbnail: null,
+    anchors: 0,
+    candidates: 0,
+    jobs: 0,
+    failed_jobs: 0,
+  };
+}
+
+function baseSummary(entry: ProjectCatalogEntry, diagnostics: ProjectDiagnostics) {
+  return {
+    project_id: entry.project_id,
+    display_name: entry.display_name,
+    repository: `${entry.repository.owner}/${entry.repository.name}`,
+    ref: entry.ref,
+    adapter_type: entry.adapter_type,
+    repository_status: diagnostics.state,
+    diagnostics,
+  };
+}
+
+function readyDiagnostics(projectId: string): ProjectDiagnostics {
+  return { project_id: projectId, state: 'ready', usable: true, items: [] };
 }
 
 function normalizeEntry(value: unknown, index: number): ProjectCatalogEntry {
