@@ -2,22 +2,28 @@ import { VisualDirectorError } from '../domain/types.js';
 import type {
   AdoptAnchorInput,
   AdoptAnchorResult,
+  CandidateWorkflowResult,
   GenerationPackage,
   PrepareGenerationInput,
   ProjectVisualOverview,
   ProjectVisualOverviewInput,
+  RegisterCandidateInput,
+  ReviewCandidateInput,
 } from '../domain/types.js';
 import { BottomOfThirstAdapter } from '../projects/bottom-of-thirst/adapter.js';
 import { BottomOfThirstVisualAdapter } from '../projects/bottom-of-thirst/visual-adapter.js';
 import { createProjectRegistry } from '../projects/registry.js';
 import type { ProjectConfiguration, ProjectRegistry, ProjectRegistryOptions } from '../projects/registry.js';
 import { GitHubRepositorySource } from '../projects/repository-source.js';
+import { registerCandidate, reviewCandidate } from '../projects/workflow-store.js';
 
 export type VisualDirectorCoreOptions = ProjectRegistryOptions;
 
 export interface VisualDirectorCore {
   prepareGeneration(input: PrepareGenerationInput): Promise<GenerationPackage>;
   getProjectVisualOverview(input: ProjectVisualOverviewInput): Promise<ProjectVisualOverview>;
+  registerCandidate(input: RegisterCandidateInput): Promise<CandidateWorkflowResult>;
+  reviewCandidate(input: ReviewCandidateInput): Promise<CandidateWorkflowResult>;
   configureProject(projectId: string, repositoryPath: string): Promise<ProjectConfiguration>;
   adoptAnchor(input: AdoptAnchorInput): Promise<AdoptAnchorResult>;
 }
@@ -73,6 +79,20 @@ export function createVisualDirectorCore(
       }
     },
 
+    registerCandidate(input: RegisterCandidateInput): Promise<CandidateWorkflowResult> {
+      if (isHostedReadOnlyMode()) {
+        return Promise.reject(hostedWorkflowWriteDisabled(input.project_id));
+      }
+      return registerCandidate(input);
+    },
+
+    reviewCandidate(input: ReviewCandidateInput): Promise<CandidateWorkflowResult> {
+      if (isHostedReadOnlyMode()) {
+        return Promise.reject(hostedWorkflowWriteDisabled(input.project_id));
+      }
+      return reviewCandidate(input);
+    },
+
     configureProject(projectId: string, repositoryPath: string): Promise<ProjectConfiguration> {
       return registry.configureProject(projectId, repositoryPath);
     },
@@ -88,6 +108,14 @@ export function createVisualDirectorCore(
       return registry.adoptAnchor(input);
     },
   };
+}
+
+function hostedWorkflowWriteDisabled(projectId: string): VisualDirectorError {
+  return new VisualDirectorError(
+    'HOSTED_WRITE_DISABLED',
+    'Candidate workflow mutations are disabled in hosted read-only mode pending a separately reviewed repository write path.',
+    { project_id: projectId },
+  );
 }
 
 function hostedAdapterFromEnvironment(projectId: string, fetchImpl?: typeof fetch): BottomOfThirstAdapter | undefined {
