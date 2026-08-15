@@ -1,6 +1,13 @@
 import { bullets, fencedBlock } from '../../domain/markdown.js';
+import { emptyWorkflowSummary, parseWorkflowIndex, WORKFLOW_INDEX_PATH } from '../../domain/visual-overview.js';
 import { VisualDirectorError } from '../../domain/types.js';
-import type { GenerationPackage, PrepareGenerationInput, ProjectAdapter } from '../../domain/types.js';
+import type {
+  ApprovedAnchorSummary,
+  GenerationPackage,
+  PrepareGenerationInput,
+  ProjectAdapter,
+  ProjectVisualOverview,
+} from '../../domain/types.js';
 import type { RepositorySource } from '../repository-source.js';
 import type { ProjectDocuments, ProjectLabels } from './types.js';
 
@@ -98,7 +105,49 @@ export abstract class CanonAdapterBase implements ProjectAdapter {
     };
   }
 
+  async getVisualOverview(): Promise<ProjectVisualOverview> {
+    const documents = await this.readDocuments();
+    await this.source.ensureFile(this.documents.globalReference, 'Global Visual Reference');
+    const approvedAnchors = await this.listApprovedAnchors(documents.canonMarkdown);
+    const workflow = await this.readWorkflowSummary();
+
+    return {
+      project_id: this.projectId,
+      visual_direction: {
+        grand_design: null,
+        global_style: {
+          role: 'global_style',
+          document_path: this.documents.globalStyle,
+          asset_path: this.documents.globalReference,
+        },
+      },
+      approved_anchors: approvedAnchors,
+      workflow,
+    };
+  }
+
   protected abstract loadSubject(subjectId: string, canonMarkdown: string, assetType?: string): Promise<CanonSubject>;
+
+  protected async listApprovedAnchors(canonMarkdown: string): Promise<ApprovedAnchorSummary[]> {
+    const anchors: ApprovedAnchorSummary[] = [];
+    for (const subjectId of this.subjectIds) {
+      try {
+        const subject = await this.loadSubject(subjectId, canonMarkdown, '__visual_overview__');
+        if (!subject.anchorPath) continue;
+        anchors.push({
+          subject_id: subject.id,
+          display_name: subject.displayName,
+          asset_type: 'character_visual_anchor',
+          path: subject.anchorPath,
+          status: 'approved',
+        });
+      } catch (error) {
+        if (error instanceof VisualDirectorError && error.code === 'APPROVED_ANCHOR_NOT_FOUND') continue;
+        throw error;
+      }
+    }
+    return anchors;
+  }
 
   protected abstract subjectLock(subject: CanonSubject, preparingNewAnchor?: boolean): string;
 
@@ -155,6 +204,12 @@ export abstract class CanonAdapterBase implements ProjectAdapter {
       });
     }
     return { styleMarkdown, canonMarkdown, worldMarkdown };
+  }
+
+  private async readWorkflowSummary(): Promise<ProjectVisualOverview['workflow']> {
+    if (!(await this.source.fileExists(WORKFLOW_INDEX_PATH))) return emptyWorkflowSummary();
+    const raw = await this.source.readText(WORKFLOW_INDEX_PATH, 'Visual Director workflow asset index');
+    return parseWorkflowIndex(raw);
   }
 
   private sceneRequirements(input: PrepareGenerationInput, worldMarkdown: string): string[] {

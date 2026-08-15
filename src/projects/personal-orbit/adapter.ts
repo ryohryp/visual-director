@@ -2,8 +2,15 @@ import { access } from 'node:fs/promises';
 import path from 'node:path';
 
 import { readUtf8File } from '../../domain/markdown.js';
+import { emptyWorkflowSummary, parseWorkflowIndex, WORKFLOW_INDEX_PATH } from '../../domain/visual-overview.js';
 import { VisualDirectorError } from '../../domain/types.js';
-import type { GenerationPackage, PrepareGenerationInput, ProjectAdapter } from '../../domain/types.js';
+import type {
+  GenerationPackage,
+  PrepareGenerationInput,
+  ProjectAdapter,
+  ProjectVisualOverview,
+} from '../../domain/types.js';
+import { LocalRepositorySource } from '../repository-source.js';
 import type { PersonalOrbitProjectDefinition } from './definition.js';
 
 export interface PersonalOrbitAdapterOptions {
@@ -14,11 +21,13 @@ export class PersonalOrbitAdapter implements ProjectAdapter {
   readonly projectId: string;
   private readonly definition: PersonalOrbitProjectDefinition;
   private readonly repoPath: string;
+  private readonly source: LocalRepositorySource;
 
   constructor(definition: PersonalOrbitProjectDefinition, options: PersonalOrbitAdapterOptions) {
     this.projectId = definition.projectId;
     this.definition = definition;
     this.repoPath = path.resolve(options.repoPath);
+    this.source = new LocalRepositorySource(this.repoPath);
   }
 
   async prepare(input: PrepareGenerationInput): Promise<GenerationPackage> {
@@ -99,6 +108,40 @@ export class PersonalOrbitAdapter implements ProjectAdapter {
         must_not_chain_from_candidate: true,
         must_review_after_generation: true,
       },
+    };
+  }
+
+  async getVisualOverview(): Promise<ProjectVisualOverview> {
+    const approvedAnchors = [];
+    for (const [subjectId, anchorPath] of Object.entries(this.definition.approvedAnchors)) {
+      const subject = this.definition.subjects[subjectId];
+      if (!subject) continue;
+      await this.source.ensureFile(anchorPath, `Approved Anchor for ${subjectId}`);
+      approvedAnchors.push({
+        subject_id: subject.id,
+        display_name: subject.displayName,
+        asset_type: 'character_visual_anchor' as const,
+        path: anchorPath,
+        status: 'approved' as const,
+      });
+    }
+
+    const workflow = await this.source.fileExists(WORKFLOW_INDEX_PATH)
+      ? parseWorkflowIndex(await this.source.readText(WORKFLOW_INDEX_PATH, 'Visual Director workflow asset index'))
+      : emptyWorkflowSummary();
+
+    return {
+      project_id: this.projectId,
+      visual_direction: {
+        grand_design: null,
+        global_style: {
+          role: 'global_style',
+          document_path: this.definition.documents.globalStyle,
+          asset_path: this.definition.documents.globalReference,
+        },
+      },
+      approved_anchors: approvedAnchors,
+      workflow,
     };
   }
 
