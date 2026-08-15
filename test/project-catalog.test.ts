@@ -59,8 +59,8 @@ describe('Project Catalog', () => {
       projectOverviewLoader: async (entry) => {
         seenRepositories.push(`${entry.repository.owner}/${entry.repository.name}@${entry.ref}`);
         return entry.project_id === 'bottom-of-thirst'
-          ? overview('bottom-of-thirst', 2, 3, 1, 'docs/visual/grand.webp')
-          : overview('game-b', 1, 5, 2, 'docs/visual/style.webp');
+          ? overview('bottom-of-thirst', 2, 3, 1, 1, 'docs/visual/grand.webp')
+          : overview('game-b', 1, 5, 2, 2, 'docs/visual/style.webp');
       },
     });
 
@@ -93,7 +93,7 @@ describe('Project Catalog', () => {
   it('rejects an overview returned for another project instead of cross-project fallback', async () => {
     const core = createVisualDirectorCore({
       projectCatalog: parseProjectCatalog({ projects: [rawCatalog.projects[1]] }),
-      projectOverviewLoader: async () => overview('bottom-of-thirst', 0, 0, 0, null),
+      projectOverviewLoader: async () => overview('bottom-of-thirst', 0, 0, 0, 0, null),
     });
 
     await expect(core.listProjects()).rejects.toMatchObject({ code: 'PROJECT_SUMMARY_MISMATCH' });
@@ -105,6 +105,7 @@ function overview(
   anchorCount: number,
   jobCount: number,
   candidateCount: number,
+  failedCount: number,
   thumbnail: string | null,
 ): ProjectVisualOverview {
   return {
@@ -131,7 +132,7 @@ function overview(
         asset_type: 'scene',
         subject_ids: ['subject-0'],
         request_text: 'generate',
-        status: index < Math.min(candidateCount, jobCount) ? 'candidate' as const : index >= jobCount - 2 ? 'failed' as const : 'registered' as const,
+        status: index < failedCount ? 'failed' as const : 'registered' as const,
       })),
       assets: Array.from({ length: candidateCount }, (_, index) => ({
         asset_id: `asset-${index}`,
