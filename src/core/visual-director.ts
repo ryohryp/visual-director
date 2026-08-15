@@ -79,17 +79,15 @@ export function createVisualDirectorCore(
       }
     },
 
-    registerCandidate(input: RegisterCandidateInput): Promise<CandidateWorkflowResult> {
-      if (isHostedReadOnlyMode()) {
-        return Promise.reject(hostedWorkflowWriteDisabled(input.project_id));
-      }
+    async registerCandidate(input: RegisterCandidateInput): Promise<CandidateWorkflowResult> {
+      if (isHostedReadOnlyMode()) throw hostedWorkflowWriteDisabled(input.project_id);
+      await validateWorkflowRepository(options, input.project_id, input.repository_path);
       return registerCandidate(input);
     },
 
-    reviewCandidate(input: ReviewCandidateInput): Promise<CandidateWorkflowResult> {
-      if (isHostedReadOnlyMode()) {
-        return Promise.reject(hostedWorkflowWriteDisabled(input.project_id));
-      }
+    async reviewCandidate(input: ReviewCandidateInput): Promise<CandidateWorkflowResult> {
+      if (isHostedReadOnlyMode()) throw hostedWorkflowWriteDisabled(input.project_id);
+      await validateWorkflowRepository(options, input.project_id, input.repository_path);
       return reviewCandidate(input);
     },
 
@@ -108,6 +106,15 @@ export function createVisualDirectorCore(
       return registry.adoptAnchor(input);
     },
   };
+}
+
+async function validateWorkflowRepository(
+  options: VisualDirectorCoreOptions,
+  projectId: string,
+  repositoryPath: string,
+): Promise<void> {
+  const requestRegistry = createProjectRegistry(options);
+  await requestRegistry.configureProject(projectId, repositoryPath);
 }
 
 function hostedWorkflowWriteDisabled(projectId: string): VisualDirectorError {
