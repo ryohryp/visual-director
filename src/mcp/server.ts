@@ -6,8 +6,8 @@ import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
 
+import { createVisualDirectorCore } from '../core/visual-director.js';
 import { VisualDirectorError } from '../domain/types.js';
-import type { PrepareGenerationInput } from '../domain/types.js';
 import { createProjectRegistry } from '../projects/registry.js';
 import type { ProjectRegistry } from '../projects/registry.js';
 
@@ -20,19 +20,21 @@ export function createVisualDirectorServer(
   options: VisualDirectorServerOptions = {},
   registry: ProjectRegistry = createProjectRegistry(options),
 ): McpServer {
+  const core = createVisualDirectorCore(options, registry);
   const server = new McpServer(
-    { name: 'visual-director', version: '0.1.0' },
+    { name: 'visual-director', version: '0.2.0' },
     {
       instructions:
-        'Visual Director is a fail-closed gate before image generation. For any Canon-governed game image, call visual.prepare_generation and proceed to an image model only after that exact request returns a successful Generation Package with non-empty style_lock and subject_lock. If preparation returns any error, do not call an image generator and do not reconstruct or guess character facts from assistant memory, conversation history, another character, a legacy asset, or a prior candidate. Fix the reported error and prepare again. When a known project needs a local repository path and the user explicitly provides that path, call visual.configure_project first. It validates and stores the path for this running MCP server only; it does not write the repository or persist across restart. Call visual.adopt_anchor only after the user explicitly approves the exact image, passing either the OpenAI candidate_file reference or the backward-compatible repository candidate_path; never infer approval, interpret /mnt/data as a local repository path, or replace a different Approved Anchor. If the client does not expose visual.configure_project because its tool catalog is stale, pass the explicit local clone path as scene_context.repository_path to visual.prepare_generation; the server uses it only to bootstrap the runtime binding and removes it before building the visual prompt. The bottom-of-thirst adapter safely normalizes configured character-name aliases and visual_anchor to character_visual_anchor, but unknown aliases are never fuzzy-matched. visual.prepare_generation validates the configured Visual Canon and never generates images or calls an image API. Report explicit errors and never invent a fallback package or substitute candidate or legacy assets.',
+        'Visual Director is a fail-closed gate before image generation. visual.prepare_generation delegates Canon resolution and package construction to the MCP-independent Visual Director Core. Proceed to an image model only after that exact request returns a successful Generation Package with non-empty style_lock and subject_lock. If preparation returns a Canon validation error, do not reconstruct or guess character facts from memory, conversation history, legacy assets, or prior candidates. An explicit scene_context.repository_path is sufficient for that request and does not require prior MCP session state. For backward compatibility, the MCP adapter also remembers a valid explicit repository path as a runtime binding for subsequent calls in the same server lifecycle. visual.configure_project remains available for explicit runtime binding. Transport/session failures are connectivity errors, not Canon validation results. visual.adopt_anchor may only be called after explicit user approval. Visual Director never generates images or calls an image API.',
     },
   );
+
   server.registerTool(
     'visual.configure_project',
     {
       title: 'Configure project repository',
       description:
-        'Bind a known project to an existing local repository directory for this running MCP server. This changes runtime memory only; it does not write the repository or persist across restart.',
+        'Backward-compatible runtime binding for a known project. Preparation can also use an explicit request-scoped scene_context.repository_path without this call.',
       annotations: {
         readOnlyHint: false,
         destructiveHint: false,
@@ -51,25 +53,23 @@ export function createVisualDirectorServer(
     },
     async (input) => {
       try {
-        const configuration = await registry.configureProject(input.project_id, input.repository_path);
+        const configuration = await core.configureProject(input.project_id, input.repository_path);
         return {
           structuredContent: { ...configuration } as Record<string, unknown>,
           content: [{ type: 'text' as const, text: JSON.stringify(configuration, null, 2) }],
         };
       } catch (error) {
-        return {
-          isError: true,
-          content: [{ type: 'text' as const, text: JSON.stringify(serializeError(error), null, 2) }],
-        };
+        return toolError(error);
       }
     },
   );
+
   server.registerTool(
     'visual.adopt_anchor',
     {
       title: 'Adopt Anchor and register Canon',
       description:
-        'After explicit user approval, adopt one image as the subject Approved Visual Anchor. candidate_file accepts the ChatGPT/OpenAI file reference supplied by the host and stores it at the subject-defined v2 Anchor path; candidate_path remains the repository-relative compatibility input. Refuses unknown subjects, unsafe paths, invalid images, and replacement of an existing Anchor.',
+        'After explicit user approval, adopt one image as the subject Approved Visual Anchor. candidate_file accepts the ChatGPT/OpenAI file reference supplied by the host; candidate_path remains the repository-relative compatibility input.',
       annotations: {
         readOnlyHint: false,
         destructiveHint: false,
@@ -107,22 +107,23 @@ export function createVisualDirectorServer(
     },
     async (input) => {
       try {
-        const result = await registry.adoptAnchor(input);
+        const result = await core.adoptAnchor(input);
         return {
           structuredContent: { ...result } as Record<string, unknown>,
           content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }],
         };
       } catch (error) {
-        return { isError: true, content: [{ type: 'text' as const, text: JSON.stringify(serializeError(error), null, 2) }] };
+        return toolError(error);
       }
     },
   );
+
   server.registerTool(
     'visual.prepare_generation',
     {
       title: 'Prepare visual generation',
       description:
-        'Read the configured project Visual Canon and return the required fail-closed Generation Package for an image model. A failed preparation must not be bypassed with a hand-written fallback prompt. If visual.configure_project is unavailable in a stale client catalog, an explicitly supplied scene_context.repository_path can bootstrap the runtime repository binding and is stripped before prompt construction. This tool never generates images or calls an image API.',
+        'Return a fail-closed Generation Package from the MCP-independent Visual Director Core. An explicit scene_context.repository_path is sufficient for the current request and stripped before prompt construction; the MCP adapter also preserves it as a backward-compatible runtime binding.',
       annotations: {
         readOnlyHint: true,
         destructiveHint: false,
@@ -163,50 +164,31 @@ export function createVisualDirectorServer(
     },
     async (input) => {
       try {
-        const preparationInput = await bootstrapRepositoryFromSceneContext(registry, input);
-        const adapter = registry.resolve(input.project_id);
-        const generationPackage = await adapter.prepare(preparationInput);
+        const repositoryPath = input.scene_context?.repository_path;
+        if (typeof repositoryPath === 'string' && repositoryPath.trim()) {
+          // Compatibility only: Core preparation itself remains request-scoped and
+          // does not need this runtime binding to succeed.
+          await core.configureProject(input.project_id, repositoryPath);
+        }
+        const generationPackage = await core.prepareGeneration(input);
         return {
           structuredContent: { ...generationPackage } as Record<string, unknown>,
           content: [{ type: 'text' as const, text: JSON.stringify(generationPackage, null, 2) }],
         };
       } catch (error) {
-        return {
-          isError: true,
-          content: [{ type: 'text' as const, text: JSON.stringify(serializeError(error), null, 2) }],
-        };
+        return toolError(error);
       }
     },
   );
+
   return server;
 }
 
-async function bootstrapRepositoryFromSceneContext(
-  registry: ReturnType<typeof createProjectRegistry>,
-  input: PrepareGenerationInput,
-): Promise<PrepareGenerationInput> {
-  const sceneContext = input.scene_context;
-  if (!sceneContext || !Object.prototype.hasOwnProperty.call(sceneContext, 'repository_path')) {
-    return input;
-  }
-
-  const repositoryPath = sceneContext.repository_path;
-  if (typeof repositoryPath !== 'string' || !repositoryPath.trim()) {
-    throw new VisualDirectorError(
-      'PROJECT_CONFIG_INVALID',
-      'scene_context.repository_path must be a non-empty string when used to bootstrap the runtime project binding.',
-      { project_id: input.project_id },
-    );
-  }
-
-  await registry.configureProject(input.project_id, repositoryPath);
-  const cleanedSceneContext = { ...sceneContext };
-  delete cleanedSceneContext.repository_path;
-  const inputWithoutSceneContext = { ...input };
-  delete inputWithoutSceneContext.scene_context;
-  return Object.keys(cleanedSceneContext).length > 0
-    ? { ...inputWithoutSceneContext, scene_context: cleanedSceneContext }
-    : inputWithoutSceneContext;
+function toolError(error: unknown) {
+  return {
+    isError: true,
+    content: [{ type: 'text' as const, text: JSON.stringify(serializeError(error), null, 2) }],
+  };
 }
 
 function serializeError(error: unknown): Record<string, unknown> {
@@ -343,7 +325,7 @@ function writeHttpRequestError(res: ServerResponse, error: unknown): void {
     id: null,
     error: {
       code: -32603,
-      message: 'Internal error while handling the MCP request.',
+      message: 'Internal transport error while handling the MCP request.',
       data: serializeError(error),
     },
   });
@@ -355,7 +337,7 @@ function writeSessionNotFound(res: ServerResponse): void {
     id: null,
     error: {
       code: -32001,
-      message: 'Session not found. Reinitialize the MCP connection.',
+      message: 'MCP session not found. Reinitialize the connection; Canon state has not been evaluated.',
     },
   });
 }
