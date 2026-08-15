@@ -1,4 +1,5 @@
 import { section, subsection } from '../../domain/markdown.js';
+import { VisualDirectorError } from '../../domain/types.js';
 import type { ApprovedAnchorSummary } from '../../domain/types.js';
 import {
   approvedAnchorPaths,
@@ -20,7 +21,10 @@ export class BottomOfThirstVisualAdapter extends BottomOfThirstAdapter {
       await this.source.ensureFile(anchorPath, `Approved Anchor for ${subjectId}`);
       const fallback = paths[1];
       if (fallback && !(await this.source.fileExists(fallback))) {
-        throw new Error(`Approved Anchor fallback is missing for ${subjectId}: ${fallback}`);
+        throw new VisualDirectorError('APPROVED_ANCHOR_INCOMPLETE', `Same-generation fallback is missing for ${subjectId}.`, {
+          subject_id: subjectId,
+          path: fallback,
+        });
       }
       anchors.push({
         subject_id: configured.id,
