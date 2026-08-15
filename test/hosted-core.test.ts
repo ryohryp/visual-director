@@ -6,6 +6,7 @@ const previous = {
   token: process.env.VISUAL_DIRECTOR_GITHUB_TOKEN,
   repo: process.env.VISUAL_DIRECTOR_BOTTOM_OF_THIRST_GITHUB_REPO,
   ref: process.env.VISUAL_DIRECTOR_BOTTOM_OF_THIRST_GITHUB_REF,
+  hostedReadOnly: process.env.VISUAL_DIRECTOR_HOSTED_READ_ONLY,
   local: process.env.BOTTOM_OF_THIRST_REPO_PATH,
 };
 
@@ -13,6 +14,7 @@ beforeEach(() => {
   process.env.VISUAL_DIRECTOR_GITHUB_TOKEN = 'test-token';
   process.env.VISUAL_DIRECTOR_BOTTOM_OF_THIRST_GITHUB_REPO = 'ryohryp/---The-Bottom-of-Thirst';
   process.env.VISUAL_DIRECTOR_BOTTOM_OF_THIRST_GITHUB_REF = 'main';
+  process.env.VISUAL_DIRECTOR_HOSTED_READ_ONLY = '1';
   delete process.env.BOTTOM_OF_THIRST_REPO_PATH;
 });
 
@@ -20,6 +22,7 @@ afterEach(() => {
   restore('VISUAL_DIRECTOR_GITHUB_TOKEN', previous.token);
   restore('VISUAL_DIRECTOR_BOTTOM_OF_THIRST_GITHUB_REPO', previous.repo);
   restore('VISUAL_DIRECTOR_BOTTOM_OF_THIRST_GITHUB_REF', previous.ref);
+  restore('VISUAL_DIRECTOR_HOSTED_READ_ONLY', previous.hostedReadOnly);
   restore('BOTTOM_OF_THIRST_REPO_PATH', previous.local);
 });
 
