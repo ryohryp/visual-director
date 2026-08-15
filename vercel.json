@@ -3,6 +3,10 @@
   "framework": null,
   "outputDirectory": "dist",
   "rewrites": [
+    { "source": "/", "destination": "/api/dashboard" },
+    { "source": "/dashboard", "destination": "/api/dashboard" },
+    { "source": "/overview", "destination": "/api/overview" },
+    { "source": "/asset", "destination": "/api/asset" },
     { "source": "/mcp", "destination": "/api/mcp" },
     { "source": "/health", "destination": "/api/health" }
   ]
