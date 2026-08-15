@@ -1,5 +1,6 @@
-import { bullets, bulletsAfterLabel, readUtf8File, section, subsection } from '../../domain/markdown.js';
+import { bullets, bulletsAfterLabel, section, subsection } from '../../domain/markdown.js';
 import { VisualDirectorError } from '../../domain/types.js';
+import { LocalRepositorySource } from '../repository-source.js';
 import { CanonAdapterBase, globalForbiddenChanges } from './adapter-base.js';
 import type { CanonProjectDefinition, CanonProjectAdapterOptions, ProjectSubjectDefinition } from './types.js';
 
@@ -23,9 +24,13 @@ export class CanonProjectAdapter extends CanonAdapterBase {
   private readonly definition: CanonProjectDefinition;
 
   constructor(definition: CanonProjectDefinition, options: CanonProjectAdapterOptions) {
+    const source = options.source ?? (options.repoPath ? new LocalRepositorySource(options.repoPath) : undefined);
+    if (!source) {
+      throw new VisualDirectorError('PROJECT_CONFIG_MISSING', `No repository source is configured for project_id: ${definition.projectId}.`);
+    }
     super({
       projectId: definition.projectId,
-      repoPath: options.repoPath,
+      source,
       documents: definition.documents,
       labels: definition.labels,
       subjectIds: Object.keys(definition.subjects),
@@ -46,11 +51,8 @@ export class CanonProjectAdapter extends CanonAdapterBase {
         subject_id: subjectId,
       });
     }
-    await this.ensureFile(this.resolvePath(anchorPath), `Approved Anchor for ${subjectId}`);
-    const characterMarkdown = await readUtf8File(
-      this.resolvePath(configured.characterFile),
-      `Character facts for ${subjectId}`,
-    );
+    await this.source.ensureFile(anchorPath, `Approved Anchor for ${subjectId}`);
+    const characterMarkdown = await this.source.readText(configured.characterFile, `Character facts for ${subjectId}`);
     return { ...configured, anchorPath, canonSection, characterMarkdown, mode: 'approved_anchor' };
   }
 
