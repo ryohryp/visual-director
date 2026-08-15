@@ -25,7 +25,7 @@ export function createVisualDirectorServer(
     { name: 'visual-director', version: '0.2.0' },
     {
       instructions:
-        'Visual Director is a fail-closed gate before image generation. visual.prepare_generation delegates Canon resolution and package construction to the MCP-independent Visual Director Core. Proceed to an image model only after that exact request returns a successful Generation Package with non-empty style_lock and subject_lock. If preparation returns a Canon validation error, do not reconstruct or guess character facts from memory, conversation history, legacy assets, or prior candidates. An explicit scene_context.repository_path is request-scoped and does not rely on MCP session state. visual.configure_project remains available for backward-compatible runtime binding. Transport/session failures are connectivity errors, not Canon validation results. visual.adopt_anchor may only be called after explicit user approval. Visual Director never generates images or calls an image API.',
+        'Visual Director is a fail-closed gate before image generation. visual.prepare_generation delegates Canon resolution and package construction to the MCP-independent Visual Director Core. Proceed to an image model only after that exact request returns a successful Generation Package with non-empty style_lock and subject_lock. If preparation returns a Canon validation error, do not reconstruct or guess character facts from memory, conversation history, legacy assets, or prior candidates. An explicit scene_context.repository_path is sufficient for that request and does not require prior MCP session state. For backward compatibility, the MCP adapter also remembers a valid explicit repository path as a runtime binding for subsequent calls in the same server lifecycle. visual.configure_project remains available for explicit runtime binding. Transport/session failures are connectivity errors, not Canon validation results. visual.adopt_anchor may only be called after explicit user approval. Visual Director never generates images or calls an image API.',
     },
   );
 
@@ -123,7 +123,7 @@ export function createVisualDirectorServer(
     {
       title: 'Prepare visual generation',
       description:
-        'Return a fail-closed Generation Package from the MCP-independent Visual Director Core. An explicit scene_context.repository_path is request-scoped and stripped before prompt construction, so preparation does not require prior runtime session binding.',
+        'Return a fail-closed Generation Package from the MCP-independent Visual Director Core. An explicit scene_context.repository_path is sufficient for the current request and stripped before prompt construction; the MCP adapter also preserves it as a backward-compatible runtime binding.',
       annotations: {
         readOnlyHint: true,
         destructiveHint: false,
@@ -164,6 +164,12 @@ export function createVisualDirectorServer(
     },
     async (input) => {
       try {
+        const repositoryPath = input.scene_context?.repository_path;
+        if (typeof repositoryPath === 'string' && repositoryPath.trim()) {
+          // Compatibility only: Core preparation itself remains request-scoped and
+          // does not need this runtime binding to succeed.
+          await core.configureProject(input.project_id, repositoryPath);
+        }
         const generationPackage = await core.prepareGeneration(input);
         return {
           structuredContent: { ...generationPackage } as Record<string, unknown>,
