@@ -77,6 +77,81 @@ describe('Visual Director Core', () => {
       core.prepareGeneration({ ...request, scene_context: { repository_path: fixtureRoot } }),
     ).rejects.toMatchObject({ code: 'REFERENCE_NOT_FOUND' });
   });
+
+  it('returns visual direction and Approved Anchors without requiring workflow metadata', async () => {
+    const core = createVisualDirectorCore();
+    const result = await core.getProjectVisualOverview({
+      project_id: 'bottom-of-thirst',
+      repository_path: fixtureRoot,
+    });
+
+    expect(result.project_id).toBe('bottom-of-thirst');
+    expect(result.visual_direction.grand_design).toBeNull();
+    expect(result.visual_direction.global_style).toEqual({
+      role: 'global_style',
+      document_path: 'docs/visual/GLOBAL_VISUAL_STYLE.md',
+      asset_path: 'docs/visual/assets/global_visual_style_reference.webp',
+    });
+    expect(result.approved_anchors).toContainEqual({
+      subject_id: 'souma',
+      display_name: '相馬 健人',
+      asset_type: 'character_visual_anchor',
+      path: 'public/images/characters/souma/v2/default.avif',
+      status: 'approved',
+    });
+    expect(result.workflow).toEqual({
+      metadata_path: '.visual-director/asset-index.json',
+      available: false,
+      jobs: [],
+      assets: [],
+    });
+  });
+
+  it('reads repository-managed Generation Job and asset metadata when present', async () => {
+    const workflowPath = path.join(fixtureRoot, '.visual-director/asset-index.json');
+    await mkdir(path.dirname(workflowPath), { recursive: true });
+    await writeFile(workflowPath, JSON.stringify({
+      jobs: [{
+        job_id: 'gen_0001',
+        asset_type: 'character_full_body',
+        subject_ids: ['souma'],
+        request_text: '相馬の全身立ち絵',
+        status: 'candidate',
+        generator: 'chatgpt-images',
+      }],
+      assets: [{
+        asset_id: 'asset_0001',
+        asset_type: 'character_full_body',
+        subject_id: 'souma',
+        status: 'candidate',
+        source_job_id: 'gen_0001',
+        candidate_path: '.visual-director/candidates/gen_0001/candidate_01.webp',
+        reference_paths: ['public/images/characters/souma/v2/default.avif'],
+      }],
+    }), 'utf8');
+
+    const core = createVisualDirectorCore();
+    const result = await core.getProjectVisualOverview({
+      project_id: 'bottom-of-thirst',
+      repository_path: fixtureRoot,
+    });
+
+    expect(result.workflow.available).toBe(true);
+    expect(result.workflow.jobs).toContainEqual(expect.objectContaining({ job_id: 'gen_0001', status: 'candidate' }));
+    expect(result.workflow.assets).toContainEqual(expect.objectContaining({ asset_id: 'asset_0001', status: 'candidate' }));
+  });
+
+  it('fails explicitly when repository workflow metadata is malformed', async () => {
+    const workflowPath = path.join(fixtureRoot, '.visual-director/asset-index.json');
+    await mkdir(path.dirname(workflowPath), { recursive: true });
+    await writeFile(workflowPath, '{broken json', 'utf8');
+
+    const core = createVisualDirectorCore();
+    await expect(core.getProjectVisualOverview({
+      project_id: 'bottom-of-thirst',
+      repository_path: fixtureRoot,
+    })).rejects.toMatchObject({ code: 'WORKFLOW_INDEX_INVALID' });
+  });
 });
 
 async function createFixture(root: string): Promise<void> {
