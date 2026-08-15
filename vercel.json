@@ -2,14 +2,15 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": null,
   "outputDirectory": "dist",
-  "rewrites": [
-    { "source": "/", "destination": "/api/dashboard" },
-    { "source": "/dashboard", "destination": "/api/dashboard" },
-    { "source": "/anchor", "destination": "/api/anchor" },
-    { "source": "/anchor-detail", "destination": "/api/anchor-detail" },
-    { "source": "/overview", "destination": "/api/overview" },
-    { "source": "/asset", "destination": "/api/asset" },
-    { "source": "/mcp", "destination": "/api/mcp" },
-    { "source": "/health", "destination": "/api/health" }
+  "routes": [
+    { "src": "^/$", "dest": "/api/dashboard" },
+    { "src": "^/dashboard/?$", "dest": "/api/dashboard" },
+    { "src": "^/anchor/?$", "dest": "/api/anchor" },
+    { "src": "^/anchor-detail/?$", "dest": "/api/anchor-detail" },
+    { "src": "^/overview/?$", "dest": "/api/overview" },
+    { "src": "^/asset/?$", "dest": "/api/asset" },
+    { "src": "^/mcp/?$", "dest": "/api/mcp" },
+    { "src": "^/health/?$", "dest": "/api/health" },
+    { "handle": "filesystem" }
   ]
 }
