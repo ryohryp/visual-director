@@ -22,15 +22,27 @@ export function subsection(markdown: string, heading: string): string {
   return headingBlock(markdown, heading, 3);
 }
 
+export function parseHeading(line: string): { level: number; text: string } | null {
+  const trimmed = line.trim();
+  const match = trimmed.match(/^(#{1,6})(?:[ \t]+(.*?))?(?:[ \t]+#+)?[ \t]*$/);
+  if (!match || !match[1]) return null;
+  const level = match[1].length;
+  const text = (match[2] ?? '').trim();
+  return { level, text };
+}
+
 function headingBlock(markdown: string, heading: string, level: number): string {
-  const hashes = '#'.repeat(level);
+  if (!heading.trim()) return '';
   const lines = markdown.split(/\r?\n/);
-  const start = lines.findIndex((line) => line.trim() === `${hashes} ${heading}`);
+  const start = lines.findIndex((line) => {
+    const parsed = parseHeading(line);
+    return parsed !== null && parsed.level === level && parsed.text === heading;
+  });
   if (start < 0) return '';
 
   const relativeEnd = lines.slice(start + 1).findIndex((line) => {
-    const headingMatch = line.match(/^(#{1,6})\s+/);
-    return headingMatch !== null && (headingMatch[1]?.length ?? 0) <= level;
+    const parsed = parseHeading(line);
+    return parsed !== null && parsed.level <= level;
   });
   const end = relativeEnd < 0 ? lines.length : start + 1 + relativeEnd;
   return lines.slice(start + 1, end).join('\n').trim();
@@ -77,7 +89,9 @@ export function bulletsAfterLabel(markdown: string, label: string): string[] {
   const lines = markdown.split(/\r?\n/);
   const labelIndex = lines.findIndex((line) => {
     const trimmed = line.trim();
-    return trimmed === `${label}:` || trimmed === `### ${label}`;
+    if (trimmed === `${label}:` || trimmed === label) return true;
+    const parsed = parseHeading(line);
+    return parsed !== null && parsed.text === label;
   });
   if (labelIndex < 0) return [];
   const collected: string[] = [];
@@ -88,6 +102,7 @@ export function bulletsAfterLabel(markdown: string, label: string): string[] {
       continue;
     }
     if (collected.length > 0 && line.trim() !== '') break;
+    if (parseHeading(line) !== null) break;
   }
   return collected;
 }
