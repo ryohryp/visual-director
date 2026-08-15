@@ -31,6 +31,31 @@ Optional configuration:
 
 Do not set `BOTTOM_OF_THIRST_REPO_PATH` in hosted production. That variable is for local compatibility only.
 
+## Automated Vercel setup
+
+The hosted runtime needs a GitHub bearer credential because the application reads Canon and Approved Anchor files through the GitHub Contents API. The Vercel-GitHub deployment connection alone is not used as an application credential.
+
+Use a fine-grained GitHub credential scoped only to `ryohryp/---The-Bottom-of-Thirst` with **Contents: Read-only** access. Keep it in the current PowerShell process only; do not put it in a file, command-line argument, commit, or log.
+
+From this repository, set a Vercel CLI token and the GitHub credential in the process environment, then run:
+
+```powershell
+$env:VERCEL_TOKEN = '<Vercel CLI token>'
+$env:VISUAL_DIRECTOR_GITHUB_TOKEN = '<fine-grained GitHub credential>'
+powershell -ExecutionPolicy Bypass -File scripts/configure-hosted-vercel.ps1
+```
+
+The script validates that the credential can read the target Canon file, links the `visual-director` project in the `ryohryps-projects` scope, adds or updates only the production `VISUAL_DIRECTOR_GITHUB_TOKEN` secret, and redeploys the current production deployment once. It suppresses CLI output and never prints the secret value.
+
+If GitHub CLI is already authenticated with a credential that has only the required repository read access, the token may be obtained without placing it in the shell history:
+
+```powershell
+$env:VERCEL_TOKEN = '<Vercel CLI token>'
+powershell -ExecutionPolicy Bypass -File scripts/configure-hosted-vercel.ps1 -UseGitHubCliToken
+```
+
+Do not use `-UseGitHubCliToken` with a broad personal token. If no suitable credential already exists, creating the fine-grained credential remains the one-time human step; the script handles the Vercel configuration and deployment afterward.
+
 ## Vercel runtime
 
 When `VERCEL=1`, `src/index.ts` starts the hosted HTTP server on `PORT` and binds to `0.0.0.0`.
@@ -50,7 +75,15 @@ After deploying and configuring the GitHub read-only secret:
 
 1. `GET /health` returns HTTP 200 and `mode: hosted-read-only`.
 2. Add the production `/mcp` URL to ChatGPT as the Visual Director remote MCP connection.
-3. Run the real E2E request:
+3. Run the redacted, fail-closed verifier. It checks `/health`, MCP initialize, `tools/list`, and the exact `visual.prepare_generation` result without printing response payloads or credentials:
+
+```powershell
+npm.cmd run verify:hosted -- https://visual-director-beta.vercel.app/mcp
+```
+
+For a local HTTP server only, set `VISUAL_DIRECTOR_ALLOW_INSECURE_HTTP=1` for that process. The verifier still requires `/mcp`, and it never sends a repository path in the hosted request.
+
+The underlying request is:
 
 ```text
 project_id: bottom-of-thirst
