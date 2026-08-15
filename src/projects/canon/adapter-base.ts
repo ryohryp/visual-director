@@ -1,9 +1,7 @@
-import { access } from 'node:fs/promises';
-import path from 'node:path';
-
-import { bullets, fencedBlock, readUtf8File } from '../../domain/markdown.js';
+import { bullets, fencedBlock } from '../../domain/markdown.js';
 import { VisualDirectorError } from '../../domain/types.js';
 import type { GenerationPackage, PrepareGenerationInput, ProjectAdapter } from '../../domain/types.js';
+import type { RepositorySource } from '../repository-source.js';
 import type { ProjectDocuments, ProjectLabels } from './types.js';
 
 export type CanonSubjectMode = 'approved_anchor' | 'new_anchor_candidate';
@@ -21,7 +19,7 @@ export interface CanonSubject {
 
 interface CanonAdapterBaseOptions {
   projectId: string;
-  repoPath: string;
+  source: RepositorySource;
   documents: ProjectDocuments;
   labels: ProjectLabels;
   subjectIds: readonly string[];
@@ -41,14 +39,14 @@ const GLOBAL_FORBIDDEN_CHANGES = [
 
 export abstract class CanonAdapterBase implements ProjectAdapter {
   readonly projectId: string;
-  protected readonly repoPath: string;
+  protected readonly source: RepositorySource;
   protected readonly documents: ProjectDocuments;
   protected readonly labels: ProjectLabels;
   private readonly subjectIds: readonly string[];
 
   protected constructor(options: CanonAdapterBaseOptions) {
     this.projectId = options.projectId;
-    this.repoPath = path.resolve(options.repoPath);
+    this.source = options.source;
     this.documents = options.documents;
     this.labels = options.labels;
     this.subjectIds = options.subjectIds;
@@ -69,7 +67,7 @@ export abstract class CanonAdapterBase implements ProjectAdapter {
         { subject_ids: input.subject_ids, asset_type: input.asset_type },
       );
     }
-    await this.ensureFile(this.resolvePath(this.documents.globalReference), 'Global Visual Reference');
+    await this.source.ensureFile(this.documents.globalReference, 'Global Visual Reference');
 
     const styleLock = fencedBlock(documents.styleMarkdown, 'text');
     const avoidBlock = fencedBlockAfter(documents.styleMarkdown, this.labels.avoidBlockHeading);
@@ -144,41 +142,12 @@ export abstract class CanonAdapterBase implements ProjectAdapter {
     return 'Global Visual Style is missing a style lock or avoid block.';
   }
 
-  protected resolvePath(relativePath: string): string {
-    const root = this.repoPath;
-    const resolved = path.resolve(root, relativePath);
-    const prefix = root.endsWith(path.sep) ? root : `${root}${path.sep}`;
-    if (path.isAbsolute(relativePath) || (resolved !== root && !resolved.startsWith(prefix))) {
-      throw new VisualDirectorError('REFERENCE_OUTSIDE_REPO', 'A configured project path resolves outside the project repository.', {
-        path: relativePath,
-      });
-    }
-    return resolved;
-  }
-
-  protected async ensureFile(filePath: string, label: string): Promise<void> {
-    try {
-      await access(filePath);
-    } catch {
-      throw new VisualDirectorError('REFERENCE_NOT_FOUND', `${label} does not exist.`, { path: filePath });
-    }
-  }
-
-  protected async fileExists(filePath: string): Promise<boolean> {
-    try {
-      await access(filePath);
-      return true;
-    } catch {
-      return false;
-    }
-  }
-
   private async readDocuments(): Promise<CanonDocuments> {
     const [styleMarkdown, canonMarkdown, worldMarkdown, manifestMarkdown] = await Promise.all([
-      readUtf8File(this.resolvePath(this.documents.globalStyle), 'Global Visual Style'),
-      readUtf8File(this.resolvePath(this.documents.characterCanon), 'Character Visual Canon'),
-      readUtf8File(this.resolvePath(this.documents.worldDirection), 'World Direction'),
-      readUtf8File(this.resolvePath(this.documents.assetManifest), 'Visual reference asset manifest'),
+      this.source.readText(this.documents.globalStyle, 'Global Visual Style'),
+      this.source.readText(this.documents.characterCanon, 'Character Visual Canon'),
+      this.source.readText(this.documents.worldDirection, 'World Direction'),
+      this.source.readText(this.documents.assetManifest, 'Visual reference asset manifest'),
     ]);
     if (!manifestMarkdown.trim()) {
       throw new VisualDirectorError('ASSET_MANIFEST_EMPTY', 'Visual reference asset manifest is empty.', {
