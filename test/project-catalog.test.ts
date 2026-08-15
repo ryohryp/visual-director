@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { createVisualDirectorCore } from '../src/core/visual-director.js';
 import type { ProjectVisualOverview } from '../src/domain/types.js';
-import { parseProjectCatalog } from '../src/projects/catalog.js';
+import { loadProjectCatalog, parseProjectCatalog } from '../src/projects/catalog.js';
 
 const rawCatalog = {
   projects: [
@@ -24,6 +24,20 @@ const rawCatalog = {
 };
 
 describe('Project Catalog', () => {
+  it('ships a repository default catalog for the hosted workspace', () => {
+    const catalog = loadProjectCatalog('projects.catalog.json');
+
+    expect(catalog.list()).toEqual([
+      expect.objectContaining({
+        project_id: 'bottom-of-thirst',
+        display_name: 'The Bottom of Thirst',
+        repository: { owner: 'ryohryp', name: '---The-Bottom-of-Thirst' },
+        ref: 'main',
+        adapter_type: 'bottom-of-thirst',
+      }),
+    ]);
+  });
+
   it('loads two projects and resolves each id to exactly one repository/ref/adapter', () => {
     const catalog = parseProjectCatalog(rawCatalog);
 

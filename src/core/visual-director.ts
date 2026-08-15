@@ -29,6 +29,8 @@ import { GitHubRepositorySource } from '../projects/repository-source.js';
 import { registerCandidate, reviewCandidate } from '../projects/workflow-store.js';
 import { runImageGeneration } from './image-generation-service.js';
 
+const DEFAULT_PROJECT_CATALOG_PATH = 'projects.catalog.json';
+
 export type VisualDirectorCoreOptions = ProjectRegistryOptions & {
   imageGenerator?: ImageGenerator;
   projectCatalog?: ProjectCatalog;
@@ -153,12 +155,10 @@ export function createVisualDirectorCore(
 
 function resolveProjectCatalog(options: VisualDirectorCoreOptions): ProjectCatalog {
   if (options.projectCatalog) return options.projectCatalog;
-  const catalogPath = options.projectCatalogPath?.trim() || process.env.VISUAL_DIRECTOR_PROJECT_CATALOG?.trim();
-  if (catalogPath) return loadProjectCatalog(catalogPath);
-  throw new VisualDirectorError(
-    'PROJECT_CATALOG_MISSING',
-    'No Project Catalog is configured. Set VISUAL_DIRECTOR_PROJECT_CATALOG or pass projectCatalog/projectCatalogPath.',
-  );
+  const catalogPath = options.projectCatalogPath?.trim()
+    || process.env.VISUAL_DIRECTOR_PROJECT_CATALOG?.trim()
+    || DEFAULT_PROJECT_CATALOG_PATH;
+  return loadProjectCatalog(catalogPath);
 }
 
 async function loadCatalogOverview(
