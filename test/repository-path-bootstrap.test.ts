@@ -174,6 +174,57 @@ describe('prepare_generation repository-path bootstrap compatibility', () => {
     }
   });
 
+  it('returns a JSON-RPC stale-session error and accepts a fresh initialization', async () => {
+    const { httpServer, sessions } = createHttpServerForVisualDirector();
+    await new Promise<void>((resolve) => httpServer.listen(0, '127.0.0.1', resolve));
+
+    const address = httpServer.address();
+    expect(address && typeof address !== 'string').toBe(true);
+    if (!address || typeof address === 'string') {
+      throw new Error('Expected an ephemeral HTTP server address.');
+    }
+
+    const endpoint = `http://127.0.0.1:${(address as AddressInfo).port}/mcp`;
+    const staleResponse = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        accept: 'application/json, text/event-stream',
+        'content-type': 'application/json',
+        'mcp-protocol-version': '2025-06-18',
+        'mcp-session-id': 'stale-session-from-a-previous-process',
+      },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'initialize',
+        params: {
+          protocolVersion: '2025-06-18',
+          capabilities: {},
+          clientInfo: { name: 'stale-session-test', version: '0.1.0' },
+        },
+      }),
+    });
+
+    expect(staleResponse.status).toBe(404);
+    expect(await staleResponse.json()).toMatchObject({
+      jsonrpc: '2.0',
+      error: { code: -32001 },
+    });
+
+    const client = new Client({ name: 'fresh-session-test', version: '0.1.0' });
+    const transport = new StreamableHTTPClientTransport(new URL(endpoint));
+    try {
+      await client.connect(transport);
+      expect(transport.sessionId).toBeTruthy();
+      expect(sessions.size).toBe(1);
+    } finally {
+      await client.close();
+      await new Promise<void>((resolve, reject) => {
+        httpServer.close((error) => (error ? reject(error) : resolve()));
+      });
+    }
+  });
+
   it('fails closed when no binding exists and never reuses another project binding', async () => {
     const previousBottomOfThirstPath = process.env.BOTTOM_OF_THIRST_REPO_PATH;
     delete process.env.BOTTOM_OF_THIRST_REPO_PATH;

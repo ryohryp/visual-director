@@ -221,7 +221,17 @@ function serializeError(error: unknown): Record<string, unknown> {
 
 export async function runStdio(options: VisualDirectorServerOptions = {}): Promise<void> {
   const server = createVisualDirectorServer(options);
-  await server.connect(new StdioServerTransport());
+  const transport = new StdioServerTransport();
+  transport.onerror = (error) => {
+    logToStderr('MCP transport error', error);
+  };
+  try {
+    await server.connect(transport);
+  } catch (error) {
+    logToStderr('stdio connection failed', error);
+    await closeTransportAfterConnectionFailure(transport);
+    throw error;
+  }
 }
 
 interface HttpSession {
@@ -235,7 +245,9 @@ export function createHttpServerForVisualDirector(
   const sessions = new Map<string, HttpSession>();
   const registry = createProjectRegistry(options);
   const httpServer = createHttpServer((req, res) => {
-    void handleHttpRequest(req, res, options, sessions, registry);
+    void handleHttpRequest(req, res, options, sessions, registry).catch((error: unknown) => {
+      writeHttpRequestError(res, error);
+    });
   });
   return { httpServer, sessions };
 }
@@ -247,55 +259,109 @@ async function handleHttpRequest(
   sessions: Map<string, HttpSession>,
   registry: ProjectRegistry,
 ): Promise<void> {
-  if (req.url !== '/mcp') {
-    writeJson(res, 404, { error: 'not_found' });
-    return;
-  }
-
-  const sessionId = headerValue(req.headers['mcp-session-id']);
-  if (req.method === 'DELETE') {
-    const session = sessionId ? sessions.get(sessionId) : undefined;
-    if (!session) {
-      writeJson(res, 404, { error: 'session_not_found' });
-      return;
-    }
-    sessions.delete(sessionId as string);
-    await session.transport.close();
-    res.writeHead(204).end();
-    return;
-  }
-
-  let session = sessionId ? sessions.get(sessionId) : undefined;
-  if (sessionId && !session) {
-    writeJson(res, 404, { error: 'session_not_found' });
-    return;
-  }
-
-  if (!session) {
-    const server = createVisualDirectorServer(options, registry);
-    const transport = new StreamableHTTPServerTransport({
-      sessionIdGenerator: () => randomUUID(),
-      enableJsonResponse: true,
-    });
-    session = { server, transport };
-    transport.onclose = () => {
-      const currentId = transport.sessionId;
-      if (currentId) sessions.delete(currentId);
-    };
-    await server.connect(transport);
-  }
+  let newlyCreatedSession: HttpSession | undefined;
+  let connected = false;
 
   try {
+    if (req.url !== '/mcp') {
+      writeJson(res, 404, { error: 'not_found' });
+      return;
+    }
+
+    const sessionId = headerValue(req.headers['mcp-session-id']);
+    if (req.method === 'DELETE') {
+      const session = sessionId ? sessions.get(sessionId) : undefined;
+      if (!session) {
+        writeSessionNotFound(res);
+        return;
+      }
+      sessions.delete(sessionId as string);
+      await session.transport.close();
+      res.writeHead(204).end();
+      return;
+    }
+
+    let session = sessionId ? sessions.get(sessionId) : undefined;
+    if (sessionId && !session) {
+      writeSessionNotFound(res);
+      return;
+    }
+
+    if (!session) {
+      const server = createVisualDirectorServer(options, registry);
+      const transport = new StreamableHTTPServerTransport({
+        sessionIdGenerator: () => randomUUID(),
+        enableJsonResponse: true,
+        onsessioninitialized: (initializedSessionId) => {
+          if (newlyCreatedSession) sessions.set(initializedSessionId, newlyCreatedSession);
+        },
+        onsessionclosed: (closedSessionId) => {
+          if (closedSessionId) sessions.delete(closedSessionId);
+        },
+      });
+      transport.onerror = (error) => {
+        logToStderr('MCP transport error', error);
+      };
+      newlyCreatedSession = { server, transport };
+      session = newlyCreatedSession;
+      transport.onclose = () => {
+        const currentId = transport.sessionId;
+        if (currentId) sessions.delete(currentId);
+      };
+      await server.connect(transport);
+      connected = true;
+    }
+
     await session.transport.handleRequest(req, res);
     const assignedId = session.transport.sessionId;
     if (assignedId) sessions.set(assignedId, session);
   } catch (error) {
-    if (!res.headersSent) {
-      writeJson(res, 500, serializeError(error));
-    } else {
-      res.destroy(error instanceof Error ? error : undefined);
+    logToStderr('HTTP request lifecycle error', error);
+    if (newlyCreatedSession && (!connected || newlyCreatedSession.transport.sessionId === undefined)) {
+      await closeTransportAfterConnectionFailure(newlyCreatedSession.transport);
     }
+    throw error;
   }
+}
+
+async function closeTransportAfterConnectionFailure(transport: { close: () => Promise<void> }): Promise<void> {
+  try {
+    await transport.close();
+  } catch (error) {
+    logToStderr('transport cleanup failed', error);
+  }
+}
+
+function writeHttpRequestError(res: ServerResponse, error: unknown): void {
+  if (res.headersSent || res.writableEnded) {
+    if (!res.destroyed) res.destroy(error instanceof Error ? error : undefined);
+    return;
+  }
+
+  writeJson(res, 500, {
+    jsonrpc: '2.0',
+    id: null,
+    error: {
+      code: -32603,
+      message: 'Internal error while handling the MCP request.',
+      data: serializeError(error),
+    },
+  });
+}
+
+function writeSessionNotFound(res: ServerResponse): void {
+  writeJson(res, 404, {
+    jsonrpc: '2.0',
+    id: null,
+    error: {
+      code: -32001,
+      message: 'Session not found. Reinitialize the MCP connection.',
+    },
+  });
+}
+
+function logToStderr(scope: string, error: unknown): void {
+  process.stderr.write(`[visual-director] ${scope}: ${JSON.stringify(serializeError(error))}\n`);
 }
 
 function headerValue(value: string | string[] | undefined): string | undefined {
