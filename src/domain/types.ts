@@ -8,6 +8,22 @@ export interface PrepareGenerationInput {
   scene_context?: SceneContext;
 }
 
+export interface GenerateImageInput extends PrepareGenerationInput {
+  repository_path: string;
+  job_id: string;
+  asset_id: string;
+}
+
+export interface GenerateImageResult {
+  project_id: string;
+  job_id: string;
+  asset_id: string;
+  status: 'candidate';
+  candidate_path: string;
+  generator: string;
+  generation_package_fingerprint: string;
+}
+
 export interface ProjectVisualOverviewInput {
   project_id: string;
   repository_path?: string;
