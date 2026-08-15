@@ -1,4 +1,4 @@
-import { createServer as createHttpServer, type Server } from 'node:http';
+import { createServer as createHttpServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 
@@ -29,8 +29,8 @@ export function createHostedHttpServerForVisualDirector(options: VisualDirectorS
 }
 
 async function handleHostedRequest(
-  req: Parameters<Parameters<typeof createHttpServer>[0]>[0],
-  res: Parameters<Parameters<typeof createHttpServer>[0]>[1],
+  req: IncomingMessage,
+  res: ServerResponse,
   options: VisualDirectorServerOptions,
 ): Promise<void> {
   const pathname = new URL(req.url ?? '/', `http://${req.headers.host ?? 'localhost'}`).pathname;
