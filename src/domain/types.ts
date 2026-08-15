@@ -156,6 +156,7 @@ export interface ManagedVisualAssetSummary {
   source_job_id?: string;
   candidate_path?: string;
   registered_path?: string;
+  archived_path?: string;
   generator?: string;
   generation_package_fingerprint?: string;
   reference_paths: string[];
