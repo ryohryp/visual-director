@@ -16,11 +16,7 @@ import type { ImageGenerator } from '../generators/types.js';
 import { OpenAIImageGenerator } from '../generators/openai-image-generator.js';
 import { BottomOfThirstAdapter } from '../projects/bottom-of-thirst/adapter.js';
 import { BottomOfThirstVisualAdapter } from '../projects/bottom-of-thirst/visual-adapter.js';
-import {
-  createProjectCatalog,
-  loadProjectCatalog,
-  summarizeProject,
-} from '../projects/catalog.js';
+import { loadProjectCatalog, summarizeProject } from '../projects/catalog.js';
 import type { ProjectCatalog, ProjectCatalogEntry, ProjectSummary } from '../projects/catalog.js';
 import {
   CanonProjectAdapter,
