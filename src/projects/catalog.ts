@@ -39,10 +39,26 @@ interface RawCatalog {
   projects?: unknown;
 }
 
+const DEFAULT_PROJECT_CATALOG_PATH = 'projects.catalog.json';
+const DEFAULT_PROJECT_CATALOG = {
+  projects: [
+    {
+      project_id: 'bottom-of-thirst',
+      display_name: 'The Bottom of Thirst',
+      repository: 'ryohryp/---The-Bottom-of-Thirst',
+      ref: 'main',
+      adapter_type: 'bottom-of-thirst',
+    },
+  ],
+};
+
 export function loadProjectCatalog(filePath: string): ProjectCatalog {
   const trimmedPath = filePath.trim();
   if (!trimmedPath) {
     throw new VisualDirectorError('PROJECT_CATALOG_INVALID', 'Project Catalog path must not be empty.');
+  }
+  if (trimmedPath === DEFAULT_PROJECT_CATALOG_PATH) {
+    return parseProjectCatalog(DEFAULT_PROJECT_CATALOG);
   }
   let parsed: unknown;
   try {
