@@ -1,3 +1,5 @@
+import type { RepositorySource } from '../repository-source.js';
+
 export interface ProjectDocuments {
   globalStyle: string;
   characterCanon: string;
@@ -29,7 +31,8 @@ export interface CanonProjectDefinition {
 }
 
 export interface CanonProjectAdapterOptions {
-  repoPath: string;
+  repoPath?: string;
+  source?: RepositorySource;
 }
 
 export const DEFAULT_PROJECT_DOCUMENTS: ProjectDocuments = {

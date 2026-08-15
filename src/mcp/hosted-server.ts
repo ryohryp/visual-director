@@ -1,0 +1,84 @@
+import { createServer as createHttpServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
+
+import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
+
+import { createVisualDirectorServer } from './server.js';
+import type { VisualDirectorServerOptions } from './server.js';
+
+/**
+ * Hosted deployments must not depend on an in-memory MCP session map. A fresh
+ * McpServer + stateless transport is created for each HTTP request, matching
+ * the MCP SDK's stateless Streamable HTTP deployment model for load-balanced
+ * and serverless runtimes.
+ */
+export function createHostedHttpServerForVisualDirector(options: VisualDirectorServerOptions = {}): Server {
+  return createHttpServer((req, res) => {
+    void handleHostedRequest(req, res, options).catch((error: unknown) => {
+      if (res.headersSent || res.writableEnded) {
+        if (!res.destroyed) res.destroy(error instanceof Error ? error : undefined);
+        return;
+      }
+      res.writeHead(500, { 'content-type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify({
+        jsonrpc: '2.0',
+        id: null,
+        error: { code: -32603, message: 'Internal hosted MCP transport error.' },
+      }));
+    });
+  });
+}
+
+async function handleHostedRequest(
+  req: IncomingMessage,
+  res: ServerResponse,
+  options: VisualDirectorServerOptions,
+): Promise<void> {
+  const pathname = new URL(req.url ?? '/', `http://${req.headers.host ?? 'localhost'}`).pathname;
+
+  if (req.method === 'GET' && pathname === '/health') {
+    res.writeHead(200, { 'content-type': 'application/json; charset=utf-8' });
+    res.end(JSON.stringify({ status: 'ok', service: 'visual-director', mode: 'hosted-read-only' }));
+    return;
+  }
+
+  if (pathname !== '/mcp') {
+    res.writeHead(404, { 'content-type': 'application/json; charset=utf-8' });
+    res.end(JSON.stringify({ error: 'not_found' }));
+    return;
+  }
+
+  if (req.method !== 'POST') {
+    res.writeHead(405, {
+      allow: 'POST',
+      'content-type': 'application/json; charset=utf-8',
+    });
+    res.end(JSON.stringify({
+      jsonrpc: '2.0',
+      id: null,
+      error: { code: -32000, message: 'Hosted Visual Director uses stateless POST-only Streamable HTTP.' },
+    }));
+    return;
+  }
+
+  const server = createVisualDirectorServer(options);
+  const transport = new StreamableHTTPServerTransport({
+    sessionIdGenerator: undefined,
+    enableJsonResponse: true,
+  });
+  transport.onerror = (error) => {
+    process.stderr.write(`[visual-director] hosted MCP transport error: ${error.message}\n`);
+  };
+
+  let closed = false;
+  const close = async () => {
+    if (closed) return;
+    closed = true;
+    await transport.close().catch(() => undefined);
+    await server.close().catch(() => undefined);
+  };
+  res.once('close', () => { void close(); });
+
+  await server.connect(transport);
+  await transport.handleRequest(req, res);
+  if (res.writableEnded) await close();
+}
