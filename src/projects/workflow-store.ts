@@ -1,4 +1,4 @@
-import { copyFile, lstat, mkdir, readFile, realpath, rename, rm, stat, writeFile } from 'node:fs/promises';
+import { lstat, mkdir, readFile, realpath, rename, rm, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 
@@ -104,13 +104,18 @@ export async function reviewCandidate(input: ReviewCandidateInput): Promise<Cand
         production_path: productionPath,
       });
     }
+    if (candidatePath === productionPath) {
+      throw new VisualDirectorError('INVALID_INPUT', 'production_path must differ from candidate_path.');
+    }
     await ensureExistingFile(repository, candidatePath, 'CANDIDATE_NOT_FOUND');
     if (await pathExists(path.resolve(repository.absolutePath, productionPath))) {
       throw new VisualDirectorError('PRODUCTION_ASSET_CONFLICT', 'The production path already exists.', { production_path: productionPath });
     }
     await promoteCandidate(repository, candidatePath, productionPath);
+    const { candidate_path: _candidatePath, ...rest } = current;
+    void _candidatePath;
     updated = {
-      ...current,
+      ...rest,
       status: 'registered',
       registered_path: productionPath,
       approved_at: now,
@@ -173,15 +178,17 @@ async function promoteCandidate(repository: RepositoryRoot, candidatePath: strin
   const destination = path.resolve(repository.absolutePath, productionPath);
   await ensureInside(repository, destination, productionPath);
   await mkdir(path.dirname(destination), { recursive: true });
-  await copyFile(source, destination);
+  await rename(source, destination);
 }
 
 async function rollbackPromotion(repository: RepositoryRoot, candidatePath: string, productionPath: string): Promise<void> {
-  void candidatePath;
+  const source = path.resolve(repository.absolutePath, productionPath);
+  const destination = path.resolve(repository.absolutePath, safeRelativePath(candidatePath, 'candidate_path'));
   try {
-    await rm(path.resolve(repository.absolutePath, productionPath), { force: true });
+    await mkdir(path.dirname(destination), { recursive: true });
+    if (await pathExists(source)) await rename(source, destination);
   } catch {
-    // Best-effort cleanup only; original workflow metadata remains unchanged.
+    // Best-effort rollback; the workflow write error remains the primary failure.
   }
 }
 
