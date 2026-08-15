@@ -3,6 +3,8 @@ import type {
   AdoptAnchorInput,
   AdoptAnchorResult,
   CandidateWorkflowResult,
+  GenerateImageInput,
+  GenerateImageResult,
   GenerationPackage,
   PrepareGenerationInput,
   ProjectVisualOverview,
@@ -10,17 +12,23 @@ import type {
   RegisterCandidateInput,
   ReviewCandidateInput,
 } from '../domain/types.js';
+import type { ImageGenerator } from '../generators/types.js';
+import { OpenAIImageGenerator } from '../generators/openai-image-generator.js';
 import { BottomOfThirstAdapter } from '../projects/bottom-of-thirst/adapter.js';
 import { BottomOfThirstVisualAdapter } from '../projects/bottom-of-thirst/visual-adapter.js';
 import { createProjectRegistry } from '../projects/registry.js';
 import type { ProjectConfiguration, ProjectRegistry, ProjectRegistryOptions } from '../projects/registry.js';
 import { GitHubRepositorySource } from '../projects/repository-source.js';
 import { registerCandidate, reviewCandidate } from '../projects/workflow-store.js';
+import { runImageGeneration } from './image-generation-service.js';
 
-export type VisualDirectorCoreOptions = ProjectRegistryOptions;
+export type VisualDirectorCoreOptions = ProjectRegistryOptions & {
+  imageGenerator?: ImageGenerator;
+};
 
 export interface VisualDirectorCore {
   prepareGeneration(input: PrepareGenerationInput): Promise<GenerationPackage>;
+  generateImage(input: GenerateImageInput): Promise<GenerateImageResult>;
   getProjectVisualOverview(input: ProjectVisualOverviewInput): Promise<ProjectVisualOverview>;
   registerCandidate(input: RegisterCandidateInput): Promise<CandidateWorkflowResult>;
   reviewCandidate(input: ReviewCandidateInput): Promise<CandidateWorkflowResult>;
@@ -49,6 +57,24 @@ export function createVisualDirectorCore(
         if (!hostedAdapter) throw error;
         return hostedAdapter.prepare(input);
       }
+    },
+
+    async generateImage(input: GenerateImageInput): Promise<GenerateImageResult> {
+      if (isHostedReadOnlyMode()) throw hostedWorkflowWriteDisabled(input.project_id);
+      const requestRegistry = createProjectRegistry(options);
+      await requestRegistry.configureProject(input.project_id, input.repository_path);
+      const generationPackage = await requestRegistry.resolve(input.project_id).prepare({
+        project_id: input.project_id,
+        asset_type: input.asset_type,
+        subject_ids: [...input.subject_ids],
+        request_text: input.request_text,
+        ...(input.scene_context ? { scene_context: { ...input.scene_context } } : {}),
+      });
+      return runImageGeneration({
+        request: input,
+        generationPackage,
+        generator: options.imageGenerator ?? new OpenAIImageGenerator({ fetchImpl: options.fetchImpl }),
+      });
     },
 
     async getProjectVisualOverview(input: ProjectVisualOverviewInput): Promise<ProjectVisualOverview> {
@@ -120,7 +146,7 @@ async function validateWorkflowRepository(
 function hostedWorkflowWriteDisabled(projectId: string): VisualDirectorError {
   return new VisualDirectorError(
     'HOSTED_WRITE_DISABLED',
-    'Candidate workflow mutations are disabled in hosted read-only mode pending a separately reviewed repository write path.',
+    'Candidate workflow mutations and image generation are disabled in hosted read-only mode pending a separately reviewed repository write path.',
     { project_id: projectId },
   );
 }
