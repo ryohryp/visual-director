@@ -16,16 +16,19 @@ import type { ImageGenerator } from '../generators/types.js';
 import { OpenAIImageGenerator } from '../generators/openai-image-generator.js';
 import { BottomOfThirstAdapter } from '../projects/bottom-of-thirst/adapter.js';
 import { BottomOfThirstVisualAdapter } from '../projects/bottom-of-thirst/visual-adapter.js';
-import { loadProjectCatalog, summarizeProject } from '../projects/catalog.js';
+import { loadProjectCatalog, summarizeProject, summarizeUnavailableProject } from '../projects/catalog.js';
 import type { ProjectCatalog, ProjectCatalogEntry, ProjectSummary } from '../projects/catalog.js';
 import {
   CanonProjectAdapter,
   DEFAULT_PROJECT_DOCUMENTS,
   DEFAULT_PROJECT_LABELS,
 } from '../projects/canon/adapter.js';
+import { diagnoseProjectRepository } from '../projects/diagnostics.js';
+import type { ProjectDiagnostics } from '../projects/diagnostics.js';
 import { createProjectRegistry } from '../projects/registry.js';
 import type { ProjectConfiguration, ProjectRegistry, ProjectRegistryOptions } from '../projects/registry.js';
 import { GitHubRepositorySource } from '../projects/repository-source.js';
+import type { RepositorySource } from '../projects/repository-source.js';
 import { registerCandidate, reviewCandidate } from '../projects/workflow-store.js';
 import { runImageGeneration } from './image-generation-service.js';
 
@@ -36,6 +39,7 @@ export type VisualDirectorCoreOptions = ProjectRegistryOptions & {
   projectCatalog?: ProjectCatalog;
   projectCatalogPath?: string;
   projectOverviewLoader?: (entry: ProjectCatalogEntry) => Promise<ProjectVisualOverview>;
+  projectDiagnosticsLoader?: (entry: ProjectCatalogEntry) => Promise<ProjectDiagnostics>;
 };
 
 export interface VisualDirectorCore {
@@ -120,8 +124,21 @@ export function createVisualDirectorCore(
 
     async listProjects(): Promise<ProjectSummary[]> {
       const catalog = resolveProjectCatalog(options);
-      const loadOverview = options.projectOverviewLoader ?? ((entry: ProjectCatalogEntry) => loadCatalogOverview(entry, options));
-      return Promise.all(catalog.list().map(async (entry) => summarizeProject(entry, await loadOverview(entry))));
+      return Promise.all(catalog.list().map(async (entry) => {
+        const loadOverview = () => options.projectOverviewLoader
+          ? options.projectOverviewLoader(entry)
+          : loadCatalogOverview(entry, options);
+
+        if (options.projectOverviewLoader && !options.projectDiagnosticsLoader) {
+          return summarizeProject(entry, await loadOverview());
+        }
+
+        const diagnostics = options.projectDiagnosticsLoader
+          ? await options.projectDiagnosticsLoader(entry)
+          : await loadCatalogDiagnostics(entry, options, loadOverview);
+        if (!diagnostics.usable) return summarizeUnavailableProject(entry, diagnostics);
+        return summarizeProject(entry, await loadOverview(), diagnostics);
+      }));
     },
 
     async registerCandidate(input: RegisterCandidateInput): Promise<CandidateWorkflowResult> {
@@ -161,23 +178,20 @@ function resolveProjectCatalog(options: VisualDirectorCoreOptions): ProjectCatal
   return loadProjectCatalog(catalogPath);
 }
 
+async function loadCatalogDiagnostics(
+  entry: ProjectCatalogEntry,
+  options: VisualDirectorCoreOptions,
+  loadOverview: () => Promise<ProjectVisualOverview>,
+): Promise<ProjectDiagnostics> {
+  const source = catalogRepositorySource(entry, options);
+  return diagnoseProjectRepository(entry, source, loadOverview);
+}
+
 async function loadCatalogOverview(
   entry: ProjectCatalogEntry,
   options: VisualDirectorCoreOptions,
 ): Promise<ProjectVisualOverview> {
-  const token = process.env.VISUAL_DIRECTOR_GITHUB_TOKEN?.trim();
-  if (!token) {
-    throw new VisualDirectorError('PROJECT_CONFIG_MISSING', 'VISUAL_DIRECTOR_GITHUB_TOKEN is required to read catalog repositories.', {
-      project_id: entry.project_id,
-    });
-  }
-  const source = new GitHubRepositorySource({
-    owner: entry.repository.owner,
-    repo: entry.repository.name,
-    ref: entry.ref,
-    token,
-    fetchImpl: options.fetchImpl,
-  });
+  const source = catalogRepositorySource(entry, options);
   if (entry.adapter_type === 'bottom-of-thirst') {
     return new BottomOfThirstVisualAdapter({ source }).getVisualOverview();
   }
@@ -188,6 +202,22 @@ async function loadCatalogOverview(
     subjects: {},
   };
   return new CanonProjectAdapter(definition, { source }).getVisualOverview();
+}
+
+function catalogRepositorySource(entry: ProjectCatalogEntry, options: VisualDirectorCoreOptions): RepositorySource {
+  const token = process.env.VISUAL_DIRECTOR_GITHUB_TOKEN?.trim();
+  if (!token) {
+    throw new VisualDirectorError('PROJECT_CONFIG_MISSING', 'VISUAL_DIRECTOR_GITHUB_TOKEN is required to read catalog repositories.', {
+      project_id: entry.project_id,
+    });
+  }
+  return new GitHubRepositorySource({
+    owner: entry.repository.owner,
+    repo: entry.repository.name,
+    ref: entry.ref,
+    token,
+    fetchImpl: options.fetchImpl,
+  });
 }
 
 async function validateWorkflowRepository(
