@@ -1,6 +1,8 @@
-import { bullets, bulletsAfterLabel, readUtf8File, section, subsection, tableFacts } from '../../domain/markdown.js';
+import { bullets, bulletsAfterLabel, section, subsection, tableFacts } from '../../domain/markdown.js';
 import { VisualDirectorError } from '../../domain/types.js';
 import type { GenerationPackage, PrepareGenerationInput } from '../../domain/types.js';
+import { LocalRepositorySource } from '../repository-source.js';
+import type { RepositorySource } from '../repository-source.js';
 import { CanonAdapterBase, globalForbiddenChanges } from '../canon/adapter-base.js';
 import { DEFAULT_PROJECT_DOCUMENTS, DEFAULT_PROJECT_LABELS } from '../canon/types.js';
 import type { CanonSubject } from '../canon/adapter-base.js';
@@ -83,14 +85,19 @@ const SUBJECTS: Record<string, SubjectConfig> = {
 const SUBJECT_ALIAS_INDEX = buildSubjectAliasIndex();
 
 export interface BottomOfThirstAdapterOptions {
-  repoPath: string;
+  repoPath?: string;
+  source?: RepositorySource;
 }
 
 export class BottomOfThirstAdapter extends CanonAdapterBase {
   constructor(options: BottomOfThirstAdapterOptions) {
+    const source = options.source ?? (options.repoPath ? new LocalRepositorySource(options.repoPath) : undefined);
+    if (!source) {
+      throw new VisualDirectorError('PROJECT_CONFIG_MISSING', `No repository source is configured for project_id: ${PROJECT_ID}.`);
+    }
     super({
       projectId: PROJECT_ID,
-      repoPath: options.repoPath,
+      source,
       documents: DEFAULT_PROJECT_DOCUMENTS,
       labels: DEFAULT_PROJECT_LABELS,
       subjectIds: configuredSubjects(),
@@ -114,20 +121,13 @@ export class BottomOfThirstAdapter extends CanonAdapterBase {
     return 'Global Visual Style is missing the required Global Visual Style Lock or Fixed Avoid Block.';
   }
 
-  protected async loadSubject(
-    subjectId: string,
-    canonMarkdown: string,
-    assetType = '',
-  ): Promise<SubjectAnchor> {
+  protected async loadSubject(subjectId: string, canonMarkdown: string, assetType = ''): Promise<SubjectAnchor> {
     const configured = SUBJECTS[subjectId];
     if (!configured) {
       throw new VisualDirectorError('SUBJECT_NOT_FOUND', `Unknown subject_id: ${subjectId}.`);
     }
 
-    const characterMarkdown = await readUtf8File(
-      this.resolvePath(configured.characterFile),
-      `Character facts for ${subjectId}`,
-    );
+    const characterMarkdown = await this.source.readText(configured.characterFile, `Character facts for ${subjectId}`);
     const canonSection = section(canonMarkdown, configured.canonHeading);
     const anchorSection = canonSection ? subsection(canonSection, 'Approved Visual Anchor') : '';
     const anchorPaths = approvedAnchorPaths(anchorSection);
@@ -135,8 +135,8 @@ export class BottomOfThirstAdapter extends CanonAdapterBase {
     const anchorFallback = anchorPaths[1];
 
     if (anchorPath) {
-      await this.ensureFile(this.resolvePath(anchorPath), `Approved Anchor for ${subjectId}`);
-      if (anchorFallback && !(await this.fileExists(this.resolvePath(anchorFallback)))) {
+      await this.source.ensureFile(anchorPath, `Approved Anchor for ${subjectId}`);
+      if (anchorFallback && !(await this.source.fileExists(anchorFallback))) {
         throw new VisualDirectorError('APPROVED_ANCHOR_INCOMPLETE', `Same-generation fallback is missing for ${subjectId}.`, {
           subject_id: subjectId,
           path: anchorFallback,
@@ -159,8 +159,8 @@ export class BottomOfThirstAdapter extends CanonAdapterBase {
       );
     }
 
-    const requirementsMarkdown = await readUtf8File(
-      this.resolvePath(configured.anchorRequirementsFile),
+    const requirementsMarkdown = await this.source.readText(
+      configured.anchorRequirementsFile,
       `Visual Anchor requirements for ${subjectId}`,
     );
     if (!requirementsMarkdown.trim()) {
@@ -214,11 +214,7 @@ export class BottomOfThirstAdapter extends CanonAdapterBase {
     return bulletsAfterLabel(styleMarkdown, '変更してよいもの');
   }
 
-  protected forbiddenChanges(
-    canonMarkdown: string,
-    styleMarkdown: string,
-    preparingNewAnchor = false,
-  ): string[] {
+  protected forbiddenChanges(canonMarkdown: string, styleMarkdown: string, preparingNewAnchor = false): string[] {
     const common = bullets(section(canonMarkdown, '共通ルール'));
     const newAnchorRules = preparingNewAnchor
       ? [
