@@ -8,6 +8,7 @@ import type {
   ProjectVisualOverviewInput,
 } from '../domain/types.js';
 import { BottomOfThirstAdapter } from '../projects/bottom-of-thirst/adapter.js';
+import { BottomOfThirstVisualAdapter } from '../projects/bottom-of-thirst/visual-adapter.js';
 import { createProjectRegistry } from '../projects/registry.js';
 import type { ProjectConfiguration, ProjectRegistry, ProjectRegistryOptions } from '../projects/registry.js';
 import { GitHubRepositorySource } from '../projects/repository-source.js';
@@ -54,6 +55,9 @@ export function createVisualDirectorCore(
         );
       }
       if (repositoryPath) {
+        if (input.project_id === 'bottom-of-thirst') {
+          return new BottomOfThirstVisualAdapter({ repoPath: repositoryPath }).getVisualOverview();
+        }
         const requestRegistry = createProjectRegistry(options);
         await requestRegistry.configureProject(input.project_id, repositoryPath);
         return requestRegistry.resolve(input.project_id).getVisualOverview();
@@ -63,7 +67,7 @@ export function createVisualDirectorCore(
         return await registry.resolve(input.project_id).getVisualOverview();
       } catch (error) {
         if (!(error instanceof VisualDirectorError) || error.code !== 'PROJECT_CONFIG_MISSING') throw error;
-        const hostedAdapter = hostedAdapterFromEnvironment(input.project_id, options.fetchImpl);
+        const hostedAdapter = hostedVisualAdapterFromEnvironment(input.project_id, options.fetchImpl);
         if (!hostedAdapter) throw error;
         return hostedAdapter.getVisualOverview();
       }
@@ -87,6 +91,16 @@ export function createVisualDirectorCore(
 }
 
 function hostedAdapterFromEnvironment(projectId: string, fetchImpl?: typeof fetch): BottomOfThirstAdapter | undefined {
+  const source = hostedSourceFromEnvironment(projectId, fetchImpl);
+  return source ? new BottomOfThirstAdapter({ source }) : undefined;
+}
+
+function hostedVisualAdapterFromEnvironment(projectId: string, fetchImpl?: typeof fetch): BottomOfThirstVisualAdapter | undefined {
+  const source = hostedSourceFromEnvironment(projectId, fetchImpl);
+  return source ? new BottomOfThirstVisualAdapter({ source }) : undefined;
+}
+
+function hostedSourceFromEnvironment(projectId: string, fetchImpl?: typeof fetch): GitHubRepositorySource | undefined {
   if (projectId !== 'bottom-of-thirst') return undefined;
   const token = process.env.VISUAL_DIRECTOR_GITHUB_TOKEN?.trim();
   if (!token) return undefined;
@@ -102,8 +116,7 @@ function hostedAdapterFromEnvironment(projectId: string, fetchImpl?: typeof fetc
   const owner = repository.slice(0, slash);
   const repo = repository.slice(slash + 1);
   const ref = process.env.VISUAL_DIRECTOR_BOTTOM_OF_THIRST_GITHUB_REF?.trim() || 'main';
-  const source = new GitHubRepositorySource({ owner, repo, ref, token, fetchImpl });
-  return new BottomOfThirstAdapter({ source });
+  return new GitHubRepositorySource({ owner, repo, ref, token, fetchImpl });
 }
 
 function isHostedReadOnlyMode(): boolean {
