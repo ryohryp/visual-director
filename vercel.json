@@ -5,6 +5,7 @@
   "routes": [
     { "src": "^/$", "dest": "/api/dashboard" },
     { "src": "^/dashboard/?$", "dest": "/api/dashboard" },
+    { "src": "^/assets/?$", "dest": "/api/assets" },
     { "src": "^/anchor/?$", "dest": "/api/anchor" },
     { "src": "^/anchor-detail/?$", "dest": "/api/anchor-detail" },
     { "src": "^/overview/?$", "dest": "/api/overview" },
