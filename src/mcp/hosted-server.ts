@@ -13,22 +13,13 @@ import type { VisualDirectorServerOptions } from './server.js';
  */
 export function createHostedHttpServerForVisualDirector(options: VisualDirectorServerOptions = {}): Server {
   return createHttpServer((req, res) => {
-    void handleHostedRequest(req, res, options).catch((error: unknown) => {
-      if (res.headersSent || res.writableEnded) {
-        if (!res.destroyed) res.destroy(error instanceof Error ? error : undefined);
-        return;
-      }
-      res.writeHead(500, { 'content-type': 'application/json; charset=utf-8' });
-      res.end(JSON.stringify({
-        jsonrpc: '2.0',
-        id: null,
-        error: { code: -32603, message: 'Internal hosted MCP transport error.' },
-      }));
+    void handleHostedHttpRequest(req, res, options).catch((error: unknown) => {
+      writeHostedError(res, error);
     });
   });
 }
 
-async function handleHostedRequest(
+async function handleHostedHttpRequest(
   req: IncomingMessage,
   res: ServerResponse,
   options: VisualDirectorServerOptions,
@@ -36,8 +27,7 @@ async function handleHostedRequest(
   const pathname = new URL(req.url ?? '/', `http://${req.headers.host ?? 'localhost'}`).pathname;
 
   if (req.method === 'GET' && pathname === '/health') {
-    res.writeHead(200, { 'content-type': 'application/json; charset=utf-8' });
-    res.end(JSON.stringify({ status: 'ok', service: 'visual-director', mode: 'hosted-read-only' }));
+    writeHealthResponse(res);
     return;
   }
 
@@ -47,6 +37,15 @@ async function handleHostedRequest(
     return;
   }
 
+  await handleHostedMcpRequest(req, res, options);
+}
+
+/** Vercel Function-compatible stateless MCP request handler. */
+export async function handleHostedMcpRequest(
+  req: IncomingMessage,
+  res: ServerResponse,
+  options: VisualDirectorServerOptions = {},
+): Promise<void> {
   if (req.method !== 'POST') {
     res.writeHead(405, {
       allow: 'POST',
@@ -78,7 +77,34 @@ async function handleHostedRequest(
   };
   res.once('close', () => { void close(); });
 
-  await server.connect(transport);
-  await transport.handleRequest(req, res);
-  if (res.writableEnded) await close();
+  try {
+    await server.connect(transport);
+    await transport.handleRequest(req, res);
+  } catch (error) {
+    writeHostedError(res, error);
+  } finally {
+    if (res.writableEnded) await close();
+  }
+}
+
+export function writeHealthResponse(res: ServerResponse): void {
+  res.writeHead(200, { 'content-type': 'application/json; charset=utf-8' });
+  res.end(JSON.stringify({ status: 'ok', service: 'visual-director', mode: 'hosted-read-only' }));
+}
+
+function writeHostedError(res: ServerResponse, error: unknown): void {
+  if (res.headersSent || res.writableEnded) {
+    if (!res.destroyed) res.destroy(error instanceof Error ? error : undefined);
+    return;
+  }
+  res.writeHead(500, { 'content-type': 'application/json; charset=utf-8' });
+  res.end(JSON.stringify({
+    jsonrpc: '2.0',
+    id: null,
+    error: {
+      code: -32603,
+      message: 'Internal hosted MCP transport error.',
+      data: error instanceof Error ? error.message : String(error),
+    },
+  }));
 }
