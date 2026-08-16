@@ -5,7 +5,6 @@ import { loadProjectCatalog } from './catalog.js';
 import type { ProjectCatalog, ProjectCatalogEntry } from './catalog.js';
 import { CanonProjectAdapter } from './canon/adapter.js';
 import { loadRepositoryCanonDefinition } from './canon/repository-manifest.js';
-import { crownlessDefinition } from './crownless/definition.js';
 import { createRegisteredLocalRepositorySource } from './project-registry.js';
 import { GitHubRepositorySource } from './repository-source.js';
 import type { RepositorySource } from './repository-source.js';
@@ -63,9 +62,6 @@ export function createCatalogRepositorySource(
 
 export async function createCatalogProjectAdapter(entry: ProjectCatalogEntry, source: RepositorySource): Promise<ProjectAdapter> {
   if (entry.adapter_type === 'bottom-of-thirst') return new BottomOfThirstVisualAdapter({ source });
-  if (entry.project_id === crownlessDefinition.projectId) {
-    return new CanonProjectAdapter(crownlessDefinition, { source });
-  }
   const definition = await loadRepositoryCanonDefinition(source);
   if (definition.projectId !== entry.project_id) {
     throw new VisualDirectorError('PROJECT_MANIFEST_INVALID', 'Project manifest project_id does not match catalog project_id.', {
