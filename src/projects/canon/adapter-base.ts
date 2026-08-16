@@ -33,6 +33,7 @@ interface CanonAdapterBaseOptions {
 }
 
 interface CanonDocuments {
+  grandDesignMarkdown?: string;
   styleMarkdown: string;
   canonMarkdown: string;
   worldMarkdown: string;
@@ -86,6 +87,7 @@ export abstract class CanonAdapterBase implements ProjectAdapter {
       project_id: this.projectId,
       asset_type: input.asset_type,
       prompt_package: {
+        ...(documents.grandDesignMarkdown ? { grand_design_lock: documents.grandDesignMarkdown } : {}),
         style_lock: styleLock,
         subject_lock: subjects.map((subject) => this.subjectLock(subject)),
         scene_requirements: this.sceneRequirements(input, documents.worldMarkdown),
@@ -114,7 +116,10 @@ export abstract class CanonAdapterBase implements ProjectAdapter {
     return {
       project_id: this.projectId,
       visual_direction: {
-        grand_design: null,
+        grand_design: this.documents.grandDesign ? {
+          role: 'grand_design',
+          document_path: this.documents.grandDesign,
+        } : null,
         global_style: {
           role: 'global_style',
           document_path: this.documents.globalStyle,
@@ -134,13 +139,7 @@ export abstract class CanonAdapterBase implements ProjectAdapter {
       try {
         const subject = await this.loadSubject(subjectId, canonMarkdown, '__visual_overview__');
         if (!subject.anchorPath) continue;
-        anchors.push({
-          subject_id: subject.id,
-          display_name: subject.displayName,
-          asset_type: 'character_visual_anchor',
-          path: subject.anchorPath,
-          status: 'approved',
-        });
+        anchors.push({ subject_id: subject.id, display_name: subject.displayName, asset_type: 'character_visual_anchor', path: subject.anchorPath, status: 'approved' });
       } catch (error) {
         if (error instanceof VisualDirectorError && error.code === 'APPROVED_ANCHOR_NOT_FOUND') continue;
         throw error;
@@ -150,60 +149,39 @@ export abstract class CanonAdapterBase implements ProjectAdapter {
   }
 
   protected abstract subjectLock(subject: CanonSubject, preparingNewAnchor?: boolean): string;
-
   protected abstract allowedChanges(styleMarkdown: string, preparingNewAnchor?: boolean): string[];
+  protected abstract forbiddenChanges(canonMarkdown: string, styleMarkdown: string, preparingNewAnchor?: boolean): string[];
 
-  protected abstract forbiddenChanges(
-    canonMarkdown: string,
-    styleMarkdown: string,
-    preparingNewAnchor?: boolean,
-  ): string[];
-
-  protected newAnchorAssetType(): string {
-    return 'character_visual_anchor';
-  }
+  protected newAnchorAssetType(): string { return 'character_visual_anchor'; }
 
   protected validateInput(input: PrepareGenerationInput): void {
-    if (input.project_id !== this.projectId) {
-      throw new VisualDirectorError('PROJECT_NOT_FOUND', `Unsupported project_id: ${input.project_id}.`);
-    }
+    if (input.project_id !== this.projectId) throw new VisualDirectorError('PROJECT_NOT_FOUND', `Unsupported project_id: ${input.project_id}.`);
     this.validateTextInput(input);
-    if (input.subject_ids.length === 0) {
-      throw new VisualDirectorError('INVALID_INPUT', 'At least one subject_id is required.');
-    }
+    if (input.subject_ids.length === 0) throw new VisualDirectorError('INVALID_INPUT', 'At least one subject_id is required.');
     for (const subjectId of input.subject_ids) {
-      if (!this.subjectIds.includes(subjectId)) {
-        throw new VisualDirectorError('SUBJECT_NOT_FOUND', `Unknown subject_id: ${subjectId}.`, {
-          subject_id: subjectId,
-          known_subject_ids: [...this.subjectIds],
-        });
-      }
+      if (!this.subjectIds.includes(subjectId)) throw new VisualDirectorError('SUBJECT_NOT_FOUND', `Unknown subject_id: ${subjectId}.`, { subject_id: subjectId, known_subject_ids: [...this.subjectIds] });
     }
   }
 
   protected validateTextInput(input: PrepareGenerationInput): void {
-    if (!input.asset_type.trim() || !input.request_text.trim()) {
-      throw new VisualDirectorError('INVALID_INPUT', 'asset_type and request_text must not be empty.');
-    }
+    if (!input.asset_type.trim() || !input.request_text.trim()) throw new VisualDirectorError('INVALID_INPUT', 'asset_type and request_text must not be empty.');
   }
 
-  protected globalStyleIncompleteMessage(): string {
-    return 'Global Visual Style is missing a style lock or avoid block.';
-  }
+  protected globalStyleIncompleteMessage(): string { return 'Global Visual Style is missing a style lock or avoid block.'; }
 
   private async readDocuments(): Promise<CanonDocuments> {
-    const [styleMarkdown, canonMarkdown, worldMarkdown, manifestMarkdown] = await Promise.all([
+    const [grandDesignMarkdown, styleMarkdown, canonMarkdown, worldMarkdown, manifestMarkdown] = await Promise.all([
+      this.documents.grandDesign ? this.source.readText(this.documents.grandDesign, 'Grand Design') : Promise.resolve(undefined),
       this.source.readText(this.documents.globalStyle, 'Global Visual Style'),
       this.source.readText(this.documents.characterCanon, 'Character Visual Canon'),
       this.source.readText(this.documents.worldDirection, 'World Direction'),
       this.source.readText(this.documents.assetManifest, 'Visual reference asset manifest'),
     ]);
-    if (!manifestMarkdown.trim()) {
-      throw new VisualDirectorError('ASSET_MANIFEST_EMPTY', 'Visual reference asset manifest is empty.', {
-        path: this.documents.assetManifest,
-      });
+    if (grandDesignMarkdown !== undefined && !grandDesignMarkdown.trim()) {
+      throw new VisualDirectorError('GRAND_DESIGN_EMPTY', 'Grand Design document is empty.', { path: this.documents.grandDesign });
     }
-    return { styleMarkdown, canonMarkdown, worldMarkdown };
+    if (!manifestMarkdown.trim()) throw new VisualDirectorError('ASSET_MANIFEST_EMPTY', 'Visual reference asset manifest is empty.', { path: this.documents.assetManifest });
+    return { ...(grandDesignMarkdown ? { grandDesignMarkdown } : {}), styleMarkdown, canonMarkdown, worldMarkdown };
   }
 
   private async readWorkflowSummary(): Promise<ProjectVisualOverview['workflow']> {
@@ -213,9 +191,7 @@ export abstract class CanonAdapterBase implements ProjectAdapter {
   }
 
   private sceneRequirements(input: PrepareGenerationInput, worldMarkdown: string): string[] {
-    const context = Object.entries(input.scene_context ?? {})
-      .map(([key, value]) => `${key}: ${String(value)}`)
-      .join(', ');
+    const context = Object.entries(input.scene_context ?? {}).map(([key, value]) => `${key}: ${String(value)}`).join(', ');
     return [
       `Asset type: ${input.asset_type}.`,
       `Narrative request: ${input.request_text.trim()}`,
@@ -231,20 +207,11 @@ function fencedBlockAfter(markdown: string, heading: string): string {
 }
 
 function splitAvoidBlock(avoidBlock: string): string[] {
-  return avoidBlock
-    .split(',')
-    .map((item) => item.trim().replace(/^AVOID:\s*/i, ''))
-    .filter(Boolean);
+  return avoidBlock.split(',').map((item) => item.trim().replace(/^AVOID:\s*/i, '')).filter(Boolean);
 }
 
 function generationPolicy(preparingNewAnchor: boolean): GenerationPackage['policy'] {
-  return {
-    must_use_approved_anchor: !preparingNewAnchor,
-    must_not_chain_from_candidate: true,
-    must_review_after_generation: true,
-  };
+  return { must_use_approved_anchor: !preparingNewAnchor, must_not_chain_from_candidate: true, must_review_after_generation: true };
 }
 
-export function globalForbiddenChanges(): string[] {
-  return [...GLOBAL_FORBIDDEN_CHANGES];
-}
+export function globalForbiddenChanges(): string[] { return [...GLOBAL_FORBIDDEN_CHANGES]; }
