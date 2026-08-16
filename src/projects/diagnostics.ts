@@ -10,6 +10,8 @@ import {
 import type { ProjectCatalogEntry } from './catalog.js';
 import type { RepositorySource } from './repository-source.js';
 import { DEFAULT_PROJECT_DOCUMENTS } from './canon/types.js';
+import type { ProjectDocuments } from './canon/types.js';
+import { crownlessDefinition } from './crownless/definition.js';
 
 export type ProjectDiagnosticState =
   | 'ready'
@@ -52,12 +54,13 @@ export async function diagnoseProjectRepository(
       message: 'Repository is accessible.',
     });
 
+    const documents = diagnosticDocuments(entry);
     const requiredFiles = [
-      ['global_style', 'Global Visual Style', DEFAULT_PROJECT_DOCUMENTS.globalStyle],
-      ['character_canon', 'Character Visual Canon', DEFAULT_PROJECT_DOCUMENTS.characterCanon],
-      ['world_direction', 'World Direction', DEFAULT_PROJECT_DOCUMENTS.worldDirection],
-      ['asset_manifest', 'Visual asset manifest', DEFAULT_PROJECT_DOCUMENTS.assetManifest],
-      ['global_reference', 'Global Visual Style reference', DEFAULT_PROJECT_DOCUMENTS.globalReference],
+      ['global_style', 'Global Visual Style', documents.globalStyle],
+      ['character_canon', 'Character Visual Canon', documents.characterCanon],
+      ['world_direction', 'World Direction', documents.worldDirection],
+      ['asset_manifest', 'Visual asset manifest', documents.assetManifest],
+      ['global_reference', 'Global Visual Style reference', documents.globalReference],
     ] as const;
 
     for (const [key, label, path] of requiredFiles) {
@@ -154,6 +157,11 @@ export async function diagnoseProjectRepository(
   }
 
   return finalize(entry.project_id, items);
+}
+
+function diagnosticDocuments(entry: ProjectCatalogEntry): ProjectDocuments {
+  if (entry.project_id === crownlessDefinition.projectId) return crownlessDefinition.documents;
+  return DEFAULT_PROJECT_DOCUMENTS;
 }
 
 async function diagnoseBottomOfThirstAnchors(source: RepositorySource, items: ProjectDiagnosticItem[]): Promise<void> {
