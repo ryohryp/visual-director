@@ -11,8 +11,8 @@ function catalogEntry(projectId = 'game-a') {
   return parseProjectCatalog({
     projects: [{
       project_id: projectId,
-      display_name: 'Game A',
-      repository: 'owner/game-a',
+      display_name: projectId === 'bottom-of-thirst' ? 'The Bottom of Thirst' : 'Game A',
+      repository: projectId === 'bottom-of-thirst' ? 'ryohryp/---The-Bottom-of-Thirst' : 'owner/game-a',
       ref: 'main',
       adapter_type: 'generic',
     }],
@@ -43,5 +43,76 @@ describe('catalog repository manifest adapter', () => {
 
     await expect(createCatalogProjectAdapter(catalogEntry(), new LocalRepositorySource(root)))
       .rejects.toThrow('Project manifest project_id does not match catalog project_id.');
+  });
+
+  it('prepares and builds an overview for Bottom of Thirst through the generic adapter', async () => {
+    const root = mkdtempSync(path.join(os.tmpdir(), 'visual-director-bottom-of-thirst-generic-'));
+    const files: Record<string, string | Buffer> = {
+      '.visual-director/manifest.json': JSON.stringify({
+        version: 1,
+        project_id: 'bottom-of-thirst',
+        documents: {
+          globalStyle: 'docs/visual/GLOBAL_VISUAL_STYLE.md',
+          characterCanon: 'docs/visual/CHARACTER_VISUAL_CANON.md',
+          worldDirection: 'docs/WORLD_DIRECTION.md',
+          assetManifest: 'docs/visual/assets/README.md',
+          globalReference: 'docs/visual/assets/global_visual_style_reference.webp',
+        },
+        labels: {
+          avoidBlockHeading: 'Fixed Avoid Block',
+          allowedChangesHeading: '変更してよいもの',
+          forbiddenChangesHeading: '変更してはいけないもの',
+          commonRulesHeading: '共通ルール',
+          acceptedConditionsHeading: '採用する視覚条件',
+        },
+        subjects: {
+          kamino_kyosuke: {
+            display_name: '神野 恭介',
+            character_file: 'docs/characters/kyosuke.md',
+            canon_heading: '神野 恭介',
+          },
+        },
+      }),
+      'docs/visual/GLOBAL_VISUAL_STYLE.md': '# Global Style\n\n```text\nSTYLE LOCK\n```\n\n### Fixed Avoid Block\n\n```text\nAVOID: photorealism, anime\n```\n\n### 変更してよいもの\n- 視線\n\n### 変更してはいけないもの\n- 顔立ち\n',
+      'docs/visual/CHARACTER_VISUAL_CANON.md': '# Canon\n\n## 共通ルール\n- Approved Anchorを正本にする\n\n## 神野 恭介\n\n### Approved Visual Anchor\n- `public/images/characters/kamino_kyosuke/v2/default.avif`\n\n### 採用する視覚条件\n- 24歳の日本人男性\n- 動画配信者\n',
+      'docs/WORLD_DIRECTION.md': '# World\n\n- 普通の光の中で違和感を作る\n',
+      'docs/characters/kyosuke.md': '# 神野 恭介\n\n- 24歳\n- 動画配信者\n- ジンバルを使う\n',
+      'docs/visual/assets/README.md': '# Assets\n\nRepository-owned visual assets.\n',
+      'docs/visual/assets/global_visual_style_reference.webp': Buffer.from('global-reference'),
+      'public/images/characters/kamino_kyosuke/v2/default.avif': Buffer.from('approved-anchor'),
+    };
+
+    for (const [relativePath, content] of Object.entries(files)) {
+      const absolutePath = path.join(root, relativePath);
+      mkdirSync(path.dirname(absolutePath), { recursive: true });
+      writeFileSync(absolutePath, content);
+    }
+
+    const adapter = await createCatalogProjectAdapter(
+      catalogEntry('bottom-of-thirst'),
+      new LocalRepositorySource(root),
+    );
+    const prepared = await adapter.prepare({
+      project_id: 'bottom-of-thirst',
+      asset_type: 'event_cg',
+      subject_ids: ['kamino_kyosuke'],
+      request_text: '神野恭介をApproved Anchorから描く。',
+    });
+    expect(prepared.reference_assets).toContainEqual({
+      role: 'subject_anchor',
+      subject_id: 'kamino_kyosuke',
+      path: 'public/images/characters/kamino_kyosuke/v2/default.avif',
+    });
+    expect(prepared.prompt_package.subject_lock.join('\n')).toContain('神野 恭介 (kamino_kyosuke)');
+
+    const overview = await adapter.getVisualOverview();
+    expect(overview.project_id).toBe('bottom-of-thirst');
+    expect(overview.approved_anchors).toContainEqual({
+      subject_id: 'kamino_kyosuke',
+      display_name: '神野 恭介',
+      asset_type: 'character_visual_anchor',
+      path: 'public/images/characters/kamino_kyosuke/v2/default.avif',
+      status: 'approved',
+    });
   });
 });
