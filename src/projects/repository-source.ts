@@ -5,6 +5,7 @@ import { VisualDirectorError } from '../domain/types.js';
 
 export interface RepositorySource {
   readonly kind: 'local' | 'github';
+  checkAccess(): Promise<void>;
   readText(relativePath: string, label: string): Promise<string>;
   ensureFile(relativePath: string, label: string): Promise<void>;
   fileExists(relativePath: string): Promise<boolean>;
@@ -16,6 +17,17 @@ export class LocalRepositorySource implements RepositorySource {
 
   constructor(repoPath: string) {
     this.root = path.resolve(repoPath);
+  }
+
+  async checkAccess(): Promise<void> {
+    try {
+      await access(this.root);
+    } catch (error) {
+      throw new VisualDirectorError('REPOSITORY_UNAVAILABLE', 'The configured repository path is not accessible.', {
+        path: this.root,
+        reason: error instanceof Error ? error.message : String(error),
+      });
+    }
   }
 
   async readText(relativePath: string, label: string): Promise<string> {
@@ -85,6 +97,12 @@ export class GitHubRepositorySource implements RepositorySource {
     this.fetchImpl = options.fetchImpl ?? fetch;
   }
 
+  async checkAccess(): Promise<void> {
+    const url = `https://api.github.com/repos/${encodeURIComponent(this.owner)}/${encodeURIComponent(this.repo)}`;
+    const response = await this.fetchImpl(url, { headers: this.headers() });
+    if (!response.ok) throw this.apiError(response.status, '');
+  }
+
   async readText(relativePath: string, label: string): Promise<string> {
     const pathName = safeRelativePath(relativePath);
     const response = await this.request(pathName);
@@ -132,20 +150,22 @@ export class GitHubRepositorySource implements RepositorySource {
   private request(relativePath: string): Promise<Response> {
     const encodedPath = relativePath.split('/').map(encodeURIComponent).join('/');
     const url = `https://api.github.com/repos/${encodeURIComponent(this.owner)}/${encodeURIComponent(this.repo)}/contents/${encodedPath}?ref=${encodeURIComponent(this.ref)}`;
-    return this.fetchImpl(url, {
-      headers: {
-        accept: 'application/vnd.github+json',
-        authorization: `Bearer ${this.token}`,
-        'x-github-api-version': '2022-11-28',
-        'user-agent': 'visual-director-hosted',
-      },
-    });
+    return this.fetchImpl(url, { headers: this.headers() });
+  }
+
+  private headers(): Record<string, string> {
+    return {
+      accept: 'application/vnd.github+json',
+      authorization: `Bearer ${this.token}`,
+      'x-github-api-version': '2022-11-28',
+      'user-agent': 'visual-director-hosted',
+    };
   }
 
   private apiError(status: number, pathName: string): VisualDirectorError {
     return new VisualDirectorError('GITHUB_REPOSITORY_UNAVAILABLE', 'The hosted Canon repository could not be read.', {
       status,
-      path: pathName,
+      ...(pathName ? { path: pathName } : {}),
       repository: `${this.owner}/${this.repo}`,
       ref: this.ref,
     });
