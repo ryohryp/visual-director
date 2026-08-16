@@ -133,6 +133,24 @@ function delay(milliseconds: number): Promise<void> {
 
 async function createApprovedKaminoFixture(root: string): Promise<void> {
   const files: Record<string, string> = {
+    '.visual-director/manifest.json': JSON.stringify({
+      version: 1,
+      project_id: 'bottom-of-thirst',
+      labels: {
+        allowedChangesHeading: '変更してよいもの',
+        forbiddenChangesHeading: '変更してはいけないもの',
+        commonRulesHeading: '共通ルール',
+        acceptedConditionsHeading: '採用する視覚条件',
+      },
+      subjects: {
+        kamino_kyosuke: {
+          display_name: '神野 恭介',
+          character_file: 'docs/characters/kyosuke.md',
+          canon_heading: '神野 恭介',
+          aliases: ['神野恭介', '神野', '恭介'],
+        },
+      },
+    }),
     'docs/visual/GLOBAL_VISUAL_STYLE.md': '# Style\n\n## Global Visual Style Lock\n\n```text\nSTYLE LOCK\n```\n\n## Fixed Avoid Block\n\n```text\nAVOID: photorealism, anime\n```\n\n### 変更してよいもの\n- 表情\n\n### 変更してはいけないもの\n- 顔立ち\n- 年齢\n- 髪型\n- 体格\n- 通常服\n- 描画方式\n',
     'docs/visual/CHARACTER_VISUAL_CANON.md': '# Canon\n\n## 共通ルール\n- Always use an approved anchor.\n\n## 神野 恭介\n\n### Approved Visual Anchor\n- `public/images/characters/kamino_kyosuke/v2/default.avif`\n\n### 採用する視覚条件\n- 24歳の動画配信者\n- 顔立ち、髪型、体格、年代感、衣装、画風をAnchorに固定する\n',
     'docs/WORLD_DIRECTION.md': '# World\n\n- grounded and observational\n',
