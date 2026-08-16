@@ -4,7 +4,9 @@ import path from 'node:path';
 
 import { createVisualDirectorCore } from './core/visual-director.js';
 import { VisualDirectorError } from './domain/types.js';
-import type { GenerationPackage } from './domain/types.js';
+import type { GenerationPackage, ProjectAdapter, ProjectVisualOverview } from './domain/types.js';
+import { CanonProjectAdapter } from './projects/canon/adapter.js';
+import { crownlessDefinition } from './projects/crownless/definition.js';
 
 export const COMPILED_CANON_RELATIVE_PATH = '.visual-director/compiled-canon.json';
 
@@ -41,12 +43,15 @@ export interface CompileRepositoryCanonInput {
   check?: boolean;
 }
 
+interface LocalCompileRuntime {
+  overview: ProjectVisualOverview;
+  prepare(subjectId: string): Promise<GenerationPackage>;
+}
+
 export async function compileRepositoryCanon(input: CompileRepositoryCanonInput): Promise<CompiledCanon> {
   const repositoryPath = path.resolve(input.repositoryPath);
-  const core = createVisualDirectorCore();
-  await core.configureProject(input.projectId, repositoryPath);
-  const overview = await core.getProjectVisualOverview({ project_id: input.projectId, repository_path: repositoryPath });
-  if (overview.approved_anchors.length === 0) {
+  const runtime = await createLocalCompileRuntime(input.projectId, repositoryPath);
+  if (runtime.overview.approved_anchors.length === 0) {
     throw new VisualDirectorError(
       'COMPILED_CANON_NO_APPROVED_ANCHORS',
       'Compiled Canon requires at least one Approved Visual Anchor so the repository-native flow can remain fail-closed.',
@@ -54,15 +59,9 @@ export async function compileRepositoryCanon(input: CompileRepositoryCanonInput)
     );
   }
 
-  const prepared = await Promise.all(overview.approved_anchors.map(async (anchor) => ({
+  const prepared = await Promise.all(runtime.overview.approved_anchors.map(async (anchor) => ({
     anchor,
-    generationPackage: await core.prepareGeneration({
-      project_id: input.projectId,
-      asset_type: 'character_visual_anchor',
-      subject_ids: [anchor.subject_id],
-      request_text: 'Compile repository Canon.',
-      scene_context: { repository_path: repositoryPath },
-    }),
+    generationPackage: await runtime.prepare(anchor.subject_id),
   })));
 
   const baseline = prepared[0]?.generationPackage;
@@ -125,6 +124,38 @@ export async function compileRepositoryCanon(input: CompileRepositoryCanonInput)
   await mkdir(path.dirname(outputPath), { recursive: true });
   await writeFile(outputPath, serialized, 'utf8');
   return compiled;
+}
+
+async function createLocalCompileRuntime(projectId: string, repositoryPath: string): Promise<LocalCompileRuntime> {
+  if (projectId === crownlessDefinition.projectId) {
+    const adapter = new CanonProjectAdapter(crownlessDefinition, { repoPath: repositoryPath });
+    return runtimeFromAdapter(adapter, projectId);
+  }
+
+  const core = createVisualDirectorCore();
+  await core.configureProject(projectId, repositoryPath);
+  return {
+    overview: await core.getProjectVisualOverview({ project_id: projectId, repository_path: repositoryPath }),
+    prepare: (subjectId) => core.prepareGeneration({
+      project_id: projectId,
+      asset_type: 'character_visual_anchor',
+      subject_ids: [subjectId],
+      request_text: 'Compile repository Canon.',
+      scene_context: { repository_path: repositoryPath },
+    }),
+  };
+}
+
+async function runtimeFromAdapter(adapter: ProjectAdapter, projectId: string): Promise<LocalCompileRuntime> {
+  return {
+    overview: await adapter.getVisualOverview(),
+    prepare: (subjectId) => adapter.prepare({
+      project_id: projectId,
+      asset_type: 'character_visual_anchor',
+      subject_ids: [subjectId],
+      request_text: 'Compile repository Canon.',
+    }),
+  };
 }
 
 function stableJson(value: unknown): string {
