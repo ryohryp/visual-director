@@ -15,7 +15,7 @@ describe('bundled default Project Catalog', () => {
       expect(loadProjectCatalog('projects.catalog.json').resolve('bottom-of-thirst')).toMatchObject({
         repository: { owner: 'ryohryp', name: '---The-Bottom-of-Thirst' },
         ref: 'main',
-        adapter_type: 'bottom-of-thirst',
+        adapter_type: 'generic',
       });
       expect(loadProjectCatalog('projects.catalog.json').resolve('crownless')).toMatchObject({
         repository: { owner: 'ryohryp', name: 'crownless' },
