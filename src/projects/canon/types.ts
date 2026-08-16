@@ -13,7 +13,7 @@ export interface ProjectSubjectDefinition {
   displayName: string;
   characterFile: string;
   canonHeading: string;
-  aliases: string[];
+  aliases?: string[];
 }
 
 export interface ProjectLabels {
