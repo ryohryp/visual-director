@@ -123,7 +123,7 @@ export function createVisualDirectorServer(
     {
       title: 'Prepare visual generation',
       description:
-        'Return a fail-closed Generation Package from the MCP-independent Visual Director Core. An explicit scene_context.repository_path is sufficient for the current request and stripped before prompt construction; the MCP adapter also preserves it as a backward-compatible runtime binding.',
+        'Return a fail-closed Generation Package from the MCP-independent Visual Director Core. An explicit scene_context.repository_path is sufficient for local requests; hosted read-only requests ignore client-local repository paths and resolve the project from the configured repository catalog.',
       annotations: {
         readOnlyHint: true,
         destructiveHint: false,
@@ -165,12 +165,22 @@ export function createVisualDirectorServer(
     async (input) => {
       try {
         const repositoryPath = input.scene_context?.repository_path;
+        let prepareInput = input;
         if (typeof repositoryPath === 'string' && repositoryPath.trim()) {
-          // Compatibility only: Core preparation itself remains request-scoped and
-          // does not need this runtime binding to succeed.
-          await core.configureProject(input.project_id, repositoryPath);
+          if (isHostedReadOnlyMode()) {
+            const sceneContext = { ...(input.scene_context ?? {}) };
+            delete sceneContext.repository_path;
+            prepareInput = {
+              ...input,
+              ...(Object.keys(sceneContext).length > 0 ? { scene_context: sceneContext } : { scene_context: undefined }),
+            };
+          } else {
+            // Compatibility only: Core preparation itself remains request-scoped and
+            // does not need this runtime binding to succeed.
+            await core.configureProject(input.project_id, repositoryPath);
+          }
         }
-        const generationPackage = await core.prepareGeneration(input);
+        const generationPackage = await core.prepareGeneration(prepareInput);
         return {
           structuredContent: { ...generationPackage } as Record<string, unknown>,
           content: [{ type: 'text' as const, text: JSON.stringify(generationPackage, null, 2) }],
@@ -199,6 +209,10 @@ function serializeError(error: unknown): Record<string, unknown> {
     error: 'INTERNAL_ERROR',
     message: error instanceof Error ? error.message : String(error),
   };
+}
+
+function isHostedReadOnlyMode(): boolean {
+  return process.env.VERCEL === '1' || process.env.VISUAL_DIRECTOR_HOSTED_READ_ONLY === '1';
 }
 
 export async function runStdio(options: VisualDirectorServerOptions = {}): Promise<void> {
