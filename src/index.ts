@@ -3,6 +3,7 @@ import path from 'node:path';
 import { compileRepositoryCanon, COMPILED_CANON_RELATIVE_PATH } from './compiled-canon.js';
 import { createHostedHttpServerForVisualDirector } from './mcp/hosted-server.js';
 import { createHttpServerForVisualDirector, runStdio } from './mcp/server.js';
+import { adoptRepositoryAnchor } from './repository-anchor-adoption.js';
 
 const command = process.argv[2];
 
@@ -16,6 +17,24 @@ if (command === 'compile') {
   process.stderr.write(check
     ? `Compiled Canon is current: ${resolvedOutput}\n`
     : `Compiled Canon written: ${resolvedOutput}\n`);
+} else if (command === 'adopt-anchor') {
+  const projectId = requiredArgument('--project-id');
+  const repositoryPath = requiredArgument('--repo-path');
+  const subjectId = requiredArgument('--subject-id');
+  const candidatePath = requiredArgument('--candidate-path');
+  const projectsConfigPath = argumentValue('--projects-config');
+  if (!process.argv.includes('--approve')) {
+    throw new Error('--approve is required for anchor adoption.');
+  }
+
+  const result = await adoptRepositoryAnchor({
+    projectId,
+    repositoryPath,
+    subjectId,
+    candidatePath,
+    ...(projectsConfigPath ? { projectsConfigPath } : {}),
+  });
+  process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
 } else {
   const isVercel = process.env.VERCEL === '1';
   const isHttp = process.argv.includes('--http') || isVercel;
