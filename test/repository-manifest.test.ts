@@ -38,4 +38,26 @@ describe('repository-native Canon manifest', () => {
       rival: { display_name: 'Rival', character_file: 'rival.md', canon_heading: 'Rival', aliases: ['main-character'] },
     } })).toThrow('Subject alias main-character is ambiguous between hero and rival.');
   });
+
+  it('rejects non-object manifests', () => {
+    expect(() => parseRepositoryCanonManifest([])).toThrow('Manifest must be an object with only supported top-level keys.');
+  });
+
+  it('rejects unknown top-level keys', () => {
+    expect(() => parseRepositoryCanonManifest({ version: 1, project_id: 'game-a', surprise: true })).toThrow('Manifest must be an object with only supported top-level keys.');
+  });
+
+  it('rejects unknown subject keys instead of silently accepting schema drift', () => {
+    expect(() => parseRepositoryCanonManifest({ version: 1, project_id: 'game-a', subjects: {
+      hero: { display_name: 'Hero', character_file: 'hero.md', canon_heading: 'Hero', surprise: true },
+    } })).toThrow('Unknown subjects.hero key: surprise.');
+  });
+
+  it('trims required strings and de-duplicates subject arrays', () => {
+    const definition = parseRepositoryCanonManifest({ version: 1, project_id: ' game-a ', subjects: {
+      hero: { display_name: ' Hero ', character_file: ' hero.md ', canon_heading: ' Hero ', aliases: [' protagonist ', 'protagonist'], required_new_anchor_terms: [' 24歳 ', '24歳'] },
+    } });
+    expect(definition.projectId).toBe('game-a');
+    expect(definition.subjects.hero).toMatchObject({ displayName: 'Hero', characterFile: 'hero.md', canonHeading: 'Hero', aliases: ['protagonist'], requiredNewAnchorTerms: ['24歳'] });
+  });
 });
