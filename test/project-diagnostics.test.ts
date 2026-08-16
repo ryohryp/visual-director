@@ -24,9 +24,17 @@ class FakeSource implements RepositorySource {
       'docs/visual/assets/global_visual_style_reference.webp',
     ]),
     private readonly accessError?: VisualDirectorError,
+    private readonly manifest = {
+      version: 1,
+      project_id: 'game-b',
+      subjects: {},
+    },
   ) {}
   async checkAccess(): Promise<void> { if (this.accessError) throw this.accessError; }
-  async readText(): Promise<string> { return '# Canon'; }
+  async readText(relativePath: string): Promise<string> {
+    if (relativePath === '.visual-director/manifest.json') return JSON.stringify(this.manifest);
+    return '# Canon';
+  }
   async ensureFile(relativePath: string): Promise<void> {
     if (!this.files.has(relativePath)) throw new VisualDirectorError('REFERENCE_NOT_FOUND', 'missing', { path: relativePath });
   }
@@ -57,7 +65,7 @@ describe('repository setup diagnostics', () => {
     expect(result.items).toContainEqual(expect.objectContaining({ key: 'global_style', state: 'required_missing' }));
   });
 
-  it('uses Crownless project-specific Canon paths instead of generic defaults', async () => {
+  it('uses repository manifest Canon paths instead of generic defaults', async () => {
     const crownlessEntry = {
       project_id: 'crownless',
       display_name: 'Crownless',
@@ -72,7 +80,17 @@ describe('repository setup diagnostics', () => {
       'docs/assets/README.md',
       'docs/assets/crownless-visual-design-reference-v0.1.jpg',
     ]);
-    const result = await diagnoseProjectRepository(crownlessEntry, new FakeSource(files), async () => overview('crownless'));
+    const manifest = {
+      version: 1,
+      project_id: 'crownless',
+      documents: {
+        worldDirection: 'docs/visual/WORLD_DIRECTION.md',
+        assetManifest: 'docs/assets/README.md',
+        globalReference: 'docs/assets/crownless-visual-design-reference-v0.1.jpg',
+      },
+      subjects: {},
+    };
+    const result = await diagnoseProjectRepository(crownlessEntry, new FakeSource(files, undefined, manifest), async () => overview('crownless'));
     expect(result.state).toBe('ready');
     expect(result.usable).toBe(true);
     expect(result.items).toEqual(expect.arrayContaining([
