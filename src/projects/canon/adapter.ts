@@ -1,6 +1,6 @@
 import { bullets, bulletsAfterLabel, section, subsection } from '../../domain/markdown.js';
 import { VisualDirectorError } from '../../domain/types.js';
-import type { ApprovedAnchorSummary } from '../../domain/types.js';
+import type { ApprovedAnchorSummary, GenerationPackage, PrepareGenerationInput } from '../../domain/types.js';
 import { LocalRepositorySource } from '../repository-source.js';
 import { CanonAdapterBase, globalForbiddenChanges } from './adapter-base.js';
 import type { CanonProjectDefinition, CanonProjectAdapterOptions, ProjectSubjectDefinition } from './types.js';
@@ -23,6 +23,7 @@ interface SubjectAnchor extends ProjectSubjectDefinition {
 
 export class CanonProjectAdapter extends CanonAdapterBase {
   private readonly definition: CanonProjectDefinition;
+  private readonly subjectAliases: Map<string, string>;
 
   constructor(definition: CanonProjectDefinition, options: CanonProjectAdapterOptions) {
     const source = options.source ?? (options.repoPath ? new LocalRepositorySource(options.repoPath) : undefined);
@@ -37,6 +38,14 @@ export class CanonProjectAdapter extends CanonAdapterBase {
       subjectIds: Object.keys(definition.subjects),
     });
     this.definition = definition;
+    this.subjectAliases = buildSubjectAliasIndex(definition.subjects);
+  }
+
+  override async prepare(input: PrepareGenerationInput): Promise<GenerationPackage> {
+    return super.prepare({
+      ...input,
+      subject_ids: input.subject_ids.map((subjectId) => this.resolveSubjectId(subjectId)),
+    });
   }
 
   protected async loadSubject(subjectId: string, canonMarkdown: string): Promise<SubjectAnchor> {
@@ -93,6 +102,30 @@ export class CanonProjectAdapter extends CanonAdapterBase {
       ...bullets(section(canonMarkdown, this.labels.commonRulesHeading)),
     ];
   }
+
+  private resolveSubjectId(value: string): string {
+    const normalized = normalizeSubjectAlias(value);
+    return this.subjectAliases.get(normalized) ?? value.trim();
+  }
+}
+
+function buildSubjectAliasIndex(subjects: Record<string, ProjectSubjectDefinition>): Map<string, string> {
+  const index = new Map<string, string>();
+  for (const subject of Object.values(subjects)) {
+    for (const alias of [subject.id, subject.displayName, ...(subject.aliases ?? [])]) {
+      const key = normalizeSubjectAlias(alias);
+      const existing = index.get(key);
+      if (existing && existing !== subject.id) {
+        throw new VisualDirectorError('PROJECT_CONFIG_INVALID', `Subject alias ${alias} is ambiguous between ${existing} and ${subject.id}.`);
+      }
+      index.set(key, subject.id);
+    }
+  }
+  return index;
+}
+
+function normalizeSubjectAlias(value: string): string {
+  return value.normalize('NFKC').trim().toLocaleLowerCase('en-US').replace(/[\s_-]+/g, '');
 }
 
 export function approvedAnchorPaths(anchorSection: string): string[] {

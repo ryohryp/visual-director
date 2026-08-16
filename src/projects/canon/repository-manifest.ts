@@ -54,14 +54,41 @@ function parseSubjects(value: unknown, path: string): Record<string, ProjectSubj
   if (value === undefined) return {};
   if (!isRecord(value)) throw invalid(path, 'subjects must be an object.');
   const result: Record<string, ProjectSubjectDefinition> = {};
+  const aliases = new Map<string, string>();
   for (const [id, subject] of Object.entries(value)) {
     if (!isRecord(subject)) throw invalid(path, `subjects.${id} must be an object.`);
     const displayName = requiredString(subject.display_name, path, `subjects.${id}.display_name`);
     const characterFile = requiredString(subject.character_file, path, `subjects.${id}.character_file`);
     const canonHeading = requiredString(subject.canon_heading, path, `subjects.${id}.canon_heading`);
-    result[id] = { id, displayName, characterFile, canonHeading };
+    const subjectAliases = parseAliases(subject.aliases, path, id);
+    for (const alias of [id, displayName, ...subjectAliases]) {
+      const key = normalizeAlias(alias);
+      const existing = aliases.get(key);
+      if (existing && existing !== id) {
+        throw invalid(path, `Subject alias ${alias} is ambiguous between ${existing} and ${id}.`);
+      }
+      aliases.set(key, id);
+    }
+    result[id] = {
+      id,
+      displayName,
+      characterFile,
+      canonHeading,
+      ...(subjectAliases.length > 0 ? { aliases: subjectAliases } : {}),
+    };
   }
   return result;
+}
+
+function parseAliases(value: unknown, path: string, subjectId: string): string[] {
+  if (value === undefined) return [];
+  if (!Array.isArray(value)) throw invalid(path, `subjects.${subjectId}.aliases must be an array.`);
+  const aliases = value.map((item, index) => requiredString(item, path, `subjects.${subjectId}.aliases[${index}]`));
+  return [...new Set(aliases)];
+}
+
+function normalizeAlias(value: string): string {
+  return value.normalize('NFKC').trim().toLocaleLowerCase('en-US').replace(/[\s_-]+/g, '');
 }
 
 function mergeStringRecord<T extends ProjectDocuments | ProjectLabels>(defaults: T, value: unknown, path: string, field: string): T {
