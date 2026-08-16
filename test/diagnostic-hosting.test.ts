@@ -2,17 +2,14 @@ import { readFile } from 'node:fs/promises';
 import { describe, expect, it } from 'vitest';
 
 describe('static diagnostic hosting', () => {
-  it('keeps automatic Vercel deployments limited to main', async () => {
+  it('disables automatic Vercel Git deployments', async () => {
     const raw = await readFile(new URL('../vercel.json', import.meta.url), 'utf8');
     const config = JSON.parse(raw) as {
-      git?: { deploymentEnabled?: Record<string, boolean> };
+      git?: { deploymentEnabled?: boolean };
       routes?: Array<{ src?: string; dest?: string }>;
     };
 
-    expect(config.git?.deploymentEnabled).toEqual({
-      '*': false,
-      main: true,
-    });
+    expect(config.git?.deploymentEnabled).toBe(false);
     expect(config.routes).toContainEqual({
       src: '^/diagnostics/?$',
       dest: '/diagnostics/index.html',
