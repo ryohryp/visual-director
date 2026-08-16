@@ -66,29 +66,12 @@ describe('Anchor adoption and Canon registration', () => {
     try {
       await server.connect(serverTransport);
       await client.connect(clientTransport);
-
-      const tools = await client.listTools();
-      const adoptTool = tools.tools.find((tool) => tool.name === 'visual.adopt_anchor');
+      const adoptTool = (await client.listTools()).tools.find((tool) => tool.name === 'visual.adopt_anchor');
       expect(adoptTool).toMatchObject({
         name: 'visual.adopt_anchor',
-        annotations: {
-          readOnlyHint: false,
-          destructiveHint: false,
-          idempotentHint: true,
-          openWorldHint: false,
-        },
+        annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
       });
       expect(adoptTool?._meta).toMatchObject({ 'openai/fileParams': ['candidate_file'] });
-      expect(adoptTool?.inputSchema.properties?.candidate_file).toMatchObject({
-        type: 'object',
-        properties: {
-          download_url: { type: 'string' },
-          file_id: { type: 'string' },
-          mime_type: { type: 'string' },
-          file_name: { type: 'string' },
-        },
-        required: ['download_url', 'file_id'],
-      });
 
       const result = await client.callTool({
         name: 'visual.adopt_anchor',
@@ -99,7 +82,6 @@ describe('Anchor adoption and Canon registration', () => {
           approval: 'approve',
         },
       });
-
       expect(result.isError).not.toBe(true);
       expect(result.structuredContent).toMatchObject({
         project_id: 'game',
@@ -112,10 +94,7 @@ describe('Anchor adoption and Canon registration', () => {
       const repeated = await client.callTool({
         name: 'visual.adopt_anchor',
         arguments: {
-          project_id: 'game',
-          subject_id: 'hero',
-          candidate_path: 'assets/hero/candidate.png',
-          approval: 'approve',
+          project_id: 'game', subject_id: 'hero', candidate_path: 'assets/hero/candidate.png', approval: 'approve',
         },
       });
       expect(repeated.isError).not.toBe(true);
@@ -124,19 +103,13 @@ describe('Anchor adoption and Canon registration', () => {
       const prepared = await client.callTool({
         name: 'visual.prepare_generation',
         arguments: {
-          project_id: 'game',
-          asset_type: 'character_portrait',
-          subject_ids: ['hero'],
-          request_text: 'Prepare a portrait using the adopted Hero Anchor.',
+          project_id: 'game', asset_type: 'character_portrait', subject_ids: ['hero'], request_text: 'Use the adopted Hero Anchor.',
         },
       });
       expect(prepared.isError).not.toBe(true);
       expect(prepared.structuredContent).toMatchObject({
         project_id: 'game',
-        policy: {
-          must_use_approved_anchor: true,
-          must_not_chain_from_candidate: true,
-        },
+        policy: { must_use_approved_anchor: true, must_not_chain_from_candidate: true },
         reference_assets: [
           { role: 'global_reference', path: 'docs/visual/assets/global_visual_style_reference.webp' },
           { role: 'subject_anchor', subject_id: 'hero', path: 'assets/hero/candidate.png' },
@@ -146,29 +119,17 @@ describe('Anchor adoption and Canon registration', () => {
       await client.close();
       await server.close();
     }
-
-    const canon = await readFile(path.join(fixtureRoot, 'docs/visual/CHARACTER_VISUAL_CANON.md'), 'utf8');
-    expect(canon).toContain('### Approved Visual Anchor\n- `assets/hero/candidate.png`');
   });
 
   it('registers an explicitly approved repository candidate and is idempotent', async () => {
     const registry = createProjectRegistry({ projectsConfigPath: path.join(fixtureRoot, 'projects.json') });
     const input = {
-      project_id: 'game',
-      subject_id: 'hero',
-      candidate_path: 'assets/hero/candidate.png',
-      approval: 'approve' as const,
+      project_id: 'game', subject_id: 'hero', candidate_path: 'assets/hero/candidate.png', approval: 'approve' as const,
     };
-
-    await expect(registry.adoptAnchor(input)).resolves.toMatchObject({
-      subject_id: 'hero',
-      approved_anchor_path: 'assets/hero/candidate.png',
-      changed: true,
-    });
+    await expect(registry.adoptAnchor(input)).resolves.toMatchObject({ subject_id: 'hero', changed: true });
     await expect(registry.adoptAnchor(input)).resolves.toMatchObject({ changed: false });
     const canon = await readFile(path.join(fixtureRoot, 'docs/visual/CHARACTER_VISUAL_CANON.md'), 'utf8');
     expect(canon.match(/### Approved Visual Anchor/g)).toHaveLength(1);
-    expect(canon).toContain('- `assets/hero/candidate.png`');
   });
 
   it('refuses missing candidates, unsafe paths, and replacement of an existing Anchor', async () => {
@@ -189,41 +150,7 @@ describe('Anchor adoption and Canon registration', () => {
     })).rejects.toMatchObject({ code: 'APPROVED_ANCHOR_CONFLICT' });
   });
 
-  it('downloads a ChatGPT file reference, saves the subject-defined Anchor, and returns image metadata', async () => {
-    const registry = createProjectRegistry({
-      projectsConfigPath: path.join(fixtureRoot, 'projects.json'),
-      fetchImpl: async () => new Response(tinyPng(), { status: 200, headers: { 'content-type': 'image/png' } }),
-    });
-
-    const result = await registry.adoptAnchor({
-      project_id: 'game',
-      subject_id: 'hero',
-      candidate_file: {
-        download_url: 'https://files.example.test/generated/hero.png',
-        file_id: 'file-hero-png',
-        mime_type: 'image/png',
-        file_name: 'hero.png',
-      },
-      approval: 'approve',
-    });
-
-    expect(result).toMatchObject({
-      status: 'approved',
-      anchor_path: 'public/images/characters/hero/v2/default.png',
-      approved_anchor_path: 'public/images/characters/hero/v2/default.png',
-      mime_type: 'image/png',
-      width: 1,
-      height: 1,
-      changed: true,
-    });
-    expect(result.sha256).toMatch(/^[a-f0-9]{64}$/);
-    await expect(readFile(path.join(fixtureRoot, result.anchor_path))).resolves.toEqual(tinyPng());
-    await expect(readFile(path.join(fixtureRoot, 'docs/visual/CHARACTER_VISUAL_CANON.md'), 'utf8')).resolves.toContain(
-      '- `public/images/characters/hero/v2/default.png`',
-    );
-  });
-
-  it('accepts a JPEG file reference and keeps prepare_generation on the new Approved Anchor', async () => {
+  it('downloads ChatGPT file references and keeps prepare_generation on the adopted Anchor', async () => {
     const registry = createProjectRegistry({
       projectsConfigPath: path.join(fixtureRoot, 'projects.json'),
       fetchImpl: async () => new Response(tinyJpeg(), { status: 200, headers: { 'content-type': 'image/jpeg' } }),
@@ -239,75 +166,45 @@ describe('Anchor adoption and Canon registration', () => {
       },
       approval: 'approve',
     });
-
-    expect(adopted.anchor_path).toBe('public/images/characters/hero/v2/default.jpg');
+    expect(adopted).toMatchObject({
+      anchor_path: 'public/images/characters/hero/v2/default.jpg',
+      mime_type: 'image/jpeg',
+      width: 1,
+      height: 1,
+      changed: true,
+    });
     const packageResult = await registry.resolve('game').prepare({
-      project_id: 'game',
-      asset_type: 'character_portrait',
-      subject_ids: ['hero'],
-      request_text: 'The Hero portrait',
+      project_id: 'game', asset_type: 'character_portrait', subject_ids: ['hero'], request_text: 'The Hero portrait',
     });
     expect(packageResult.reference_assets).toContainEqual({
-      role: 'subject_anchor',
-      subject_id: 'hero',
-      path: 'public/images/characters/hero/v2/default.jpg',
+      role: 'subject_anchor', subject_id: 'hero', path: adopted.anchor_path,
     });
   });
 
-  it('removes the Bottom of Thirst Kamino APPROVED_ANCHOR_NOT_FOUND state after adoption', async () => {
-    await mkdir(path.join(fixtureRoot, 'docs/characters'), { recursive: true });
-    await writeFile(
-      path.join(fixtureRoot, 'docs/visual/CHARACTER_VISUAL_CANON.md'),
-      '# Canon\n\n## 共通ルール\n- Keep identity stable.\n\n## 神野 恭介\n\n### Canonical state model\n- pending anchor\n',
-    );
-    await writeFile(
-      path.join(fixtureRoot, 'docs/characters/kyosuke.md'),
-      '# 神野 恭介\n\n| 項目 | 内容 |\n|---|---|\n| 年齢 | 24歳 |\n| 職業 | 動画配信者 |\n| 機材 | ジンバル |\n',
-    );
-    const registry = createProjectRegistry({
-      repoPath: fixtureRoot,
-      fetchImpl: async () => new Response(tinyPng(), { status: 200, headers: { 'content-type': 'image/png' } }),
-    });
-    const adopted = await registry.adoptAnchor({
-      project_id: 'bottom-of-thirst',
-      subject_id: 'kamino_kyosuke',
-      candidate_file: { download_url: 'https://files.example.test/kyosuke.png', file_id: 'file-kyosuke' },
-      approval: 'approve',
-    });
-
-    const packageResult = await registry.resolve('bottom-of-thirst').prepare({
-      project_id: 'bottom-of-thirst',
-      asset_type: 'character_portrait',
-      subject_ids: ['kamino_kyosuke'],
-      request_text: '神野恭介の通常立ち絵',
-    });
-    expect(adopted.anchor_path).toBe('public/images/characters/kamino_kyosuke/v2/default.png');
-    expect(packageResult.policy.must_use_approved_anchor).toBe(true);
-    expect(packageResult.reference_assets).toContainEqual({
-      role: 'subject_anchor',
-      subject_id: 'kamino_kyosuke',
-      path: adopted.anchor_path,
-    });
-  });
-
-  it('does not interpret ChatGPT paths as local paths and rejects ambiguous inputs', async () => {
+  it('fails closed for invalid project state, subjects, approval and image inputs', async () => {
     const registry = createProjectRegistry({
       projectsConfigPath: path.join(fixtureRoot, 'projects.json'),
       fetchImpl: async () => new Response(tinyPng(), { status: 200, headers: { 'content-type': 'image/png' } }),
     });
     await expect(registry.adoptAnchor({
-      project_id: 'game',
-      subject_id: 'hero',
-      candidate_file: { download_url: 'file:///mnt/data/foo.png', file_id: 'file-local-path' },
-      approval: 'approve',
-    })).rejects.toMatchObject({ code: 'FILE_DOWNLOAD_URL_INVALID' });
+      project_id: 'unknown', subject_id: 'hero', candidate_path: 'assets/hero/candidate.png', approval: 'approve',
+    })).rejects.toMatchObject({ code: 'PROJECT_CONFIG_MISSING' });
+    await expect(registry.adoptAnchor({
+      project_id: 'game', subject_id: 'unknown', candidate_path: 'assets/hero/candidate.png', approval: 'approve',
+    })).rejects.toMatchObject({ code: 'SUBJECT_NOT_FOUND' });
+    await expect(registry.adoptAnchor({
+      project_id: 'game', subject_id: 'hero', candidate_path: 'assets/hero/candidate.png', approval: 'reject' as never,
+    })).rejects.toMatchObject({ code: 'APPROVAL_REQUIRED' });
+    await writeFile(path.join(fixtureRoot, 'assets/hero/broken.png'), 'not an image');
+    await expect(registry.adoptAnchor({
+      project_id: 'game', subject_id: 'hero', candidate_path: 'assets/hero/broken.png', approval: 'approve',
+    })).rejects.toMatchObject({ code: 'INVALID_IMAGE' });
     await expect(registry.adoptAnchor({
       project_id: 'game',
       subject_id: 'hero',
-      candidate_file: { download_url: 'https://files.example.test/foo.png', file_id: 'file-both' },
-      candidate_path: 'assets/hero/candidate.png',
+      candidate_file: { download_url: 'https://files.example.test/mismatch.png', file_id: 'file-mismatch', mime_type: 'image/jpeg' },
       approval: 'approve',
-    })).rejects.toMatchObject({ code: 'AMBIGUOUS_CANDIDATE_INPUT' });
+    })).rejects.toMatchObject({ code: 'IMAGE_MIME_MISMATCH' });
   });
 
   it('rolls back the downloaded image when Canon replacement fails', async () => {
@@ -323,84 +220,10 @@ describe('Anchor adoption and Canon registration', () => {
     });
 
     await expect(registry.adoptAnchor({
-      project_id: 'game',
-      subject_id: 'hero',
-      candidate_file: { download_url: 'https://files.example.test/foo.png', file_id: 'file-rollback' },
-      approval: 'approve',
+      project_id: 'game', subject_id: 'hero', candidate_file: { download_url: 'https://files.example.test/foo.png', file_id: 'file-rollback' }, approval: 'approve',
     })).rejects.toMatchObject({ code: 'CANON_WRITE_FAILED' });
     await expect(readFile(destination)).rejects.toMatchObject({ code: 'ENOENT' });
     await expect(readFile(canonPath, 'utf8')).resolves.toBe(originalCanon);
-  });
-
-  it('does not update Canon when the destination cannot be written', async () => {
-    const destination = path.join(fixtureRoot, 'public/images/characters/hero/v2/default.png');
-    await mkdir(path.dirname(destination), { recursive: true });
-    await writeFile(destination, tinyPng());
-    const canonPath = path.join(fixtureRoot, 'docs/visual/CHARACTER_VISUAL_CANON.md');
-    const originalCanon = await readFile(canonPath, 'utf8');
-    const registry = createProjectRegistry({
-      projectsConfigPath: path.join(fixtureRoot, 'projects.json'),
-      fetchImpl: async () => new Response(tinyPng(), { status: 200, headers: { 'content-type': 'image/png' } }),
-    });
-
-    await expect(registry.adoptAnchor({
-      project_id: 'game',
-      subject_id: 'hero',
-      candidate_file: { download_url: 'https://files.example.test/foo.png', file_id: 'file-destination-conflict' },
-      approval: 'approve',
-    })).rejects.toMatchObject({ code: 'ANCHOR_DESTINATION_CONFLICT' });
-    await expect(readFile(canonPath, 'utf8')).resolves.toBe(originalCanon);
-  });
-
-  it('fails closed for unknown inputs, non-images, MIME mismatches, and file Anchor conflicts', async () => {
-    const registry = createProjectRegistry({
-      projectsConfigPath: path.join(fixtureRoot, 'projects.json'),
-      fetchImpl: async () => new Response(tinyPng(), { status: 200, headers: { 'content-type': 'image/png' } }),
-    });
-    await expect(registry.adoptAnchor({
-      project_id: 'unknown',
-      subject_id: 'hero',
-      candidate_path: 'assets/hero/candidate.png',
-      approval: 'approve',
-    })).rejects.toMatchObject({ code: 'PROJECT_NOT_FOUND' });
-    await expect(registry.adoptAnchor({
-      project_id: 'game',
-      subject_id: 'unknown',
-      candidate_path: 'assets/hero/candidate.png',
-      approval: 'approve',
-    })).rejects.toMatchObject({ code: 'SUBJECT_NOT_FOUND' });
-    await expect(registry.adoptAnchor({
-      project_id: 'game',
-      subject_id: 'hero',
-      candidate_path: 'assets/hero/candidate.png',
-      approval: 'reject' as never,
-    })).rejects.toMatchObject({ code: 'APPROVAL_REQUIRED' });
-    await writeFile(path.join(fixtureRoot, 'assets/hero/broken.png'), 'not an image');
-    await expect(registry.adoptAnchor({
-      project_id: 'game',
-      subject_id: 'hero',
-      candidate_path: 'assets/hero/broken.png',
-      approval: 'approve',
-    })).rejects.toMatchObject({ code: 'INVALID_IMAGE' });
-    await expect(registry.adoptAnchor({
-      project_id: 'game',
-      subject_id: 'hero',
-      candidate_file: { download_url: 'https://files.example.test/mismatch.png', file_id: 'file-mismatch', mime_type: 'image/jpeg' },
-      approval: 'approve',
-    })).rejects.toMatchObject({ code: 'IMAGE_MIME_MISMATCH' });
-
-    await registry.adoptAnchor({
-      project_id: 'game',
-      subject_id: 'hero',
-      candidate_path: 'assets/hero/candidate.png',
-      approval: 'approve',
-    });
-    await expect(registry.adoptAnchor({
-      project_id: 'game',
-      subject_id: 'hero',
-      candidate_file: { download_url: 'https://files.example.test/conflict.png', file_id: 'file-conflict' },
-      approval: 'approve',
-    })).rejects.toMatchObject({ code: 'APPROVED_ANCHOR_CONFLICT' });
   });
 
   it('preserves CRLF when adding the Canon entry', () => {

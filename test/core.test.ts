@@ -47,39 +47,28 @@ describe('Visual Director Core', () => {
 
   it('keeps explicit repository_path request-scoped instead of creating runtime state', async () => {
     const core = createVisualDirectorCore();
-    await expect(
-      core.prepareGeneration({
-        ...request,
-        scene_context: { repository_path: fixtureRoot },
-      }),
-    ).resolves.toMatchObject({ project_id: 'bottom-of-thirst' });
+    await expect(core.prepareGeneration({ ...request, scene_context: { repository_path: fixtureRoot } }))
+      .resolves.toMatchObject({ project_id: 'bottom-of-thirst' });
 
     await expect(core.prepareGeneration(request)).rejects.toMatchObject({ code: 'PROJECT_CONFIG_MISSING' });
   });
 
   it('fails closed for invalid request-scoped repository configuration', async () => {
     const core = createVisualDirectorCore();
-    await expect(core.prepareGeneration({
-      ...request,
-      scene_context: { repository_path: '   ' },
-    })).rejects.toMatchObject({ code: 'PROJECT_CONFIG_INVALID' });
+    await expect(core.prepareGeneration({ ...request, scene_context: { repository_path: '   ' } }))
+      .rejects.toMatchObject({ code: 'PROJECT_CONFIG_INVALID' });
   });
 
   it('preserves Canon fail-closed behavior when the Approved Anchor is missing', async () => {
     const core = createVisualDirectorCore();
     await rm(path.join(fixtureRoot, 'public/images/characters/souma/v2/default.avif'));
-
-    await expect(
-      core.prepareGeneration({ ...request, scene_context: { repository_path: fixtureRoot } }),
-    ).rejects.toMatchObject({ code: 'REFERENCE_NOT_FOUND' });
+    await expect(core.prepareGeneration({ ...request, scene_context: { repository_path: fixtureRoot } }))
+      .rejects.toMatchObject({ code: 'REFERENCE_NOT_FOUND' });
   });
 
   it('returns visual direction and Approved Anchors without requiring workflow metadata', async () => {
     const core = createVisualDirectorCore();
-    const result = await core.getProjectVisualOverview({
-      project_id: 'bottom-of-thirst',
-      repository_path: fixtureRoot,
-    });
+    const result = await core.getProjectVisualOverview({ project_id: 'bottom-of-thirst', repository_path: fixtureRoot });
 
     expect(result.project_id).toBe('bottom-of-thirst');
     expect(result.visual_direction.global_style).toMatchObject({
@@ -125,18 +114,10 @@ describe('Visual Director Core', () => {
     }, null, 2), 'utf8');
 
     const core = createVisualDirectorCore();
-    const result = await core.getProjectVisualOverview({
-      project_id: 'bottom-of-thirst',
-      repository_path: fixtureRoot,
-    });
-
+    const result = await core.getProjectVisualOverview({ project_id: 'bottom-of-thirst', repository_path: fixtureRoot });
     expect(result.workflow.available).toBe(true);
-    expect(result.workflow.jobs).toEqual([
-      expect.objectContaining({ job_id: 'job-001', status: 'registered' }),
-    ]);
-    expect(result.workflow.assets).toEqual([
-      expect.objectContaining({ asset_id: 'asset-001', status: 'candidate' }),
-    ]);
+    expect(result.workflow.jobs).toEqual([expect.objectContaining({ job_id: 'job-001', status: 'registered' })]);
+    expect(result.workflow.assets).toEqual([expect.objectContaining({ asset_id: 'asset-001', status: 'candidate' })]);
   });
 
   it('fails explicitly when repository workflow metadata is malformed', async () => {
@@ -145,25 +126,34 @@ describe('Visual Director Core', () => {
     await writeFile(indexPath, '{"version":1,"jobs":"wrong","assets":[]}', 'utf8');
 
     const core = createVisualDirectorCore();
-    await expect(core.getProjectVisualOverview({
-      project_id: 'bottom-of-thirst',
-      repository_path: fixtureRoot,
-    })).rejects.toMatchObject({ code: 'WORKFLOW_INDEX_INVALID' });
+    await expect(core.getProjectVisualOverview({ project_id: 'bottom-of-thirst', repository_path: fixtureRoot }))
+      .rejects.toMatchObject({ code: 'WORKFLOW_INDEX_INVALID' });
   });
 });
 
 async function createFixture(root: string): Promise<void> {
   const files: Record<string, string> = {
-    'docs/visual/GLOBAL_VISUAL_STYLE.md': `# Global Style\n\n## Global Visual Style Lock\n\n\`\`\`text\nSTYLE LOCK\n\`\`\`\n\n## Fixed Avoid Block\n\n\`\`\`text\nAVOID: photorealism, anime\n\`\`\`\n\n## 既存キャラクター差分生成フロー\n\n### 変更してよいもの\n- small facial expression\n- gaze\n- hand position\n\n### 変更してはいけないもの\n- face identity\n`,
+    '.visual-director/manifest.json': JSON.stringify({
+      version: 1,
+      project_id: 'bottom-of-thirst',
+      labels: {
+        allowedChangesHeading: '変更してよいもの',
+        forbiddenChangesHeading: '変更してはいけないもの',
+        commonRulesHeading: '共通ルール',
+        acceptedConditionsHeading: '採用する視覚条件',
+      },
+      subjects: {
+        souma: {
+          display_name: '相馬 健人',
+          character_file: 'docs/characters/soma.md',
+          canon_heading: '相馬 健人',
+        },
+      },
+    }),
+    'docs/visual/GLOBAL_VISUAL_STYLE.md': `# Global Style\n\n## Global Visual Style Lock\n\n\`\`\`text\nSTYLE LOCK\n\`\`\`\n\n## Fixed Avoid Block\n\n\`\`\`text\nAVOID: photorealism, anime\n\`\`\`\n\n### 変更してよいもの\n- small facial expression\n- gaze\n- hand position\n\n### 変更してはいけないもの\n- face identity\n`,
     'docs/visual/CHARACTER_VISUAL_CANON.md': `# Canon\n\n## 共通ルール\n- Always use an approved anchor.\n\n## 相馬 健人\n\n### Approved Visual Anchor\n- \`public/images/characters/souma/v2/default.avif\`\n\n### 採用する視覚条件\n- 32歳の契約記者\n- 色褪せた濃紺のジャケット\n`,
     'docs/WORLD_DIRECTION.md': '# World\n\n- grounded and observational\n- ordinary light\n',
     'docs/characters/soma.md': '# Soma\n\n- contract reporter\n- careful with records\n',
-    'docs/characters/saya.md': '# Saya\n',
-    'docs/characters/hikawa.md': '# Hikawa Ruka\n',
-    'docs/characters/kagami.md': '# Kagami\n',
-    'docs/characters/kito.md': '# Kitou\n',
-    'docs/characters/mikoshiba.md': '# Mikoshiba\n',
-    'docs/characters/kyosuke.md': '# Kamino Kyosuke\n',
     'docs/visual/assets/README.md': '# Assets\n',
   };
 

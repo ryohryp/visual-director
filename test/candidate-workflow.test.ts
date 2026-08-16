@@ -10,6 +10,11 @@ let root: string;
 
 beforeEach(async () => {
   root = await mkdtemp(path.join(os.tmpdir(), 'visual-director-workflow-'));
+  await writeRepoFile('.visual-director/manifest.json', JSON.stringify({
+    version: 1,
+    project_id: 'bottom-of-thirst',
+    subjects: {},
+  }));
   await writeRepoFile('.visual-director/candidates/gen-1/candidate.webp', 'candidate');
   await writeRepoFile('docs/visual/assets/global.webp', 'reference');
 });

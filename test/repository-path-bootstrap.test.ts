@@ -44,9 +44,7 @@ describe('prepare_generation repository-path bootstrap compatibility', () => {
       });
 
       expect(result.isError).not.toBe(true);
-      const structured = result.structuredContent as {
-        prompt_package?: { scene_requirements?: string[] };
-      };
+      const structured = result.structuredContent as { prompt_package?: { scene_requirements?: string[] } };
       const sceneRequirements = structured.prompt_package?.scene_requirements ?? [];
       expect(sceneRequirements.join('\n')).toContain('location: 地下の記録保管庫');
       expect(sceneRequirements.join('\n')).not.toContain('repository_path');
@@ -63,9 +61,7 @@ describe('prepare_generation repository-path bootstrap compatibility', () => {
 
     const address = httpServer.address();
     expect(address && typeof address !== 'string').toBe(true);
-    if (!address || typeof address === 'string') {
-      throw new Error('Expected an ephemeral HTTP server address.');
-    }
+    if (!address || typeof address === 'string') throw new Error('Expected an ephemeral HTTP server address.');
 
     const client = new Client({ name: 'bootstrap-repeat-test-client', version: '0.1.0' });
     const transport = new StreamableHTTPClientTransport(new URL(`http://127.0.0.1:${(address as AddressInfo).port}/mcp`));
@@ -78,13 +74,9 @@ describe('prepare_generation repository-path bootstrap compatibility', () => {
 
     try {
       await client.connect(transport);
-
       const first = await client.callTool({
         name: 'visual.prepare_generation',
-        arguments: {
-          ...baseInput,
-          scene_context: { repository_path: fixtureRoot },
-        },
+        arguments: { ...baseInput, scene_context: { repository_path: fixtureRoot } },
       });
       const second = await client.callTool({ name: 'visual.prepare_generation', arguments: baseInput });
 
@@ -111,9 +103,7 @@ describe('prepare_generation repository-path bootstrap compatibility', () => {
       expect(sessions.size).toBe(1);
     } finally {
       await client.close();
-      await new Promise<void>((resolve, reject) => {
-        httpServer.close((error) => (error ? reject(error) : resolve()));
-      });
+      await new Promise<void>((resolve, reject) => httpServer.close((error) => (error ? reject(error) : resolve())));
     }
   });
 
@@ -123,9 +113,7 @@ describe('prepare_generation repository-path bootstrap compatibility', () => {
 
     const address = httpServer.address();
     expect(address && typeof address !== 'string').toBe(true);
-    if (!address || typeof address === 'string') {
-      throw new Error('Expected an ephemeral HTTP server address.');
-    }
+    if (!address || typeof address === 'string') throw new Error('Expected an ephemeral HTTP server address.');
 
     const endpoint = new URL(`http://127.0.0.1:${(address as AddressInfo).port}/mcp`);
     const configureClient = new Client({ name: 'binding-configure-client', version: '0.1.0' });
@@ -166,9 +154,7 @@ describe('prepare_generation repository-path bootstrap compatibility', () => {
     } finally {
       await configureClient.close();
       await prepareClient.close();
-      await new Promise<void>((resolve, reject) => {
-        httpServer.close((error) => (error ? reject(error) : resolve()));
-      });
+      await new Promise<void>((resolve, reject) => httpServer.close((error) => (error ? reject(error) : resolve())));
     }
   });
 
@@ -178,9 +164,7 @@ describe('prepare_generation repository-path bootstrap compatibility', () => {
 
     const address = httpServer.address();
     expect(address && typeof address !== 'string').toBe(true);
-    if (!address || typeof address === 'string') {
-      throw new Error('Expected an ephemeral HTTP server address.');
-    }
+    if (!address || typeof address === 'string') throw new Error('Expected an ephemeral HTTP server address.');
 
     const endpoint = `http://127.0.0.1:${(address as AddressInfo).port}/mcp`;
     const staleResponse = await fetch(endpoint, {
@@ -204,10 +188,7 @@ describe('prepare_generation repository-path bootstrap compatibility', () => {
     });
 
     expect(staleResponse.status).toBe(404);
-    expect(await staleResponse.json()).toMatchObject({
-      jsonrpc: '2.0',
-      error: { code: -32001 },
-    });
+    expect(await staleResponse.json()).toMatchObject({ jsonrpc: '2.0', error: { code: -32001 } });
 
     const client = new Client({ name: 'fresh-session-test', version: '0.1.0' });
     const transport = new StreamableHTTPClientTransport(new URL(endpoint));
@@ -217,9 +198,7 @@ describe('prepare_generation repository-path bootstrap compatibility', () => {
       expect(sessions.size).toBe(1);
     } finally {
       await client.close();
-      await new Promise<void>((resolve, reject) => {
-        httpServer.close((error) => (error ? reject(error) : resolve()));
-      });
+      await new Promise<void>((resolve, reject) => httpServer.close((error) => (error ? reject(error) : resolve())));
     }
   });
 
@@ -227,8 +206,10 @@ describe('prepare_generation repository-path bootstrap compatibility', () => {
     const previousBottomOfThirstPath = process.env.BOTTOM_OF_THIRST_REPO_PATH;
     delete process.env.BOTTOM_OF_THIRST_REPO_PATH;
     try {
+      const personalOrbitRoot = path.join(fixtureRoot, 'personal-orbit-repository');
+      await mkdir(personalOrbitRoot, { recursive: true });
       const registry = createProjectRegistry();
-      await registry.configureProject('personal-orbit', fixtureRoot);
+      await registry.configureProject('personal-orbit', personalOrbitRoot);
 
       expect(() => registry.resolve('bottom-of-thirst')).toThrowError(
         expect.objectContaining({ code: 'PROJECT_CONFIG_MISSING' }),
@@ -260,9 +241,7 @@ describe('prepare_generation repository-path bootstrap compatibility', () => {
 
       expect(result.isError).toBe(true);
       const content = result.content as Array<{ type: string; text?: string }>;
-      expect(JSON.parse(content[0]?.text ?? '{}')).toMatchObject({
-        error: 'PROJECT_CONFIG_INVALID',
-      });
+      expect(JSON.parse(content[0]?.text ?? '{}')).toMatchObject({ error: 'PROJECT_CONFIG_INVALID' });
     } finally {
       await client.close();
       await server.close();
@@ -272,8 +251,33 @@ describe('prepare_generation repository-path bootstrap compatibility', () => {
 
 async function createFixture(root: string): Promise<void> {
   const files: Record<string, string> = {
-    'docs/visual/GLOBAL_VISUAL_STYLE.md': `# Global Style\n\n## Global Visual Style Lock\n\n\`\`\`text\nSTYLE LOCK\n\`\`\`\n\n## Fixed Avoid Block\n\n\`\`\`text\nAVOID: photorealism, anime\n\`\`\`\n\n## 既存キャラクター差分生成フロー\n\n### 変更してよいもの\n- small facial expression\n- gaze\n- hand position\n\n### 変更してはいけないもの\n- face identity\n`,
-    'docs/visual/CHARACTER_VISUAL_CANON.md': `# Canon\n\n## 共通ルール\n- Always use an approved anchor.\n\n## 相馬 健人\n\n### Approved Visual Anchor\n- \`public/images/characters/souma/v2/default.avif\`\n\n### 採用する視覚条件\n- 32歳の契約記者\n- 色褪せた濃紺のジャケット\n\n### Canonical state model\n- Use one default anchor.\n`,
+    '.visual-director/manifest.json': JSON.stringify({
+      version: 1,
+      project_id: 'bottom-of-thirst',
+      labels: {
+        allowedChangesHeading: '変更してよいもの',
+        forbiddenChangesHeading: '変更してはいけないもの',
+        commonRulesHeading: '共通ルール',
+        acceptedConditionsHeading: '採用する視覚条件',
+      },
+      subjects: {
+        souma: {
+          display_name: '相馬 健人',
+          character_file: 'docs/characters/soma.md',
+          canon_heading: '相馬 健人',
+        },
+        kamino_kyosuke: {
+          display_name: '神野 恭介',
+          character_file: 'docs/characters/kyosuke.md',
+          canon_heading: '神野 恭介',
+          aliases: ['神野恭介', '神野', '恭介'],
+          anchor_requirements_file: 'docs/visual/KYOSUKE_VISUAL_ANCHOR_V2_REQUIREMENTS.md',
+          required_new_anchor_terms: ['24歳', '動画配信者', 'ジンバル'],
+        },
+      },
+    }),
+    'docs/visual/GLOBAL_VISUAL_STYLE.md': `# Global Style\n\n## Global Visual Style Lock\n\n\`\`\`text\nSTYLE LOCK\n\`\`\`\n\n## Fixed Avoid Block\n\n\`\`\`text\nAVOID: photorealism, anime\n\`\`\`\n\n### 変更してよいもの\n- small facial expression\n- gaze\n- hand position\n\n### 変更してはいけないもの\n- face identity\n`,
+    'docs/visual/CHARACTER_VISUAL_CANON.md': `# Canon\n\n## 共通ルール\n- Always use an approved anchor.\n\n## 相馬 健人\n\n### Approved Visual Anchor\n- \`public/images/characters/souma/v2/default.avif\`\n\n### 採用する視覚条件\n- 32歳の契約記者\n- 色褪せた濃紺のジャケット\n\n### Canonical state model\n- Use one default anchor.\n\n## 神野 恭介\n\n### Canonical state model\n- pending anchor\n`,
     'docs/WORLD_DIRECTION.md': '# World\n\n- grounded and observational\n- ordinary light\n',
     'docs/characters/soma.md': '# Soma\n\n- contract reporter\n- careful with records\n',
     'docs/characters/kyosuke.md': '# Kyosuke\n\n- 24歳の動画配信者\n- ジンバルを使う\n',

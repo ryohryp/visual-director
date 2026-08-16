@@ -126,6 +126,23 @@ async function closeServer(server: ReturnType<typeof createHostedHttpServerForVi
 
 async function createFixture(root: string): Promise<void> {
   const files: Record<string, string> = {
+    '.visual-director/manifest.json': JSON.stringify({
+      version: 1,
+      project_id: 'bottom-of-thirst',
+      labels: {
+        allowedChangesHeading: '変更してよいもの',
+        forbiddenChangesHeading: '変更してはいけないもの',
+        commonRulesHeading: '共通ルール',
+        acceptedConditionsHeading: '採用する視覚条件',
+      },
+      subjects: {
+        souma: {
+          display_name: '相馬 健人',
+          character_file: 'docs/characters/soma.md',
+          canon_heading: '相馬 健人',
+        },
+      },
+    }),
     'docs/visual/GLOBAL_VISUAL_STYLE.md': `# Global Style\n\n## Global Visual Style Lock\n\n\`\`\`text\nSTYLE LOCK\n\`\`\`\n\n## Fixed Avoid Block\n\n\`\`\`text\nAVOID: photorealism, anime\n\`\`\`\n\n### 変更してよいもの\n- expression\n\n### 変更してはいけないもの\n- face identity\n`,
     'docs/visual/CHARACTER_VISUAL_CANON.md': `# Canon\n\n## 共通ルール\n- use approved anchors\n\n## 相馬 健人\n\n### Approved Visual Anchor\n- \`public/images/characters/souma/v2/default.avif\`\n\n### 採用する視覚条件\n- 32歳\n`,
     'docs/WORLD_DIRECTION.md': '# World\n\n- grounded\n',
