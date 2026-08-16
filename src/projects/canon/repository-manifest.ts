@@ -69,7 +69,13 @@ function parseSubjects(value: unknown, path: string): Record<string, ProjectSubj
       }
       aliases.set(key, id);
     }
-    result[id] = { id, displayName, characterFile, canonHeading, aliases: subjectAliases };
+    result[id] = {
+      id,
+      displayName,
+      characterFile,
+      canonHeading,
+      ...(subjectAliases.length > 0 ? { aliases: subjectAliases } : {}),
+    };
   }
   return result;
 }
