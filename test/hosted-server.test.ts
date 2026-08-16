@@ -3,8 +3,7 @@ import type { AddressInfo } from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
 
-import { Client } from '@modelcontextprotocol/sdk/client/index.js';
-import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
+import { Client, StreamableHTTPClientTransport } from '@modelcontextprotocol/client';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { createHostedHttpServerForVisualDirector } from '../src/mcp/hosted-server.js';
@@ -34,36 +33,96 @@ describe('hosted HTTP server', () => {
     }
   });
 
-  it('supports initialize and tool calls without an in-memory MCP session id', async () => {
-    const server = createHostedHttpServerForVisualDirector({ repoPath: fixtureRoot });
-    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
-    const address = server.address() as AddressInfo;
-    const transport = new StreamableHTTPClientTransport(new URL(`http://127.0.0.1:${address.port}/mcp`));
-    const client = new Client({ name: 'hosted-server-test', version: '0.1.0' });
-
+  it('serves legacy 2025-era clients without an in-memory MCP session id', async () => {
+    const { server, client, transport } = await connectClient({ mode: 'legacy' });
     try {
-      await client.connect(transport);
-      const result = await client.callTool({
+      expect(client.getProtocolEra()).toBe('legacy');
+      expect(transport.sessionId).toBeUndefined();
+      await expectPreparedPackage(client);
+    } finally {
+      await client.close().catch(() => undefined);
+      await closeServer(server);
+    }
+  });
+
+  it('serves a client pinned to protocol 2026-07-28', async () => {
+    const { server, client, transport } = await connectClient({ mode: { pin: '2026-07-28' } });
+    try {
+      expect(client.getProtocolEra()).toBe('modern');
+      expect(transport.sessionId).toBeUndefined();
+      await expectPreparedPackage(client);
+
+      const unknown = await client.callTool({
         name: 'visual.prepare_generation',
         arguments: {
           project_id: 'bottom-of-thirst',
           asset_type: 'character_visual_anchor',
-          subject_ids: ['souma'],
-          request_text: 'Prepare from the Approved Anchor.',
+          subject_ids: ['unknown-subject'],
+          request_text: 'Unknown subjects must fail closed.',
         },
       });
-      expect(transport.sessionId).toBeUndefined();
-      expect(result.isError).not.toBe(true);
-      expect(result.structuredContent).toMatchObject({
-        project_id: 'bottom-of-thirst',
-        policy: { must_use_approved_anchor: true },
-      });
+      expect(unknown.isError).toBe(true);
+      expect(unknown.content).toEqual(expect.arrayContaining([
+        expect.objectContaining({ type: 'text', text: expect.stringContaining('SUBJECT_NOT_FOUND') }),
+      ]));
     } finally {
       await client.close().catch(() => undefined);
-      await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+      await closeServer(server);
     }
   });
 });
+
+async function connectClient(versionNegotiation: ConstructorParameters<typeof Client>[1]['versionNegotiation']) {
+  const server = createHostedHttpServerForVisualDirector({ repoPath: fixtureRoot });
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const address = server.address() as AddressInfo;
+  const transport = new StreamableHTTPClientTransport(new URL(`http://127.0.0.1:${address.port}/mcp`));
+  const client = new Client(
+    { name: 'hosted-server-test', version: '0.1.0' },
+    { versionNegotiation },
+  );
+
+  try {
+    await client.connect(transport);
+    return { server, client, transport };
+  } catch (error) {
+    await client.close().catch(() => undefined);
+    await closeServer(server);
+    throw error;
+  }
+}
+
+async function expectPreparedPackage(client: Client): Promise<void> {
+  const result = await client.callTool({
+    name: 'visual.prepare_generation',
+    arguments: {
+      project_id: 'bottom-of-thirst',
+      asset_type: 'character_visual_anchor',
+      subject_ids: ['souma'],
+      request_text: 'Prepare from the Approved Anchor.',
+    },
+  });
+  expect(result.isError).not.toBe(true);
+  expect(result.structuredContent).toMatchObject({
+    project_id: 'bottom-of-thirst',
+    policy: { must_use_approved_anchor: true },
+    reference_assets: expect.arrayContaining([
+      {
+        role: 'global_reference',
+        path: 'docs/visual/assets/global_visual_style_reference.webp',
+      },
+      {
+        role: 'subject_anchor',
+        path: 'public/images/characters/souma/v2/default.avif',
+        subject_id: 'souma',
+      },
+    ]),
+  });
+}
+
+async function closeServer(server: ReturnType<typeof createHostedHttpServerForVisualDirector>): Promise<void> {
+  await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+}
 
 async function createFixture(root: string): Promise<void> {
   const files: Record<string, string> = {
