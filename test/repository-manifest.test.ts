@@ -14,6 +14,7 @@ describe('repository-native Canon manifest', () => {
           display_name: 'Hero',
           character_file: 'art/characters/hero.md',
           canon_heading: 'Hero',
+          aliases: ['protagonist', '主人公'],
         },
       },
     });
@@ -26,6 +27,7 @@ describe('repository-native Canon manifest', () => {
       displayName: 'Hero',
       characterFile: 'art/characters/hero.md',
       canonHeading: 'Hero',
+      aliases: ['protagonist', '主人公'],
     });
   });
 
@@ -40,5 +42,26 @@ describe('repository-native Canon manifest', () => {
       project_id: 'game-a',
       documents: { mystery: 'x.md' },
     })).toThrow('Unknown documents key: mystery.');
+  });
+
+  it('rejects ambiguous subject aliases after normalization', () => {
+    expect(() => parseRepositoryCanonManifest({
+      version: 1,
+      project_id: 'game-a',
+      subjects: {
+        hero: {
+          display_name: 'Hero',
+          character_file: 'hero.md',
+          canon_heading: 'Hero',
+          aliases: ['Main Character'],
+        },
+        rival: {
+          display_name: 'Rival',
+          character_file: 'rival.md',
+          canon_heading: 'Rival',
+          aliases: ['main-character'],
+        },
+      },
+    })).toThrow('Subject alias main-character is ambiguous between hero and rival.');
   });
 });
