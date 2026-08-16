@@ -9,6 +9,7 @@
     }
   },
   "routes": [
+    { "src": "^/diagnostics/?$", "dest": "/diagnostics/index.html" },
     { "src": "^/$", "dest": "/api/workspace?view=home" },
     { "src": "^/projects/([^/]+)/?$", "dest": "/api/workspace?view=project" },
     { "src": "^/projects/([^/]+)/anchors/?$", "dest": "/api/workspace?view=collection" },

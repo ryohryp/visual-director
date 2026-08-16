@@ -6,12 +6,24 @@ describe('static diagnostic hosting', () => {
     const raw = await readFile(new URL('../vercel.json', import.meta.url), 'utf8');
     const config = JSON.parse(raw) as {
       git?: { deploymentEnabled?: Record<string, boolean> };
+      routes?: Array<{ src?: string; dest?: string }>;
     };
 
     expect(config.git?.deploymentEnabled).toEqual({
       '*': false,
       main: true,
     });
+    expect(config.routes).toContainEqual({
+      src: '^/diagnostics/?$',
+      dest: '/diagnostics/index.html',
+    });
+  });
+
+  it('bundles diagnostics into the production build', async () => {
+    const raw = await readFile(new URL('../package.json', import.meta.url), 'utf8');
+    const packageJson = JSON.parse(raw) as { scripts?: Record<string, string> };
+
+    expect(packageJson.scripts?.build).toContain('scripts/build-diagnostics.mjs');
   });
 
   it('documents the repository-native path and optional MCP boundary', async () => {
