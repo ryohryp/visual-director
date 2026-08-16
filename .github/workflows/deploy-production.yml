@@ -1,0 +1,67 @@
+name: Deploy Production
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-deploy
+  cancel-in-progress: false
+
+env:
+  VERCEL_ORG_ID: team_DVFM365SzDMxINnnp2gvKmVK
+  VERCEL_PROJECT_ID: prj_n4V9TIgACzHhy1t0pn4e06P7H9n5
+  PRODUCTION_URL: https://visual-director-beta.vercel.app
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v5
+        with:
+          ref: main
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify before deploy
+        run: npm run check && npm run build
+
+      - name: Pull Vercel production configuration
+        run: npx --yes vercel@latest pull --yes --environment=production --token="${{ secrets.VERCEL_TOKEN }}"
+
+      - name: Build for Vercel
+        run: npx --yes vercel@latest build --prod --token="${{ secrets.VERCEL_TOKEN }}"
+
+      - name: Deploy to Vercel Production
+        id: deploy
+        shell: bash
+        run: |
+          url="$(npx --yes vercel@latest deploy --prebuilt --prod --token="${{ secrets.VERCEL_TOKEN }}")"
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+          echo "Production deployment: $url"
+
+      - name: Verify Hosted MCP
+        env:
+          VISUAL_DIRECTOR_MCP_URL: ${{ env.PRODUCTION_URL }}/mcp
+        run: npm run verify:hosted
+
+      - name: Deployment summary
+        run: |
+          echo "### Visual Director Production" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Main commit: \`${GITHUB_SHA}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Deployment: ${{ steps.deploy.outputs.url }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Production: ${{ env.PRODUCTION_URL }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Hosted MCP verification: passed" >> "$GITHUB_STEP_SUMMARY"
