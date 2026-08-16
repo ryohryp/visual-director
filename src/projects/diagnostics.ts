@@ -1,15 +1,8 @@
-import { section, subsection } from '../domain/markdown.js';
 import { WORKFLOW_INDEX_PATH } from '../domain/visual-overview.js';
 import { VisualDirectorError } from '../domain/types.js';
 import type { ProjectVisualOverview } from '../domain/types.js';
-import {
-  approvedAnchorPaths,
-  bottomOfThirstCanonSubject,
-  configuredSubjects,
-} from './bottom-of-thirst/adapter.js';
 import type { ProjectCatalogEntry } from './catalog.js';
 import { loadRepositoryCanonDefinition } from './canon/repository-manifest.js';
-import { DEFAULT_PROJECT_DOCUMENTS } from './canon/types.js';
 import type { ProjectDocuments } from './canon/types.js';
 import type { RepositorySource } from './repository-source.js';
 
@@ -54,7 +47,7 @@ export async function diagnoseProjectRepository(
       message: 'Repository is accessible.',
     });
 
-    const documents = await diagnosticDocuments(entry, source);
+    const documents = await diagnosticDocuments(source);
     const requiredFiles = [
       ['global_style', 'Global Visual Style', documents.globalStyle],
       ['character_canon', 'Character Visual Canon', documents.characterCanon],
@@ -72,15 +65,7 @@ export async function diagnoseProjectRepository(
 
     if (items.some((item) => item.blocking)) return finalize(entry.project_id, items);
 
-    if (entry.adapter_type === 'bottom-of-thirst') {
-      await diagnoseBottomOfThirstAnchors(source, items);
-    } else {
-      await diagnoseOverviewReferences(loadOverview, items);
-    }
-
-    if (!items.some((item) => item.key === 'approved_anchors')) {
-      await diagnoseOverviewReferences(loadOverview, items);
-    }
+    await diagnoseOverviewReferences(loadOverview, items);
 
     const overview = await safeOverview(loadOverview);
     items.push(overview?.visual_direction.grand_design
@@ -159,49 +144,8 @@ export async function diagnoseProjectRepository(
   return finalize(entry.project_id, items);
 }
 
-async function diagnosticDocuments(entry: ProjectCatalogEntry, source: RepositorySource): Promise<ProjectDocuments> {
-  if (entry.adapter_type === 'bottom-of-thirst') return DEFAULT_PROJECT_DOCUMENTS;
+async function diagnosticDocuments(source: RepositorySource): Promise<ProjectDocuments> {
   return (await loadRepositoryCanonDefinition(source)).documents;
-}
-
-async function diagnoseBottomOfThirstAnchors(source: RepositorySource, items: ProjectDiagnosticItem[]): Promise<void> {
-  const canon = await source.readText(DEFAULT_PROJECT_DOCUMENTS.characterCanon, 'Character Visual Canon');
-  let definitions = 0;
-  for (const subjectId of configuredSubjects()) {
-    const configured = bottomOfThirstCanonSubject(subjectId);
-    if (!configured) continue;
-    const anchorSection = subsection(section(canon, configured.canonHeading), 'Approved Visual Anchor');
-    const paths = approvedAnchorPaths(anchorSection);
-    const primary = paths[0];
-    if (!primary) {
-      items.push({
-        key: `approved_anchor:${subjectId}`,
-        label: `Approved Anchor: ${configured.canonHeading}`,
-        state: 'required_missing',
-        blocking: true,
-        message: `Approved Anchor is not defined for ${subjectId}.`,
-      });
-      continue;
-    }
-    definitions += 1;
-    await source.ensureFile(primary, `Approved Anchor for ${subjectId}`);
-    const fallback = paths[1];
-    if (fallback && !(await source.fileExists(fallback))) {
-      throw new VisualDirectorError('APPROVED_ANCHOR_INCOMPLETE', `Same-generation fallback is missing for ${subjectId}.`, {
-        subject_id: subjectId,
-        path: fallback,
-      });
-    }
-  }
-  if (!items.some((item) => item.key.startsWith('approved_anchor:') && item.blocking)) {
-    items.push({
-      key: 'approved_anchors',
-      label: 'Approved Anchors',
-      state: 'ready',
-      blocking: false,
-      message: `${definitions} Approved Anchor definitions and referenced files are valid.`,
-    });
-  }
 }
 
 async function diagnoseOverviewReferences(
