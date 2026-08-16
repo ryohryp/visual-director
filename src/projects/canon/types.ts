@@ -14,6 +14,8 @@ export interface ProjectSubjectDefinition {
   characterFile: string;
   canonHeading: string;
   aliases?: string[];
+  anchorRequirementsFile?: string;
+  requiredNewAnchorTerms?: string[];
 }
 
 export interface ProjectLabels {
