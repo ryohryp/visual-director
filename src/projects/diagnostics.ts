@@ -43,6 +43,15 @@ export async function diagnoseProjectRepository(
   const items: ProjectDiagnosticItem[] = [];
 
   try {
+    await source.checkAccess();
+    items.push({
+      key: 'repository_access',
+      label: 'Repository access',
+      state: 'ready',
+      blocking: false,
+      message: 'Repository is accessible.',
+    });
+
     const requiredFiles = [
       ['global_style', 'Global Visual Style', DEFAULT_PROJECT_DOCUMENTS.globalStyle],
       ['character_canon', 'Character Visual Canon', DEFAULT_PROJECT_DOCUMENTS.characterCanon],
@@ -109,7 +118,7 @@ export async function diagnoseProjectRepository(
           path: WORKFLOW_INDEX_PATH,
         });
   } catch (error) {
-    if (error instanceof VisualDirectorError && error.code === 'GITHUB_REPOSITORY_UNAVAILABLE') {
+    if (error instanceof VisualDirectorError && (error.code === 'GITHUB_REPOSITORY_UNAVAILABLE' || error.code === 'REPOSITORY_UNAVAILABLE')) {
       items.push({
         key: 'repository_access',
         label: 'Repository access',
