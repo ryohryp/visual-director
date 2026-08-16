@@ -67,7 +67,8 @@ export function createVisualDirectorCore(
       } catch (error) {
         if (!(error instanceof VisualDirectorError)
           || (error.code !== 'PROJECT_CONFIG_MISSING' && error.code !== 'PROJECT_NOT_FOUND')) throw error;
-        return catalogAdapterForProject(input.project_id, options).prepare(input);
+        const adapter = await catalogAdapterForProject(input.project_id, options);
+        return adapter.prepare(input);
       }
     },
 
@@ -112,7 +113,8 @@ export function createVisualDirectorCore(
       } catch (error) {
         if (!(error instanceof VisualDirectorError)
           || (error.code !== 'PROJECT_CONFIG_MISSING' && error.code !== 'PROJECT_NOT_FOUND')) throw error;
-        return catalogAdapterForProject(input.project_id, options).getVisualOverview();
+        const adapter = await catalogAdapterForProject(input.project_id, options);
+        return adapter.getVisualOverview();
       }
     },
 
@@ -164,7 +166,7 @@ export function createVisualDirectorCore(
   };
 }
 
-function catalogAdapterForProject(projectId: string, options: VisualDirectorCoreOptions) {
+async function catalogAdapterForProject(projectId: string, options: VisualDirectorCoreOptions) {
   const entry = resolveRuntimeProjectCatalog(options).resolve(projectId);
   const source = createCatalogRepositorySource(entry, options);
   return createCatalogProjectAdapter(entry, source);
@@ -183,7 +185,8 @@ async function loadCatalogOverview(
   entry: ProjectCatalogEntry,
   options: VisualDirectorCoreOptions,
 ): Promise<ProjectVisualOverview> {
-  return createCatalogProjectAdapter(entry, catalogRepositorySource(entry, options)).getVisualOverview();
+  const adapter = await createCatalogProjectAdapter(entry, catalogRepositorySource(entry, options));
+  return adapter.getVisualOverview();
 }
 
 function catalogRepositorySource(entry: ProjectCatalogEntry, options: VisualDirectorCoreOptions): RepositorySource {
