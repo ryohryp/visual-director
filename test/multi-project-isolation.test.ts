@@ -119,6 +119,13 @@ describe('v0.4 multi-project isolation', () => {
 function repositoryResponse(url: string): Response {
   if (!url.includes('/contents/')) return new Response('{}', { status: 200 });
   const repo = url.includes('/repo-a/') ? 'a' : url.includes('/repo-b/') ? 'b' : 'unknown';
+  if (url.includes('.visual-director/manifest.json')) {
+    return fileResponse(JSON.stringify({
+      version: 1,
+      project_id: `game-${repo}`,
+      subjects: {},
+    }));
+  }
   if (url.includes('.visual-director/asset-index.json')) {
     return fileResponse(JSON.stringify({
       jobs: [{
