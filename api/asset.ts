@@ -1,6 +1,7 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 
-const DEFAULT_REPOSITORY = 'ryohryp/---The-Bottom-of-Thirst';
+import { VisualDirectorError } from '../src/domain/types.js';
+import { resolveCatalogEntry } from '../src/projects/catalog-runtime.js';
 
 export default async function handler(req: IncomingMessage, res: ServerResponse): Promise<void> {
   if (req.method !== 'GET') {
@@ -11,11 +12,25 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
   }
 
   const url = new URL(req.url ?? '/api/asset', 'https://visual-director.local');
-  const projectId = url.searchParams.get('project_id')?.trim() || 'bottom-of-thirst';
+  const projectId = url.searchParams.get('project_id')?.trim() ?? '';
   const assetPath = url.searchParams.get('path')?.trim() ?? '';
-  if (projectId !== 'bottom-of-thirst' || !isSafePath(assetPath)) {
+  if (!projectId || !isSafePath(assetPath)) {
     res.statusCode = 400;
     res.end('Invalid asset request.');
+    return;
+  }
+
+  let entry;
+  try {
+    entry = resolveCatalogEntry(projectId);
+  } catch (error) {
+    if (error instanceof VisualDirectorError && error.code === 'PROJECT_NOT_FOUND') {
+      res.statusCode = 404;
+      res.end('Unknown project.');
+      return;
+    }
+    res.statusCode = 500;
+    res.end('Project Catalog could not be resolved.');
     return;
   }
 
@@ -26,19 +41,10 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
     return;
   }
 
-  const repository = process.env.VISUAL_DIRECTOR_BOTTOM_OF_THIRST_GITHUB_REPO?.trim() || DEFAULT_REPOSITORY;
-  const slash = repository.indexOf('/');
-  if (slash <= 0 || slash === repository.length - 1) {
-    res.statusCode = 500;
-    res.end('Hosted repository configuration is invalid.');
-    return;
-  }
-  const owner = repository.slice(0, slash);
-  const repo = repository.slice(slash + 1);
-  const ref = process.env.VISUAL_DIRECTOR_BOTTOM_OF_THIRST_GITHUB_REF?.trim() || 'main';
+  const { owner, name: repo } = entry.repository;
   const encodedPath = assetPath.split('/').map(encodeURIComponent).join('/');
   const response = await fetch(
-    `https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/contents/${encodedPath}?ref=${encodeURIComponent(ref)}`,
+    `https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/contents/${encodedPath}?ref=${encodeURIComponent(entry.ref)}`,
     {
       headers: {
         accept: 'application/vnd.github+json',

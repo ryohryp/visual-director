@@ -12,10 +12,10 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
   }
 
   const url = new URL(req.url ?? '/api/anchor-detail', 'https://visual-director.local');
-  const projectId = url.searchParams.get('project_id')?.trim() || 'bottom-of-thirst';
+  const projectId = url.searchParams.get('project_id')?.trim() ?? '';
   const subjectId = url.searchParams.get('subject_id')?.trim() || '';
-  if (!subjectId) {
-    writeJson(res, 400, { error: { code: 'INVALID_INPUT', message: 'subject_id is required.' } });
+  if (!projectId || !subjectId) {
+    writeJson(res, 400, { error: { code: 'INVALID_INPUT', message: 'project_id and subject_id are required.' } });
     return;
   }
 
@@ -55,7 +55,7 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
     });
   } catch (error) {
     if (error instanceof VisualDirectorError) {
-      writeJson(res, 422, { error: { code: error.code, message: error.message, details: error.details } });
+      writeJson(res, error.code === 'PROJECT_NOT_FOUND' ? 404 : 422, { error: { code: error.code, message: error.message, details: error.details } });
       return;
     }
     writeJson(res, 500, { error: { code: 'INTERNAL_ERROR', message: 'Anchor detail could not be loaded.' } });

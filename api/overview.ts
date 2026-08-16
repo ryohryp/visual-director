@@ -12,13 +12,17 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
   }
 
   const url = new URL(req.url ?? '/api/overview', 'https://visual-director.local');
-  const projectId = url.searchParams.get('project_id')?.trim() || 'bottom-of-thirst';
+  const projectId = url.searchParams.get('project_id')?.trim() ?? '';
+  if (!projectId) {
+    writeJson(res, 400, { error: { code: 'INVALID_INPUT', message: 'project_id is required.' } });
+    return;
+  }
   try {
     const overview = await createVisualDirectorCore().getProjectVisualOverview({ project_id: projectId });
     writeJson(res, 200, overview);
   } catch (error) {
     if (error instanceof VisualDirectorError) {
-      writeJson(res, 422, { error: { code: error.code, message: error.message, details: error.details } });
+      writeJson(res, error.code === 'PROJECT_NOT_FOUND' ? 404 : 422, { error: { code: error.code, message: error.message, details: error.details } });
       return;
     }
     writeJson(res, 500, { error: { code: 'INTERNAL_ERROR', message: 'Visual overview could not be loaded.' } });

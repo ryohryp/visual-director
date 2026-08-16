@@ -28,12 +28,23 @@ describe('v0.4 project-scoped routing', () => {
     expect(routes.get('^/api/projects/([^/]+)/anchor-detail/?$')).toBe('/api/anchor-detail?project_id=$1');
   });
 
-  it('does not embed a Bottom of Thirst fallback in canonical project pages', async () => {
-    for (const file of ['src/web/home.ts', 'src/web/project-pages.ts']) {
+  it('does not embed a Bottom of Thirst fallback in canonical project pages or APIs', async () => {
+    for (const file of [
+      'src/web/home.ts',
+      'src/web/project-pages.ts',
+      'api/overview.ts',
+      'api/asset.ts',
+      'api/anchor-detail.ts',
+    ]) {
       const source = await readFile(file, 'utf8');
       expect(source).not.toContain("||'bottom-of-thirst'");
+      expect(source).not.toContain("|| 'bottom-of-thirst'");
       expect(source).not.toContain('|| "bottom-of-thirst"');
     }
+
+    const assetApi = await readFile('api/asset.ts', 'utf8');
+    expect(assetApi).not.toContain('VISUAL_DIRECTOR_BOTTOM_OF_THIRST_GITHUB_REPO');
+    expect(assetApi).not.toContain('VISUAL_DIRECTOR_BOTTOM_OF_THIRST_GITHUB_REF');
   });
 
   it('keeps project identity visible in canonical navigation and API requests', async () => {
