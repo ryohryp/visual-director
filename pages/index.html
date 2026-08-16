@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark light">
+  <title>Visual Director Diagnostics</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <main class="shell">
+    <header class="hero">
+      <p class="eyebrow">Visual Director</p>
+      <h1>Repository-first diagnostics</h1>
+      <p class="lede">A static, read-only view of the Plus-first architecture. Image generation does not depend on this site, Vercel, or the optional MCP runtime.</p>
+      <div class="meta" aria-label="Build metadata">
+        <span>revision <code>__BUILD_REVISION__</code></span>
+        <span>built <code>__BUILD_TIME__</code></span>
+      </div>
+    </header>
+
+    <section class="status-grid" aria-label="Architecture status">
+      <article class="card good">
+        <p class="label">Generation path</p>
+        <h2>Repository native</h2>
+        <p>ChatGPT Plus reads the game repository and its compiled Canon directly through the GitHub integration.</p>
+      </article>
+      <article class="card good">
+        <p class="label">Source of truth</p>
+        <h2>Game repository</h2>
+        <p>Visual Canon and Approved Visual Anchors stay authoritative. The compiled Canon is a deterministic derivative, not a second source of truth.</p>
+      </article>
+      <article class="card optional">
+        <p class="label">Hosted MCP</p>
+        <h2>Optional runtime</h2>
+        <p><code>/mcp</code> and <code>/health</code> require a Node runtime. They are intentionally outside the critical image-generation path.</p>
+      </article>
+    </section>
+
+    <section class="panel">
+      <div>
+        <p class="label">Standard flow</p>
+        <h2>Plus-first generation</h2>
+      </div>
+      <ol class="flow">
+        <li><strong>Game repository</strong><span>Visual Canon, Approved Anchors, global references</span></li>
+        <li><strong><code>.visual-director/compiled-canon.json</code></strong><span>Deterministic, repository-stored generation contract</span></li>
+        <li><strong>ChatGPT + GitHub</strong><span>Resolve project, subject, references, policy, and request-time scene requirements</span></li>
+        <li><strong>Image generation</strong><span>Generate only after required references and fail-closed policy checks succeed</span></li>
+        <li><strong>Human review</strong><span>Generated output remains subject to explicit review and adoption</span></li>
+      </ol>
+    </section>
+
+    <section class="panel two-column">
+      <div>
+        <p class="label">Compiled Canon checks</p>
+        <h2>Before generation</h2>
+        <ul class="checklist">
+          <li><code>project_id</code> matches the requested project</li>
+          <li><code>asset_type</code> is supported by the compiled rules</li>
+          <li>requested <code>subject_ids</code> resolve when required</li>
+          <li>Approved Anchor path exists for locked subjects</li>
+          <li>global reference path resolves when required</li>
+          <li><code>policy.must_use_approved_anchor</code> is enforced</li>
+          <li>forbidden changes are rejected rather than silently relaxed</li>
+        </ul>
+      </div>
+      <div>
+        <p class="label">Failure taxonomy</p>
+        <h2>Keep failures separate</h2>
+        <dl class="taxonomy">
+          <div><dt>Canon failure</dt><dd>Missing or invalid required visual source-of-truth data. Generation must fail closed.</dd></div>
+          <div><dt>Repository failure</dt><dd>GitHub access, file resolution, or repository state prevents validation. Do not treat as Canon success.</dd></div>
+          <div><dt>MCP failure</dt><dd>Transport, session, or hosted runtime failure. Repository-native generation may continue when its own checks succeed.</dd></div>
+        </dl>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div>
+        <p class="label">Hosting boundary</p>
+        <h2>What GitHub Pages does — and does not do</h2>
+      </div>
+      <div class="boundary-grid">
+        <article><h3>GitHub Pages</h3><p>Static diagnostics, architecture documentation, compiled-Canon rules, and troubleshooting guidance.</p></article>
+        <article><h3>Vercel / Node runtime</h3><p>Optional hosted <code>/health</code> and <code>/mcp</code> endpoints. Not required for repository-native image generation.</p></article>
+        <article><h3>Game repository</h3><p>The authoritative home for project Canon, anchors, references, and compiled Canon output.</p></article>
+      </div>
+    </section>
+
+    <footer>
+      <p>This page is intentionally static and read-only. Runtime status is not inferred from site availability.</p>
+    </footer>
+  </main>
+</body>
+</html>
