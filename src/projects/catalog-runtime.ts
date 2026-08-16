@@ -1,6 +1,5 @@
 import { VisualDirectorError } from '../domain/types.js';
 import type { ProjectAdapter } from '../domain/types.js';
-import { BottomOfThirstVisualAdapter } from './bottom-of-thirst/visual-adapter.js';
 import { loadProjectCatalog } from './catalog.js';
 import type { ProjectCatalog, ProjectCatalogEntry } from './catalog.js';
 import { CanonProjectAdapter } from './canon/adapter.js';
@@ -61,7 +60,6 @@ export function createCatalogRepositorySource(
 }
 
 export async function createCatalogProjectAdapter(entry: ProjectCatalogEntry, source: RepositorySource): Promise<ProjectAdapter> {
-  if (entry.adapter_type === 'bottom-of-thirst') return new BottomOfThirstVisualAdapter({ source });
   const definition = await loadRepositoryCanonDefinition(source);
   if (definition.projectId !== entry.project_id) {
     throw new VisualDirectorError('PROJECT_MANIFEST_INVALID', 'Project manifest project_id does not match catalog project_id.', {
