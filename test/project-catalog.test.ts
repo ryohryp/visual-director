@@ -33,7 +33,7 @@ describe('Project Catalog', () => {
         display_name: 'The Bottom of Thirst',
         repository: { owner: 'ryohryp', name: '---The-Bottom-of-Thirst' },
         ref: 'main',
-        adapter_type: 'bottom-of-thirst',
+        adapter_type: 'generic',
       }),
       expect.objectContaining({
         project_id: 'crownless',
