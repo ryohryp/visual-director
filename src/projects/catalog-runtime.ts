@@ -4,6 +4,7 @@ import { BottomOfThirstVisualAdapter } from './bottom-of-thirst/visual-adapter.j
 import { loadProjectCatalog } from './catalog.js';
 import type { ProjectCatalog, ProjectCatalogEntry } from './catalog.js';
 import { CanonProjectAdapter, DEFAULT_PROJECT_DOCUMENTS, DEFAULT_PROJECT_LABELS } from './canon/adapter.js';
+import { crownlessDefinition } from './crownless/definition.js';
 import { GitHubRepositorySource } from './repository-source.js';
 import type { RepositorySource } from './repository-source.js';
 
@@ -56,6 +57,9 @@ export function createCatalogRepositorySource(
 
 export function createCatalogProjectAdapter(entry: ProjectCatalogEntry, source: RepositorySource): ProjectAdapter {
   if (entry.adapter_type === 'bottom-of-thirst') return new BottomOfThirstVisualAdapter({ source });
+  if (entry.project_id === crownlessDefinition.projectId) {
+    return new CanonProjectAdapter(crownlessDefinition, { source });
+  }
   return new CanonProjectAdapter({
     projectId: entry.project_id,
     documents: { ...DEFAULT_PROJECT_DOCUMENTS },

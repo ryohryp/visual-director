@@ -21,8 +21,12 @@ describe('default Project Catalog selection', () => {
           project_id: 'bottom-of-thirst',
           repository: 'ryohryp/---The-Bottom-of-Thirst',
         }),
+        expect.objectContaining({
+          project_id: 'crownless',
+          repository: 'ryohryp/crownless',
+        }),
       ]);
-      expect(seen).toEqual(['bottom-of-thirst']);
+      expect(seen).toEqual(['bottom-of-thirst', 'crownless']);
     } finally {
       if (previous === undefined) delete process.env.VISUAL_DIRECTOR_PROJECT_CATALOG;
       else process.env.VISUAL_DIRECTOR_PROJECT_CATALOG = previous;
