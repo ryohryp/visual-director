@@ -13,6 +13,31 @@ const entry: ProjectCatalogEntry = {
 };
 
 const files = new Map<string, string>([
+  ['.visual-director/manifest.json', JSON.stringify({
+    version: 1,
+    project_id: 'crownless',
+    documents: {
+      globalStyle: 'docs/visual/GLOBAL_VISUAL_STYLE.md',
+      characterCanon: 'docs/visual/CHARACTER_VISUAL_CANON.md',
+      worldDirection: 'docs/visual/WORLD_DIRECTION.md',
+      assetManifest: 'docs/assets/README.md',
+      globalReference: 'docs/assets/crownless-visual-design-reference-v0.1.jpg',
+    },
+    labels: {
+      avoidBlockHeading: 'Fixed Avoid Block',
+      allowedChangesHeading: 'Allowed Changes',
+      forbiddenChangesHeading: 'Forbidden Changes',
+      commonRulesHeading: 'Common rules',
+      acceptedConditionsHeading: 'Accepted visual conditions',
+    },
+    subjects: {
+      'player-unarmed': {
+        display_name: '素手の主人公',
+        character_file: 'docs/visual/CHARACTER_VISUAL_CANON.md',
+        canon_heading: '素手の主人公',
+      },
+    },
+  })],
   ['docs/visual/GLOBAL_VISUAL_STYLE.md', `# Crownless Global Visual Style
 
 ## Global Visual Style Lock
@@ -65,13 +90,13 @@ const source: RepositorySource = {
     return contents;
   },
   async ensureFile() {},
-  async fileExists() {
-    return false;
+  async fileExists(relativePath) {
+    return files.has(relativePath);
   },
 };
 
 describe('Crownless catalog adapter', () => {
-  it('prepares the approved unarmed protagonist anchor from Crownless Canon', async () => {
+  it('prepares the approved unarmed protagonist anchor from repository-owned Crownless Canon', async () => {
     const adapter = await createCatalogProjectAdapter(entry, source);
 
     const generationPackage = await adapter.prepare({

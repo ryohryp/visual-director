@@ -8,10 +8,10 @@ import {
   configuredSubjects,
 } from './bottom-of-thirst/adapter.js';
 import type { ProjectCatalogEntry } from './catalog.js';
-import type { RepositorySource } from './repository-source.js';
+import { loadRepositoryCanonDefinition } from './canon/repository-manifest.js';
 import { DEFAULT_PROJECT_DOCUMENTS } from './canon/types.js';
 import type { ProjectDocuments } from './canon/types.js';
-import { crownlessDefinition } from './crownless/definition.js';
+import type { RepositorySource } from './repository-source.js';
 
 export type ProjectDiagnosticState =
   | 'ready'
@@ -54,7 +54,7 @@ export async function diagnoseProjectRepository(
       message: 'Repository is accessible.',
     });
 
-    const documents = diagnosticDocuments(entry);
+    const documents = await diagnosticDocuments(entry, source);
     const requiredFiles = [
       ['global_style', 'Global Visual Style', documents.globalStyle],
       ['character_canon', 'Character Visual Canon', documents.characterCanon],
@@ -159,9 +159,9 @@ export async function diagnoseProjectRepository(
   return finalize(entry.project_id, items);
 }
 
-function diagnosticDocuments(entry: ProjectCatalogEntry): ProjectDocuments {
-  if (entry.project_id === crownlessDefinition.projectId) return crownlessDefinition.documents;
-  return DEFAULT_PROJECT_DOCUMENTS;
+async function diagnosticDocuments(entry: ProjectCatalogEntry, source: RepositorySource): Promise<ProjectDocuments> {
+  if (entry.adapter_type === 'bottom-of-thirst') return DEFAULT_PROJECT_DOCUMENTS;
+  return (await loadRepositoryCanonDefinition(source)).documents;
 }
 
 async function diagnoseBottomOfThirstAnchors(source: RepositorySource, items: ProjectDiagnosticItem[]): Promise<void> {

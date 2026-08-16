@@ -6,7 +6,8 @@ import { createVisualDirectorCore } from './core/visual-director.js';
 import { VisualDirectorError } from './domain/types.js';
 import type { GenerationPackage, ProjectAdapter, ProjectVisualOverview } from './domain/types.js';
 import { CanonProjectAdapter } from './projects/canon/adapter.js';
-import { crownlessDefinition } from './projects/crownless/definition.js';
+import { DEFAULT_CANON_MANIFEST_PATH, loadRepositoryCanonDefinition } from './projects/canon/repository-manifest.js';
+import { LocalRepositorySource } from './projects/repository-source.js';
 
 export const COMPILED_CANON_RELATIVE_PATH = '.visual-director/compiled-canon.json';
 
@@ -127,8 +128,16 @@ export async function compileRepositoryCanon(input: CompileRepositoryCanonInput)
 }
 
 async function createLocalCompileRuntime(projectId: string, repositoryPath: string): Promise<LocalCompileRuntime> {
-  if (projectId === crownlessDefinition.projectId) {
-    const adapter = new CanonProjectAdapter(crownlessDefinition, { repoPath: repositoryPath });
+  const source = new LocalRepositorySource(repositoryPath);
+  if (await source.fileExists(DEFAULT_CANON_MANIFEST_PATH)) {
+    const definition = await loadRepositoryCanonDefinition(source);
+    if (definition.projectId !== projectId) {
+      throw new VisualDirectorError('PROJECT_MANIFEST_INVALID', 'Project manifest project_id does not match requested project_id.', {
+        requested_project_id: projectId,
+        manifest_project_id: definition.projectId,
+      });
+    }
+    const adapter = new CanonProjectAdapter(definition, { source });
     return runtimeFromAdapter(adapter, projectId);
   }
 

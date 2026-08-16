@@ -50,6 +50,17 @@ describe('compiled Canon', () => {
       .rejects.toMatchObject({ code: 'COMPILED_CANON_STALE' });
   });
 
+  it('rejects a repository manifest for another project', async () => {
+    const repositoryPath = await crownlessRepository();
+    const manifestPath = path.join(repositoryPath, '.visual-director/manifest.json');
+    const manifest = JSON.parse(await readFile(manifestPath, 'utf8')) as Record<string, unknown>;
+    manifest.project_id = 'other-game';
+    await writeFile(manifestPath, JSON.stringify(manifest), 'utf8');
+
+    await expect(compileRepositoryCanon({ projectId: 'crownless', repositoryPath }))
+      .rejects.toMatchObject({ code: 'PROJECT_MANIFEST_INVALID' });
+  });
+
   it('rejects compiled Canon output paths that escape the repository', async () => {
     const repositoryPath = await crownlessRepository();
 
@@ -61,8 +72,34 @@ describe('compiled Canon', () => {
 async function crownlessRepository(): Promise<string> {
   const repositoryPath = await mkdtemp(path.join(os.tmpdir(), 'visual-director-compiled-canon-'));
   repositories.push(repositoryPath);
+  await mkdir(path.join(repositoryPath, '.visual-director'), { recursive: true });
   await mkdir(path.join(repositoryPath, 'docs/visual'), { recursive: true });
   await mkdir(path.join(repositoryPath, 'docs/assets'), { recursive: true });
+  await writeFile(path.join(repositoryPath, '.visual-director/manifest.json'), JSON.stringify({
+    version: 1,
+    project_id: 'crownless',
+    documents: {
+      globalStyle: 'docs/visual/GLOBAL_VISUAL_STYLE.md',
+      characterCanon: 'docs/visual/CHARACTER_VISUAL_CANON.md',
+      worldDirection: 'docs/visual/WORLD_DIRECTION.md',
+      assetManifest: 'docs/assets/README.md',
+      globalReference: 'docs/assets/crownless-visual-design-reference-v0.1.jpg',
+    },
+    labels: {
+      avoidBlockHeading: 'Fixed Avoid Block',
+      allowedChangesHeading: 'Allowed Changes',
+      forbiddenChangesHeading: 'Forbidden Changes',
+      commonRulesHeading: 'Common rules',
+      acceptedConditionsHeading: 'Accepted visual conditions',
+    },
+    subjects: {
+      'player-unarmed': {
+        display_name: '素手の主人公',
+        character_file: 'docs/visual/CHARACTER_VISUAL_CANON.md',
+        canon_heading: '素手の主人公',
+      },
+    },
+  }), 'utf8');
   await writeFile(path.join(repositoryPath, 'docs/visual/GLOBAL_VISUAL_STYLE.md'), `# Crownless Global Visual Style
 
 ## Global Visual Style Lock

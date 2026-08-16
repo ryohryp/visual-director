@@ -6,7 +6,8 @@ import { afterEach, describe, expect, it } from 'vitest';
 
 import { compileRepositoryCanon, COMPILED_CANON_RELATIVE_PATH } from '../src/compiled-canon.js';
 import { CanonProjectAdapter } from '../src/projects/canon/adapter.js';
-import { crownlessDefinition } from '../src/projects/crownless/definition.js';
+import { loadRepositoryCanonDefinition } from '../src/projects/canon/repository-manifest.js';
+import { LocalRepositorySource } from '../src/projects/repository-source.js';
 
 const repositories: string[] = [];
 
@@ -48,7 +49,9 @@ describe('Crownless Plus-first acceptance flow', () => {
   ])('keeps repository-native %s preparation policy-equivalent to Core Canon resolution', async (_label, sceneContext) => {
     const repositoryPath = await crownlessRepository();
     const compiled = await compileRepositoryCanon({ projectId: 'crownless', repositoryPath });
-    const adapter = new CanonProjectAdapter(crownlessDefinition, { repoPath: repositoryPath });
+    const source = new LocalRepositorySource(repositoryPath);
+    const definition = await loadRepositoryCanonDefinition(source);
+    const adapter = new CanonProjectAdapter(definition, { source });
     const generationPackage = await adapter.prepare({
       project_id: 'crownless',
       asset_type: 'character_visual_anchor',
@@ -92,6 +95,31 @@ async function crownlessRepository(): Promise<string> {
   repositories.push(repositoryPath);
 
   const files: Record<string, string> = {
+    '.visual-director/manifest.json': JSON.stringify({
+      version: 1,
+      project_id: 'crownless',
+      documents: {
+        globalStyle: 'docs/visual/GLOBAL_VISUAL_STYLE.md',
+        characterCanon: 'docs/visual/CHARACTER_VISUAL_CANON.md',
+        worldDirection: 'docs/visual/WORLD_DIRECTION.md',
+        assetManifest: 'docs/assets/README.md',
+        globalReference: 'docs/assets/crownless-visual-design-reference-v0.1.jpg',
+      },
+      labels: {
+        avoidBlockHeading: 'Fixed Avoid Block',
+        allowedChangesHeading: 'Allowed Changes',
+        forbiddenChangesHeading: 'Forbidden Changes',
+        commonRulesHeading: 'Common rules',
+        acceptedConditionsHeading: 'Accepted visual conditions',
+      },
+      subjects: {
+        'player-unarmed': {
+          display_name: '素手の主人公',
+          character_file: 'docs/visual/CHARACTER_VISUAL_CANON.md',
+          canon_heading: '素手の主人公',
+        },
+      },
+    }),
     'docs/visual/GLOBAL_VISUAL_STYLE.md': `# Crownless Global Visual Style
 
 ## Global Visual Style Lock
