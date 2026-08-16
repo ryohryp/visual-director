@@ -7,6 +7,7 @@ import type {
   GenerateImageResult,
   GenerationPackage,
   PrepareGenerationInput,
+  ProjectAdapter,
   ProjectVisualOverview,
   ProjectVisualOverviewInput,
   RegisterCandidateInput,
@@ -59,7 +60,7 @@ export function createVisualDirectorCore(
     async prepareGeneration(input: PrepareGenerationInput): Promise<GenerationPackage> {
       const repositoryPath = repositoryPathFromSceneContext(input);
       if (repositoryPath) {
-        const adapter = await localRepositoryAdapter(input.project_id, repositoryPath);
+        const adapter = await requestScopedRepositoryAdapter(input.project_id, repositoryPath, options);
         return adapter.prepare(stripRepositoryPath(input));
       }
 
@@ -75,7 +76,7 @@ export function createVisualDirectorCore(
 
     async generateImage(input: GenerateImageInput): Promise<GenerateImageResult> {
       if (isHostedReadOnlyMode()) throw hostedWorkflowWriteDisabled(input.project_id);
-      const adapter = await localRepositoryAdapter(input.project_id, input.repository_path);
+      const adapter = await requestScopedRepositoryAdapter(input.project_id, input.repository_path, options);
       const generationPackage = await adapter.prepare({
         project_id: input.project_id,
         asset_type: input.asset_type,
@@ -100,7 +101,7 @@ export function createVisualDirectorCore(
         );
       }
       if (repositoryPath) {
-        return (await localRepositoryAdapter(input.project_id, repositoryPath)).getVisualOverview();
+        return (await requestScopedRepositoryAdapter(input.project_id, repositoryPath, options)).getVisualOverview();
       }
 
       try {
@@ -161,16 +162,30 @@ export function createVisualDirectorCore(
   };
 }
 
-async function localRepositoryAdapter(projectId: string, repositoryPath: string): Promise<CanonProjectAdapter> {
+async function requestScopedRepositoryAdapter(
+  projectId: string,
+  repositoryPath: string,
+  options: VisualDirectorCoreOptions,
+): Promise<ProjectAdapter> {
   const source = new LocalRepositorySource(repositoryPath);
-  const definition = await loadRepositoryCanonDefinition(source);
-  if (definition.projectId !== projectId.trim()) {
-    throw new VisualDirectorError('PROJECT_MANIFEST_INVALID', 'Project manifest project_id does not match requested project_id.', {
-      requested_project_id: projectId,
-      manifest_project_id: definition.projectId,
-    });
+  try {
+    const definition = await loadRepositoryCanonDefinition(source);
+    if (definition.projectId !== projectId.trim()) {
+      throw new VisualDirectorError('PROJECT_MANIFEST_INVALID', 'Project manifest project_id does not match requested project_id.', {
+        requested_project_id: projectId,
+        manifest_project_id: definition.projectId,
+      });
+    }
+    return new CanonProjectAdapter(definition, { source });
+  } catch (error) {
+    if (!(error instanceof VisualDirectorError)
+      || error.code !== 'CANON_READ_FAILED'
+      || error.details?.path !== '.visual-director/manifest.json') throw error;
+
+    const compatibilityRegistry = createProjectRegistry(options);
+    await compatibilityRegistry.configureProject(projectId, repositoryPath);
+    return compatibilityRegistry.resolve(projectId);
   }
-  return new CanonProjectAdapter(definition, { source });
 }
 
 async function catalogAdapterForProject(projectId: string, options: VisualDirectorCoreOptions) {
