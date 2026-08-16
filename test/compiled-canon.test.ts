@@ -5,7 +5,6 @@ import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { compileRepositoryCanon, COMPILED_CANON_RELATIVE_PATH } from '../src/compiled-canon.js';
-import { VisualDirectorError } from '../src/domain/types.js';
 
 const repositories: string[] = [];
 
@@ -48,7 +47,14 @@ describe('compiled Canon', () => {
     );
 
     await expect(compileRepositoryCanon({ projectId: 'crownless', repositoryPath, check: true }))
-      .rejects.toMatchObject<Partial<VisualDirectorError>>({ code: 'COMPILED_CANON_STALE' });
+      .rejects.toMatchObject({ code: 'COMPILED_CANON_STALE' });
+  });
+
+  it('rejects compiled Canon output paths that escape the repository', async () => {
+    const repositoryPath = await crownlessRepository();
+
+    await expect(compileRepositoryCanon({ projectId: 'crownless', repositoryPath, outputPath: '../compiled-canon.json' }))
+      .rejects.toMatchObject({ code: 'COMPILED_CANON_OUTPUT_INVALID' });
   });
 });
 
