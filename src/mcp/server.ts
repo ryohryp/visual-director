@@ -1,9 +1,9 @@
 import { randomUUID } from 'node:crypto';
 import { createServer as createHttpServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
-import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
+import { NodeStreamableHTTPServerTransport } from '@modelcontextprotocol/node';
+import { McpServer } from '@modelcontextprotocol/server';
+import { StdioServerTransport } from '@modelcontextprotocol/server/stdio';
 import { z } from 'zod';
 
 import { createVisualDirectorCore } from '../core/visual-director.js';
@@ -41,15 +41,15 @@ export function createVisualDirectorServer(
         idempotentHint: true,
         openWorldHint: false,
       },
-      inputSchema: {
+      inputSchema: z.object({
         project_id: z.string().min(1),
         repository_path: z.string().min(1),
-      },
-      outputSchema: {
+      }),
+      outputSchema: z.object({
         project_id: z.string(),
         repository_path: z.string(),
         persistence: z.literal('runtime'),
-      },
+      }),
     },
     async (input) => {
       try {
@@ -76,7 +76,7 @@ export function createVisualDirectorServer(
         idempotentHint: true,
         openWorldHint: false,
       },
-      inputSchema: {
+      inputSchema: z.object({
         project_id: z.string().min(1),
         subject_id: z.string().min(1),
         candidate_file: z.object({
@@ -87,11 +87,11 @@ export function createVisualDirectorServer(
         }).optional(),
         candidate_path: z.string().min(1).optional(),
         approval: z.literal('approve'),
-      },
+      }),
       _meta: {
         'openai/fileParams': ['candidate_file'],
       },
-      outputSchema: {
+      outputSchema: z.object({
         project_id: z.string(),
         subject_id: z.string(),
         status: z.literal('approved'),
@@ -103,7 +103,7 @@ export function createVisualDirectorServer(
         mime_type: z.string(),
         width: z.number().int().positive(),
         height: z.number().int().positive(),
-      },
+      }),
     },
     async (input) => {
       try {
@@ -130,14 +130,14 @@ export function createVisualDirectorServer(
         idempotentHint: true,
         openWorldHint: false,
       },
-      inputSchema: {
+      inputSchema: z.object({
         project_id: z.string().min(1),
         asset_type: z.string().min(1),
         subject_ids: z.array(z.string().min(1)).min(1),
         request_text: z.string().min(1),
         scene_context: z.record(z.string(), z.unknown()).optional(),
-      },
-      outputSchema: {
+      }),
+      outputSchema: z.object({
         project_id: z.string(),
         asset_type: z.string(),
         prompt_package: z.object({
@@ -160,7 +160,7 @@ export function createVisualDirectorServer(
           must_not_chain_from_candidate: z.literal(true),
           must_review_after_generation: z.literal(true),
         }),
-      },
+      }),
     },
     async (input) => {
       try {
@@ -232,7 +232,7 @@ export async function runStdio(options: VisualDirectorServerOptions = {}): Promi
 
 interface HttpSession {
   server: McpServer;
-  transport: StreamableHTTPServerTransport;
+  transport: NodeStreamableHTTPServerTransport;
 }
 
 export function createHttpServerForVisualDirector(
@@ -257,7 +257,6 @@ async function handleHttpRequest(
 ): Promise<void> {
   let newlyCreatedSession: HttpSession | undefined;
   let connected = false;
-
   try {
     if (req.url !== '/mcp') {
       writeJson(res, 404, { error: 'not_found' });
@@ -285,7 +284,7 @@ async function handleHttpRequest(
 
     if (!session) {
       const server = createVisualDirectorServer(options, registry);
-      const transport = new StreamableHTTPServerTransport({
+      const transport = new NodeStreamableHTTPServerTransport({
         sessionIdGenerator: () => randomUUID(),
         enableJsonResponse: true,
         onsessioninitialized: (initializedSessionId) => {

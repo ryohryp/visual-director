@@ -1,15 +1,15 @@
 import { createServer as createHttpServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 
-import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
+import { toNodeHandler } from '@modelcontextprotocol/node';
+import { createMcpHandler } from '@modelcontextprotocol/server';
 
 import { createVisualDirectorServer } from './server.js';
 import type { VisualDirectorServerOptions } from './server.js';
 
 /**
- * Hosted deployments must not depend on an in-memory MCP session map. A fresh
- * McpServer + stateless transport is created for each HTTP request, matching
- * the MCP SDK's stateless Streamable HTTP deployment model for load-balanced
- * and serverless runtimes.
+ * Hosted deployments use the v2 request-scoped MCP handler. The handler serves
+ * protocol 2026-07-28 and, through its default stateless legacy fallback, the
+ * 2025-era protocol revisions without retaining an in-memory session map.
  */
 export function createHostedHttpServerForVisualDirector(options: VisualDirectorServerOptions = {}): Server {
   return createHttpServer((req, res) => {
@@ -40,7 +40,7 @@ async function handleHostedHttpRequest(
   await handleHostedMcpRequest(req, res, options);
 }
 
-/** Vercel Function-compatible stateless MCP request handler. */
+/** Vercel Function-compatible request-scoped MCP handler for both protocol eras. */
 export async function handleHostedMcpRequest(
   req: IncomingMessage,
   res: ServerResponse,
@@ -54,36 +54,24 @@ export async function handleHostedMcpRequest(
     res.end(JSON.stringify({
       jsonrpc: '2.0',
       id: null,
-      error: { code: -32000, message: 'Hosted Visual Director uses stateless POST-only Streamable HTTP.' },
+      error: { code: -32000, message: 'Hosted Visual Director uses stateless POST-only MCP over HTTP.' },
     }));
     return;
   }
 
-  const server = createVisualDirectorServer(options);
-  const transport = new StreamableHTTPServerTransport({
-    sessionIdGenerator: undefined,
-    enableJsonResponse: true,
+  const handler = createMcpHandler(() => createVisualDirectorServer(options));
+  const nodeHandler = toNodeHandler(handler, {
+    onerror: (error) => {
+      process.stderr.write(`[visual-director] hosted MCP transport error: ${error.message}\n`);
+    },
   });
-  transport.onerror = (error) => {
-    process.stderr.write(`[visual-director] hosted MCP transport error: ${error.message}\n`);
-  };
-
-  let closed = false;
-  const close = async () => {
-    if (closed) return;
-    closed = true;
-    await transport.close().catch(() => undefined);
-    await server.close().catch(() => undefined);
-  };
-  res.once('close', () => { void close(); });
 
   try {
-    await server.connect(transport);
-    await transport.handleRequest(req, res);
+    await nodeHandler(req, res);
   } catch (error) {
     writeHostedError(res, error);
   } finally {
-    if (res.writableEnded) await close();
+    await handler.close().catch(() => undefined);
   }
 }
 
