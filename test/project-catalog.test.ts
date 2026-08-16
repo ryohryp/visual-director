@@ -24,10 +24,10 @@ const rawCatalog = {
 };
 
 describe('Project Catalog', () => {
-  it('ships a repository default catalog for the hosted workspace', () => {
+  it('ships the required repository defaults for the hosted workspace', () => {
     const catalog = loadProjectCatalog('projects.catalog.json');
 
-    expect(catalog.list()).toEqual([
+    expect(catalog.list()).toEqual(expect.arrayContaining([
       expect.objectContaining({
         project_id: 'bottom-of-thirst',
         display_name: 'The Bottom of Thirst',
@@ -35,7 +35,14 @@ describe('Project Catalog', () => {
         ref: 'main',
         adapter_type: 'bottom-of-thirst',
       }),
-    ]);
+      expect.objectContaining({
+        project_id: 'crownless',
+        display_name: 'Crownless',
+        repository: { owner: 'ryohryp', name: 'crownless' },
+        ref: 'main',
+        adapter_type: 'generic',
+      }),
+    ]));
   });
 
   it('loads two projects and resolves each id to exactly one repository/ref/adapter', () => {
