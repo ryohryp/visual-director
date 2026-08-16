@@ -14,7 +14,6 @@ import type {
 } from '../domain/types.js';
 import type { ImageGenerator } from '../generators/types.js';
 import { OpenAIImageGenerator } from '../generators/openai-image-generator.js';
-import { BottomOfThirstVisualAdapter } from '../projects/bottom-of-thirst/visual-adapter.js';
 import { summarizeProject, summarizeUnavailableProject } from '../projects/catalog.js';
 import type { ProjectCatalog, ProjectCatalogEntry, ProjectSummary } from '../projects/catalog.js';
 import {
@@ -22,10 +21,13 @@ import {
   createCatalogRepositorySource,
   resolveProjectCatalog as resolveRuntimeProjectCatalog,
 } from '../projects/catalog-runtime.js';
+import { CanonProjectAdapter } from '../projects/canon/adapter.js';
+import { loadRepositoryCanonDefinition } from '../projects/canon/repository-manifest.js';
 import { diagnoseProjectRepository } from '../projects/diagnostics.js';
 import type { ProjectDiagnostics } from '../projects/diagnostics.js';
 import { createProjectRegistry } from '../projects/registry.js';
 import type { ProjectConfiguration, ProjectRegistry, ProjectRegistryOptions } from '../projects/registry.js';
+import { LocalRepositorySource } from '../projects/repository-source.js';
 import type { RepositorySource } from '../projects/repository-source.js';
 import { registerCandidate, reviewCandidate } from '../projects/workflow-store.js';
 import { runImageGeneration } from './image-generation-service.js';
@@ -57,9 +59,8 @@ export function createVisualDirectorCore(
     async prepareGeneration(input: PrepareGenerationInput): Promise<GenerationPackage> {
       const repositoryPath = repositoryPathFromSceneContext(input);
       if (repositoryPath) {
-        const requestRegistry = createProjectRegistry(options);
-        await requestRegistry.configureProject(input.project_id, repositoryPath);
-        return requestRegistry.resolve(input.project_id).prepare(stripRepositoryPath(input));
+        const adapter = await localRepositoryAdapter(input.project_id, repositoryPath);
+        return adapter.prepare(stripRepositoryPath(input));
       }
 
       try {
@@ -74,9 +75,8 @@ export function createVisualDirectorCore(
 
     async generateImage(input: GenerateImageInput): Promise<GenerateImageResult> {
       if (isHostedReadOnlyMode()) throw hostedWorkflowWriteDisabled(input.project_id);
-      const requestRegistry = createProjectRegistry(options);
-      await requestRegistry.configureProject(input.project_id, input.repository_path);
-      const generationPackage = await requestRegistry.resolve(input.project_id).prepare({
+      const adapter = await localRepositoryAdapter(input.project_id, input.repository_path);
+      const generationPackage = await adapter.prepare({
         project_id: input.project_id,
         asset_type: input.asset_type,
         subject_ids: [...input.subject_ids],
@@ -100,12 +100,7 @@ export function createVisualDirectorCore(
         );
       }
       if (repositoryPath) {
-        if (input.project_id === 'bottom-of-thirst') {
-          return new BottomOfThirstVisualAdapter({ repoPath: repositoryPath }).getVisualOverview();
-        }
-        const requestRegistry = createProjectRegistry(options);
-        await requestRegistry.configureProject(input.project_id, repositoryPath);
-        return requestRegistry.resolve(input.project_id).getVisualOverview();
+        return (await localRepositoryAdapter(input.project_id, repositoryPath)).getVisualOverview();
       }
 
       try {
@@ -164,6 +159,18 @@ export function createVisualDirectorCore(
       return registry.adoptAnchor(input);
     },
   };
+}
+
+async function localRepositoryAdapter(projectId: string, repositoryPath: string): Promise<CanonProjectAdapter> {
+  const source = new LocalRepositorySource(repositoryPath);
+  const definition = await loadRepositoryCanonDefinition(source);
+  if (definition.projectId !== projectId.trim()) {
+    throw new VisualDirectorError('PROJECT_MANIFEST_INVALID', 'Project manifest project_id does not match requested project_id.', {
+      requested_project_id: projectId,
+      manifest_project_id: definition.projectId,
+    });
+  }
+  return new CanonProjectAdapter(definition, { source });
 }
 
 async function catalogAdapterForProject(projectId: string, options: VisualDirectorCoreOptions) {
