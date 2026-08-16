@@ -1,3 +1,5 @@
+import { z } from 'zod';
+
 import { VisualDirectorError } from '../../domain/types.js';
 import type { RepositorySource } from '../repository-source.js';
 import { DEFAULT_PROJECT_DOCUMENTS, DEFAULT_PROJECT_LABELS } from './types.js';
@@ -6,13 +8,25 @@ import type { CanonProjectDefinition, ProjectDocuments, ProjectLabels, ProjectSu
 export const DEFAULT_CANON_MANIFEST_PATH = '.visual-director/manifest.json';
 export const SUPPORTED_CANON_MANIFEST_VERSION = 1;
 
-interface RawManifest {
-  version?: unknown;
-  project_id?: unknown;
-  documents?: unknown;
-  labels?: unknown;
-  subjects?: unknown;
-}
+const nonEmptyString = z.string().trim().min(1);
+const stringArray = z.array(nonEmptyString).optional().default([]);
+
+const subjectSchema = z.strictObject({
+  display_name: nonEmptyString,
+  character_file: nonEmptyString,
+  canon_heading: nonEmptyString,
+  aliases: stringArray,
+  anchor_requirements_file: nonEmptyString.optional(),
+  required_new_anchor_terms: stringArray,
+});
+
+const manifestShapeSchema = z.strictObject({
+  version: z.unknown().optional(),
+  project_id: z.unknown().optional(),
+  documents: z.record(z.string(), z.unknown()).optional(),
+  labels: z.record(z.string(), z.unknown()).optional(),
+  subjects: z.record(z.string(), z.unknown()).optional(),
+});
 
 export async function loadRepositoryCanonDefinition(
   source: RepositorySource,
@@ -32,52 +46,58 @@ export async function loadRepositoryCanonDefinition(
 }
 
 export function parseRepositoryCanonManifest(input: unknown, path = DEFAULT_CANON_MANIFEST_PATH): CanonProjectDefinition {
-  if (!isRecord(input)) throw invalid(path, 'Manifest must be an object.');
-  const manifest = input as RawManifest;
+  const shape = manifestShapeSchema.safeParse(input);
+  if (!shape.success) throw invalid(path, 'Manifest must be an object with only supported top-level keys.');
+  const manifest = shape.data;
   if (manifest.version !== SUPPORTED_CANON_MANIFEST_VERSION) {
     throw new VisualDirectorError('PROJECT_MANIFEST_VERSION_UNSUPPORTED', `Unsupported Visual Director manifest version: ${String(manifest.version)}.`, {
       path,
       supported_version: SUPPORTED_CANON_MANIFEST_VERSION,
     });
   }
-  if (typeof manifest.project_id !== 'string' || !manifest.project_id.trim()) throw invalid(path, 'project_id is required.');
+  const projectId = parseRequiredString(manifest.project_id, path, 'project_id', 'project_id is required.');
 
   return {
-    projectId: manifest.project_id.trim(),
+    projectId,
     documents: parseDocuments(manifest.documents, path),
-    labels: mergeStringRecord(DEFAULT_PROJECT_LABELS, manifest.labels, path, 'labels'),
+    labels: parseLabels(manifest.labels, path),
     subjects: parseSubjects(manifest.subjects, path),
   };
 }
 
-function parseDocuments(value: unknown, path: string): ProjectDocuments {
+function parseDocuments(value: Record<string, unknown> | undefined, path: string): ProjectDocuments {
   if (value === undefined) return { ...DEFAULT_PROJECT_DOCUMENTS };
-  if (!isRecord(value)) throw invalid(path, 'documents must be an object.');
   const allowedKeys = new Set([...Object.keys(DEFAULT_PROJECT_DOCUMENTS), 'grandDesign']);
   for (const key of Object.keys(value)) {
     if (!allowedKeys.has(key)) throw invalid(path, `Unknown documents key: ${key}.`);
   }
   const overrides = Object.fromEntries(
-    Object.entries(value).map(([key, item]) => [key, requiredString(item, path, `documents.${key}`)]),
+    Object.entries(value).map(([key, item]) => [key, parseRequiredString(item, path, `documents.${key}`)]),
   );
   return { ...DEFAULT_PROJECT_DOCUMENTS, ...overrides };
 }
 
-function parseSubjects(value: unknown, path: string): Record<string, ProjectSubjectDefinition> {
+function parseLabels(value: Record<string, unknown> | undefined, path: string): ProjectLabels {
+  if (value === undefined) return { ...DEFAULT_PROJECT_LABELS };
+  const overrides = Object.fromEntries(
+    Object.entries(value).map(([key, item]) => {
+      if (!(key in DEFAULT_PROJECT_LABELS)) throw invalid(path, `Unknown labels key: ${key}.`);
+      return [key, parseRequiredString(item, path, `labels.${key}`)];
+    }),
+  );
+  return { ...DEFAULT_PROJECT_LABELS, ...overrides };
+}
+
+function parseSubjects(value: Record<string, unknown> | undefined, path: string): Record<string, ProjectSubjectDefinition> {
   if (value === undefined) return {};
-  if (!isRecord(value)) throw invalid(path, 'subjects must be an object.');
   const result: Record<string, ProjectSubjectDefinition> = {};
   const aliases = new Map<string, string>();
   for (const [id, subject] of Object.entries(value)) {
-    if (!isRecord(subject)) throw invalid(path, `subjects.${id} must be an object.`);
-    const displayName = requiredString(subject.display_name, path, `subjects.${id}.display_name`);
-    const characterFile = requiredString(subject.character_file, path, `subjects.${id}.character_file`);
-    const canonHeading = requiredString(subject.canon_heading, path, `subjects.${id}.canon_heading`);
-    const subjectAliases = parseStringArray(subject.aliases, path, `subjects.${id}.aliases`);
-    const requiredNewAnchorTerms = parseStringArray(subject.required_new_anchor_terms, path, `subjects.${id}.required_new_anchor_terms`);
-    const anchorRequirementsFile = subject.anchor_requirements_file === undefined
-      ? undefined
-      : requiredString(subject.anchor_requirements_file, path, `subjects.${id}.anchor_requirements_file`);
+    const parsed = subjectSchema.safeParse(subject);
+    if (!parsed.success) throw invalid(path, subjectIssueMessage(id, parsed.error));
+    const { display_name: displayName, character_file: characterFile, canon_heading: canonHeading } = parsed.data;
+    const subjectAliases = [...new Set(parsed.data.aliases)];
+    const requiredNewAnchorTerms = [...new Set(parsed.data.required_new_anchor_terms)];
     for (const alias of [id, displayName, ...subjectAliases]) {
       const key = normalizeAlias(alias);
       const existing = aliases.get(key);
@@ -92,44 +112,31 @@ function parseSubjects(value: unknown, path: string): Record<string, ProjectSubj
       characterFile,
       canonHeading,
       ...(subjectAliases.length > 0 ? { aliases: subjectAliases } : {}),
-      ...(anchorRequirementsFile ? { anchorRequirementsFile } : {}),
+      ...(parsed.data.anchor_requirements_file ? { anchorRequirementsFile: parsed.data.anchor_requirements_file } : {}),
       ...(requiredNewAnchorTerms.length > 0 ? { requiredNewAnchorTerms } : {}),
     };
   }
   return result;
 }
 
-function parseStringArray(value: unknown, path: string, field: string): string[] {
-  if (value === undefined) return [];
-  if (!Array.isArray(value)) throw invalid(path, `${field} must be an array.`);
-  return [...new Set(value.map((item, index) => requiredString(item, path, `${field}[${index}]`)))];
+function subjectIssueMessage(id: string, error: z.ZodError): string {
+  const issue = error.issues[0];
+  if (!issue) return `subjects.${id} is invalid.`;
+  if (issue.code === 'unrecognized_keys') return `Unknown subjects.${id} key: ${issue.keys[0]}.`;
+  const field = issue.path.length > 0 ? `subjects.${id}.${issue.path.join('.')}` : `subjects.${id}`;
+  return `${field} must be ${issue.code === 'invalid_type' && issue.expected === 'array' ? 'an array' : 'a non-empty string'}.`;
+}
+
+function parseRequiredString(value: unknown, path: string, field: string, message?: string): string {
+  const parsed = nonEmptyString.safeParse(value);
+  if (!parsed.success) throw invalid(path, message ?? `${field} must be a non-empty string.`);
+  return parsed.data;
 }
 
 function normalizeAlias(value: string): string {
   return value.normalize('NFKC').trim().toLocaleLowerCase('en-US').replace(/[\s_-]+/g, '');
 }
 
-function mergeStringRecord<T extends ProjectLabels>(defaults: T, value: unknown, path: string, field: string): T {
-  if (value === undefined) return { ...defaults };
-  if (!isRecord(value)) throw invalid(path, `${field} must be an object.`);
-  const overrides = Object.fromEntries(
-    Object.entries(value).map(([key, item]) => {
-      if (!(key in defaults)) throw invalid(path, `Unknown ${field} key: ${key}.`);
-      return [key, requiredString(item, path, `${field}.${key}`)];
-    }),
-  );
-  return { ...defaults, ...overrides };
-}
-
-function requiredString(value: unknown, path: string, field: string): string {
-  if (typeof value !== 'string' || !value.trim()) throw invalid(path, `${field} must be a non-empty string.`);
-  return value.trim();
-}
-
 function invalid(path: string, message: string): VisualDirectorError {
   return new VisualDirectorError('PROJECT_MANIFEST_INVALID', message, { path });
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
