@@ -83,7 +83,7 @@ describe('Crownless Plus-first acceptance flow', () => {
     await rm(path.join(repositoryPath, 'docs/assets/player-unarmed-approved-anchor-v0.2.webp'));
 
     await expect(compileRepositoryCanon({ projectId: 'crownless', repositoryPath }))
-      .rejects.toMatchObject({ code: 'REFERENCE_ASSET_MISSING' });
+      .rejects.toMatchObject({ code: 'REFERENCE_NOT_FOUND' });
   });
 });
 
