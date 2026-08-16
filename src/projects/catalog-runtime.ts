@@ -5,6 +5,7 @@ import { loadProjectCatalog } from './catalog.js';
 import type { ProjectCatalog, ProjectCatalogEntry } from './catalog.js';
 import { CanonProjectAdapter, DEFAULT_PROJECT_DOCUMENTS, DEFAULT_PROJECT_LABELS } from './canon/adapter.js';
 import { crownlessDefinition } from './crownless/definition.js';
+import { createRegisteredLocalRepositorySource } from './project-registry.js';
 import { GitHubRepositorySource } from './repository-source.js';
 import type { RepositorySource } from './repository-source.js';
 
@@ -14,6 +15,7 @@ export interface CatalogRuntimeOptions {
   projectCatalog?: ProjectCatalog;
   projectCatalogPath?: string;
   fetchImpl?: typeof fetch;
+  repositoryMode?: 'github' | 'local';
 }
 
 export interface CatalogProjectRuntime {
@@ -40,6 +42,9 @@ export function createCatalogRepositorySource(
   entry: ProjectCatalogEntry,
   options: CatalogRuntimeOptions = {},
 ): RepositorySource {
+  const mode = options.repositoryMode ?? (process.env.VISUAL_DIRECTOR_REPOSITORY_MODE === 'local' ? 'local' : 'github');
+  if (mode === 'local') return createRegisteredLocalRepositorySource(entry.project_id);
+
   const token = process.env.VISUAL_DIRECTOR_GITHUB_TOKEN?.trim();
   if (!token) {
     throw new VisualDirectorError('PROJECT_CONFIG_MISSING', 'VISUAL_DIRECTOR_GITHUB_TOKEN is required to read catalog repositories.', {
