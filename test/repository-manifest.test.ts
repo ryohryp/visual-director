@@ -15,6 +15,8 @@ describe('repository-native Canon manifest', () => {
           character_file: 'art/characters/hero.md',
           canon_heading: 'Hero',
           aliases: ['protagonist', '主人公'],
+          anchor_requirements_file: 'art/characters/HERO_ANCHOR.md',
+          required_new_anchor_terms: ['24歳', '配信者'],
         },
       },
     });
@@ -28,6 +30,8 @@ describe('repository-native Canon manifest', () => {
       characterFile: 'art/characters/hero.md',
       canonHeading: 'Hero',
       aliases: ['protagonist', '主人公'],
+      anchorRequirementsFile: 'art/characters/HERO_ANCHOR.md',
+      requiredNewAnchorTerms: ['24歳', '配信者'],
     });
   });
 
