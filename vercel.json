@@ -2,6 +2,12 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": null,
   "outputDirectory": "dist",
+  "git": {
+    "deploymentEnabled": {
+      "*": false,
+      "main": true
+    }
+  },
   "routes": [
     { "src": "^/$", "dest": "/api/workspace?view=home" },
     { "src": "^/projects/([^/]+)/?$", "dest": "/api/workspace?view=project" },
