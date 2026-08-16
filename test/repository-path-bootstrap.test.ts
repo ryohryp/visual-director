@@ -206,8 +206,10 @@ describe('prepare_generation repository-path bootstrap compatibility', () => {
     const previousBottomOfThirstPath = process.env.BOTTOM_OF_THIRST_REPO_PATH;
     delete process.env.BOTTOM_OF_THIRST_REPO_PATH;
     try {
+      const personalOrbitRoot = path.join(fixtureRoot, 'personal-orbit-repository');
+      await mkdir(personalOrbitRoot, { recursive: true });
       const registry = createProjectRegistry();
-      await registry.configureProject('personal-orbit', fixtureRoot);
+      await registry.configureProject('personal-orbit', personalOrbitRoot);
 
       expect(() => registry.resolve('bottom-of-thirst')).toThrowError(
         expect.objectContaining({ code: 'PROJECT_CONFIG_MISSING' }),
