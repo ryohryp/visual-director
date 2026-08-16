@@ -72,7 +72,7 @@ const source: RepositorySource = {
 
 describe('Crownless catalog adapter', () => {
   it('prepares the approved unarmed protagonist anchor from Crownless Canon', async () => {
-    const adapter = createCatalogProjectAdapter(entry, source);
+    const adapter = await createCatalogProjectAdapter(entry, source);
 
     const generationPackage = await adapter.prepare({
       project_id: 'crownless',
