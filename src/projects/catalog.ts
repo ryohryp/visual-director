@@ -51,6 +51,13 @@ const DEFAULT_PROJECT_CATALOG = {
       ref: 'main',
       adapter_type: 'bottom-of-thirst',
     },
+    {
+      project_id: 'crownless',
+      display_name: 'Crownless',
+      repository: 'ryohryp/crownless',
+      ref: 'main',
+      adapter_type: 'generic',
+    },
   ],
 };
 
