@@ -9,6 +9,7 @@
     { "src": "^/diagnostics/?$", "dest": "/diagnostics/index.html" },
     { "src": "^/$", "dest": "/api/workspace?view=home" },
     { "src": "^/projects/([^/]+)/?$", "dest": "/api/workspace?view=project" },
+    { "src": "^/projects/([^/]+)/canon/?$", "dest": "/api/workspace?view=canon" },
     { "src": "^/projects/([^/]+)/anchors/?$", "dest": "/api/workspace?view=collection" },
     { "src": "^/projects/([^/]+)/anchors/([^/]+)/?$", "dest": "/api/workspace?view=anchor" },
     { "src": "^/projects/([^/]+)/assets/?$", "dest": "/api/workspace?view=collection" },
