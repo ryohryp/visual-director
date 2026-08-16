@@ -17,6 +17,11 @@ describe('bundled default Project Catalog', () => {
         ref: 'main',
         adapter_type: 'bottom-of-thirst',
       });
+      expect(loadProjectCatalog('projects.catalog.json').resolve('crownless')).toMatchObject({
+        repository: { owner: 'ryohryp', name: 'crownless' },
+        ref: 'main',
+        adapter_type: 'generic',
+      });
     } finally {
       process.chdir(previous);
       await rm(directory, { recursive: true, force: true });
