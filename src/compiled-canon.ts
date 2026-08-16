@@ -50,6 +50,7 @@ interface LocalCompileRuntime {
 
 export async function compileRepositoryCanon(input: CompileRepositoryCanonInput): Promise<CompiledCanon> {
   const repositoryPath = path.resolve(input.repositoryPath);
+  const outputPath = resolveCompiledCanonOutputPath(repositoryPath, input.outputPath);
   const runtime = await createLocalCompileRuntime(input.projectId, repositoryPath);
   if (runtime.overview.approved_anchors.length === 0) {
     throw new VisualDirectorError(
@@ -101,7 +102,6 @@ export async function compileRepositoryCanon(input: CompileRepositoryCanonInput)
     ...semanticPayload,
   };
 
-  const outputPath = path.resolve(repositoryPath, input.outputPath ?? COMPILED_CANON_RELATIVE_PATH);
   const serialized = `${stableJson(compiled)}\n`;
   if (input.check) {
     let current: string;
@@ -156,6 +156,21 @@ async function runtimeFromAdapter(adapter: ProjectAdapter, projectId: string): P
       request_text: 'Compile repository Canon.',
     }),
   };
+}
+
+function resolveCompiledCanonOutputPath(repositoryPath: string, outputPath?: string): string {
+  const relativePath = (outputPath ?? COMPILED_CANON_RELATIVE_PATH).trim().replace(/\\/g, '/');
+  if (!relativePath
+    || path.isAbsolute(relativePath)
+    || /^[a-zA-Z]:/.test(relativePath)
+    || relativePath.split('/').includes('..')) {
+    throw new VisualDirectorError(
+      'COMPILED_CANON_OUTPUT_INVALID',
+      'Compiled Canon output path must be repository-relative and stay inside the repository.',
+      { output_path: outputPath ?? COMPILED_CANON_RELATIVE_PATH },
+    );
+  }
+  return path.resolve(repositoryPath, relativePath.replace(/^\.\//, ''));
 }
 
 function stableJson(value: unknown): string {
