@@ -44,10 +44,23 @@ export function parseRepositoryCanonManifest(input: unknown, path = DEFAULT_CANO
 
   return {
     projectId: manifest.project_id.trim(),
-    documents: mergeStringRecord(DEFAULT_PROJECT_DOCUMENTS, manifest.documents, path, 'documents'),
+    documents: parseDocuments(manifest.documents, path),
     labels: mergeStringRecord(DEFAULT_PROJECT_LABELS, manifest.labels, path, 'labels'),
     subjects: parseSubjects(manifest.subjects, path),
   };
+}
+
+function parseDocuments(value: unknown, path: string): ProjectDocuments {
+  if (value === undefined) return { ...DEFAULT_PROJECT_DOCUMENTS };
+  if (!isRecord(value)) throw invalid(path, 'documents must be an object.');
+  const allowedKeys = new Set([...Object.keys(DEFAULT_PROJECT_DOCUMENTS), 'grandDesign']);
+  for (const key of Object.keys(value)) {
+    if (!allowedKeys.has(key)) throw invalid(path, `Unknown documents key: ${key}.`);
+  }
+  const overrides = Object.fromEntries(
+    Object.entries(value).map(([key, item]) => [key, requiredString(item, path, `documents.${key}`)]),
+  );
+  return { ...DEFAULT_PROJECT_DOCUMENTS, ...overrides };
 }
 
 function parseSubjects(value: unknown, path: string): Record<string, ProjectSubjectDefinition> {
@@ -96,7 +109,7 @@ function normalizeAlias(value: string): string {
   return value.normalize('NFKC').trim().toLocaleLowerCase('en-US').replace(/[\s_-]+/g, '');
 }
 
-function mergeStringRecord<T extends ProjectDocuments | ProjectLabels>(defaults: T, value: unknown, path: string, field: string): T {
+function mergeStringRecord<T extends ProjectLabels>(defaults: T, value: unknown, path: string, field: string): T {
   if (value === undefined) return { ...defaults };
   if (!isRecord(value)) throw invalid(path, `${field} must be an object.`);
   const overrides = Object.fromEntries(

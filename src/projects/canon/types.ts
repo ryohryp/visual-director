@@ -1,6 +1,7 @@
 import type { RepositorySource } from '../repository-source.js';
 
 export interface ProjectDocuments {
+  grandDesign?: string;
   globalStyle: string;
   characterCanon: string;
   worldDirection: string;

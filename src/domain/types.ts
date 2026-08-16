@@ -103,6 +103,7 @@ export interface ReferenceAsset {
 }
 
 export interface PromptPackage {
+  grand_design_lock?: string;
   style_lock: string;
   subject_lock: string[];
   scene_requirements: string[];

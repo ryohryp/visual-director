@@ -30,11 +30,7 @@ export async function runImageGeneration(input: ImageGenerationServiceInput): Pr
   });
 
   try {
-    const generated = await generator.generate({
-      generation_package: generationPackage,
-      repository_path: request.repository_path,
-      prompt: generationPrompt(generationPackage, request.request_text),
-    });
+    const generated = await generator.generate({ generation_package: generationPackage, repository_path: request.repository_path, prompt: generationPrompt(generationPackage, request.request_text) });
     const candidatePath = `.visual-director/candidates/${safeId(request.job_id)}/${safeId(request.asset_id)}.${generated.extension}`;
     const absolute = path.resolve(request.repository_path, candidatePath);
     await mkdir(path.dirname(absolute), { recursive: true });
@@ -53,22 +49,10 @@ export async function runImageGeneration(input: ImageGenerationServiceInput): Pr
       created_at: now,
     });
 
-    return {
-      project_id: request.project_id,
-      job_id: request.job_id,
-      asset_id: request.asset_id,
-      status: 'candidate',
-      candidate_path: candidatePath,
-      generator: generated.generator,
-      generation_package_fingerprint: fingerprint,
-    };
+    return { project_id: request.project_id, job_id: request.job_id, asset_id: request.asset_id, status: 'candidate', candidate_path: candidatePath, generator: generated.generator, generation_package_fingerprint: fingerprint };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    try {
-      await failGenerationJob(request.repository_path, request.job_id, message);
-    } catch {
-      // Preserve the generator failure as the primary error.
-    }
+    try { await failGenerationJob(request.repository_path, request.job_id, message); } catch { /* Preserve generator failure. */ }
     if (error instanceof VisualDirectorError) throw error;
     throw new VisualDirectorError('GENERATOR_FAILED', 'Image generation failed.', { reason: message });
   }
@@ -83,6 +67,7 @@ function generationPrompt(generationPackage: GenerationPackage, requestText: str
   return [
     requestText.trim(),
     '',
+    ...(p.grand_design_lock ? [`GRAND DESIGN LOCK: ${p.grand_design_lock}`] : []),
     `STYLE LOCK: ${p.style_lock}`,
     ...p.subject_lock.map((value) => `SUBJECT LOCK: ${value}`),
     ...p.scene_requirements.map((value) => `SCENE REQUIREMENT: ${value}`),
@@ -96,9 +81,7 @@ function generationPrompt(generationPackage: GenerationPackage, requestText: str
 
 function safeId(value: string): string {
   const trimmed = value.trim();
-  if (!/^[a-zA-Z0-9_-]+$/.test(trimmed)) {
-    throw new VisualDirectorError('INVALID_INPUT', 'job_id and asset_id must use only letters, numbers, underscore, or hyphen.', { value });
-  }
+  if (!/^[a-zA-Z0-9_-]+$/.test(trimmed)) throw new VisualDirectorError('INVALID_INPUT', 'job_id and asset_id must use only letters, numbers, underscore, or hyphen.', { value });
   return trimmed;
 }
 
