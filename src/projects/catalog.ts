@@ -49,7 +49,7 @@ const DEFAULT_PROJECT_CATALOG = {
       display_name: 'The Bottom of Thirst',
       repository: 'ryohryp/---The-Bottom-of-Thirst',
       ref: 'main',
-      adapter_type: 'bottom-of-thirst',
+      adapter_type: 'generic',
     },
     {
       project_id: 'crownless',
