@@ -57,6 +57,31 @@ describe('repository setup diagnostics', () => {
     expect(result.items).toContainEqual(expect.objectContaining({ key: 'global_style', state: 'required_missing' }));
   });
 
+  it('uses Crownless project-specific Canon paths instead of generic defaults', async () => {
+    const crownlessEntry = {
+      project_id: 'crownless',
+      display_name: 'Crownless',
+      repository: { owner: 'ryohryp', name: 'crownless' },
+      ref: 'main',
+      adapter_type: 'generic' as const,
+    };
+    const files = new Set([
+      'docs/visual/GLOBAL_VISUAL_STYLE.md',
+      'docs/visual/CHARACTER_VISUAL_CANON.md',
+      'docs/visual/WORLD_DIRECTION.md',
+      'docs/assets/README.md',
+      'docs/assets/crownless-visual-design-reference-v0.1.jpg',
+    ]);
+    const result = await diagnoseProjectRepository(crownlessEntry, new FakeSource(files), async () => overview('crownless'));
+    expect(result.state).toBe('ready');
+    expect(result.usable).toBe(true);
+    expect(result.items).toEqual(expect.arrayContaining([
+      expect.objectContaining({ key: 'world_direction', state: 'ready', path: 'docs/visual/WORLD_DIRECTION.md' }),
+      expect.objectContaining({ key: 'asset_manifest', state: 'ready', path: 'docs/assets/README.md' }),
+      expect.objectContaining({ key: 'global_reference', state: 'ready', path: 'docs/assets/crownless-visual-design-reference-v0.1.jpg' }),
+    ]));
+  });
+
   it('distinguishes repository access failures from missing Canon', async () => {
     const source = new FakeSource(undefined, new VisualDirectorError(
       'GITHUB_REPOSITORY_UNAVAILABLE',
@@ -77,9 +102,9 @@ describe('repository setup diagnostics', () => {
   });
 });
 
-function overview(): ProjectVisualOverview {
+function overview(projectId = 'game-b'): ProjectVisualOverview {
   return {
-    project_id: 'game-b',
+    project_id: projectId,
     visual_direction: { grand_design: null, global_style: { role: 'global_style' } },
     approved_anchors: [],
     workflow: { metadata_path: '.visual-director/asset-index.json', available: false, jobs: [], assets: [] },
