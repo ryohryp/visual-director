@@ -3,10 +3,7 @@
   "framework": null,
   "outputDirectory": "dist",
   "git": {
-    "deploymentEnabled": {
-      "*": false,
-      "main": true
-    }
+    "deploymentEnabled": false
   },
   "routes": [
     { "src": "^/diagnostics/?$", "dest": "/diagnostics/index.html" },
