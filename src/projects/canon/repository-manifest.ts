@@ -60,7 +60,11 @@ function parseSubjects(value: unknown, path: string): Record<string, ProjectSubj
     const displayName = requiredString(subject.display_name, path, `subjects.${id}.display_name`);
     const characterFile = requiredString(subject.character_file, path, `subjects.${id}.character_file`);
     const canonHeading = requiredString(subject.canon_heading, path, `subjects.${id}.canon_heading`);
-    const subjectAliases = parseAliases(subject.aliases, path, id);
+    const subjectAliases = parseStringArray(subject.aliases, path, `subjects.${id}.aliases`);
+    const requiredNewAnchorTerms = parseStringArray(subject.required_new_anchor_terms, path, `subjects.${id}.required_new_anchor_terms`);
+    const anchorRequirementsFile = subject.anchor_requirements_file === undefined
+      ? undefined
+      : requiredString(subject.anchor_requirements_file, path, `subjects.${id}.anchor_requirements_file`);
     for (const alias of [id, displayName, ...subjectAliases]) {
       const key = normalizeAlias(alias);
       const existing = aliases.get(key);
@@ -75,16 +79,17 @@ function parseSubjects(value: unknown, path: string): Record<string, ProjectSubj
       characterFile,
       canonHeading,
       ...(subjectAliases.length > 0 ? { aliases: subjectAliases } : {}),
+      ...(anchorRequirementsFile ? { anchorRequirementsFile } : {}),
+      ...(requiredNewAnchorTerms.length > 0 ? { requiredNewAnchorTerms } : {}),
     };
   }
   return result;
 }
 
-function parseAliases(value: unknown, path: string, subjectId: string): string[] {
+function parseStringArray(value: unknown, path: string, field: string): string[] {
   if (value === undefined) return [];
-  if (!Array.isArray(value)) throw invalid(path, `subjects.${subjectId}.aliases must be an array.`);
-  const aliases = value.map((item, index) => requiredString(item, path, `subjects.${subjectId}.aliases[${index}]`));
-  return [...new Set(aliases)];
+  if (!Array.isArray(value)) throw invalid(path, `${field} must be an array.`);
+  return [...new Set(value.map((item, index) => requiredString(item, path, `${field}[${index}]`)))];
 }
 
 function normalizeAlias(value: string): string {
