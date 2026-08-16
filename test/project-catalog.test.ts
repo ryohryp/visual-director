@@ -11,7 +11,7 @@ const rawCatalog = {
       display_name: 'The Bottom of Thirst',
       repository: 'ryohryp/---The-Bottom-of-Thirst',
       ref: 'main',
-      adapter_type: 'bottom-of-thirst',
+      adapter_type: 'generic',
     },
     {
       project_id: 'game-b',
@@ -52,7 +52,7 @@ describe('Project Catalog', () => {
     expect(catalog.resolve('bottom-of-thirst')).toMatchObject({
       repository: { owner: 'ryohryp', name: '---The-Bottom-of-Thirst' },
       ref: 'main',
-      adapter_type: 'bottom-of-thirst',
+      adapter_type: 'generic',
     });
     expect(catalog.resolve('game-b')).toMatchObject({
       repository: { owner: 'ryohryp', name: 'game-b' },
@@ -61,11 +61,14 @@ describe('Project Catalog', () => {
     });
   });
 
-  it('fails closed for duplicate, invalid, and unknown project ids', () => {
+  it('fails closed for duplicate, invalid, legacy adapter, and unknown project ids', () => {
     expect(() => parseProjectCatalog({ projects: [rawCatalog.projects[0], rawCatalog.projects[0]] }))
       .toThrowError(expect.objectContaining({ code: 'PROJECT_CATALOG_DUPLICATE' }));
     expect(() => parseProjectCatalog({
       projects: [{ ...rawCatalog.projects[0], project_id: '../escape' }],
+    })).toThrowError(expect.objectContaining({ code: 'PROJECT_CATALOG_INVALID' }));
+    expect(() => parseProjectCatalog({
+      projects: [{ ...rawCatalog.projects[0], adapter_type: 'bottom-of-thirst' }],
     })).toThrowError(expect.objectContaining({ code: 'PROJECT_CATALOG_INVALID' }));
 
     const catalog = parseProjectCatalog(rawCatalog);
