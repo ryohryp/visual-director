@@ -13,6 +13,7 @@ concurrency:
 env:
   VERCEL_ORG_ID: team_DVFM365SzDMxINnnp2gvKmVK
   VERCEL_PROJECT_ID: prj_n4V9TIgACzHhy1t0pn4e06P7H9n5
+  VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
   PRODUCTION_URL: https://visual-director-beta.vercel.app
 
 jobs:
@@ -21,6 +22,15 @@ jobs:
     timeout-minutes: 15
 
     steps:
+      - name: Validate deployment credentials
+        shell: bash
+        run: |
+          if [[ -z "${VERCEL_TOKEN:-}" ]]; then
+            echo "::error::GitHub Actions secret VERCEL_TOKEN is not configured or is not available to this workflow. Add it under Settings > Secrets and variables > Actions > Repository secrets."
+            exit 1
+          fi
+          echo "VERCEL_TOKEN is configured."
+
       - name: Checkout main
         uses: actions/checkout@v5
         with:
@@ -40,16 +50,16 @@ jobs:
         run: npm run check && npm run build
 
       - name: Pull Vercel production configuration
-        run: npx --yes vercel@latest pull --yes --environment=production --token="${{ secrets.VERCEL_TOKEN }}"
+        run: npx --yes vercel@latest pull --yes --environment=production --token="$VERCEL_TOKEN"
 
       - name: Build for Vercel
-        run: npx --yes vercel@latest build --prod --token="${{ secrets.VERCEL_TOKEN }}"
+        run: npx --yes vercel@latest build --prod --token="$VERCEL_TOKEN"
 
       - name: Deploy to Vercel Production
         id: deploy
         shell: bash
         run: |
-          url="$(npx --yes vercel@latest deploy --prebuilt --prod --token="${{ secrets.VERCEL_TOKEN }}")"
+          url="$(npx --yes vercel@latest deploy --prebuilt --prod --token="$VERCEL_TOKEN")"
           echo "url=$url" >> "$GITHUB_OUTPUT"
           echo "Production deployment: $url"
 
