@@ -3,7 +3,8 @@ import type { ProjectAdapter } from '../domain/types.js';
 import { BottomOfThirstVisualAdapter } from './bottom-of-thirst/visual-adapter.js';
 import { loadProjectCatalog } from './catalog.js';
 import type { ProjectCatalog, ProjectCatalogEntry } from './catalog.js';
-import { CanonProjectAdapter, DEFAULT_PROJECT_DOCUMENTS, DEFAULT_PROJECT_LABELS } from './canon/adapter.js';
+import { CanonProjectAdapter } from './canon/adapter.js';
+import { loadRepositoryCanonDefinition } from './canon/repository-manifest.js';
 import { crownlessDefinition } from './crownless/definition.js';
 import { createRegisteredLocalRepositorySource } from './project-registry.js';
 import { GitHubRepositorySource } from './repository-source.js';
@@ -60,24 +61,27 @@ export function createCatalogRepositorySource(
   });
 }
 
-export function createCatalogProjectAdapter(entry: ProjectCatalogEntry, source: RepositorySource): ProjectAdapter {
+export async function createCatalogProjectAdapter(entry: ProjectCatalogEntry, source: RepositorySource): Promise<ProjectAdapter> {
   if (entry.adapter_type === 'bottom-of-thirst') return new BottomOfThirstVisualAdapter({ source });
   if (entry.project_id === crownlessDefinition.projectId) {
     return new CanonProjectAdapter(crownlessDefinition, { source });
   }
-  return new CanonProjectAdapter({
-    projectId: entry.project_id,
-    documents: { ...DEFAULT_PROJECT_DOCUMENTS },
-    labels: { ...DEFAULT_PROJECT_LABELS },
-    subjects: {},
-  }, { source });
+  const definition = await loadRepositoryCanonDefinition(source);
+  if (definition.projectId !== entry.project_id) {
+    throw new VisualDirectorError('PROJECT_MANIFEST_INVALID', 'Project manifest project_id does not match catalog project_id.', {
+      catalog_project_id: entry.project_id,
+      manifest_project_id: definition.projectId,
+    });
+  }
+  return new CanonProjectAdapter(definition, { source });
 }
 
-export function resolveCatalogProjectRuntime(
+export async function resolveCatalogProjectRuntime(
   projectId: string,
   options: CatalogRuntimeOptions = {},
-): CatalogProjectRuntime {
+): Promise<CatalogProjectRuntime> {
   const entry = resolveCatalogEntry(projectId, options);
   const source = createCatalogRepositorySource(entry, options);
-  return { entry, source, adapter: createCatalogProjectAdapter(entry, source) };
+  const adapter = await createCatalogProjectAdapter(entry, source);
+  return { entry, source, adapter };
 }
