@@ -72,7 +72,7 @@ describe('hosted HTTP server', () => {
   });
 });
 
-async function connectClient(versionNegotiation: ConstructorParameters<typeof Client>[1]['versionNegotiation']) {
+async function connectClient(versionNegotiation: { mode: 'legacy' } | { mode: { pin: '2026-07-28' } }) {
   const server = createHostedHttpServerForVisualDirector({ repoPath: fixtureRoot });
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   const address = server.address() as AddressInfo;
