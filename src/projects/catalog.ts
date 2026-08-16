@@ -4,7 +4,7 @@ import { VisualDirectorError } from '../domain/types.js';
 import type { ProjectVisualOverview } from '../domain/types.js';
 import type { ProjectDiagnostics } from './diagnostics.js';
 
-export type ProjectAdapterType = 'bottom-of-thirst' | 'generic';
+export type ProjectAdapterType = 'generic';
 
 export interface ProjectCatalogEntry {
   project_id: string;
@@ -186,7 +186,7 @@ function normalizeEntry(value: unknown, index: number): ProjectCatalogEntry {
     throw new VisualDirectorError('PROJECT_CATALOG_INVALID', 'repository must be in owner/name form.', { repository });
   }
   const adapterType = required(value.adapter_type, `projects[${index}].adapter_type`);
-  if (adapterType !== 'bottom-of-thirst' && adapterType !== 'generic') {
+  if (adapterType !== 'generic') {
     throw new VisualDirectorError('PROJECT_CATALOG_INVALID', `Unsupported adapter_type: ${adapterType}.`, { adapter_type: adapterType });
   }
   return {
