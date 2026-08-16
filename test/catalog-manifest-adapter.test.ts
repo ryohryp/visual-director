@@ -70,6 +70,7 @@ describe('catalog repository manifest adapter', () => {
             display_name: '神野 恭介',
             character_file: 'docs/characters/kyosuke.md',
             canon_heading: '神野 恭介',
+            aliases: ['神野', '恭介', 'Kamino Kyosuke'],
           },
         },
       }),
@@ -95,7 +96,7 @@ describe('catalog repository manifest adapter', () => {
     const prepared = await adapter.prepare({
       project_id: 'bottom-of-thirst',
       asset_type: 'event_cg',
-      subject_ids: ['kamino_kyosuke'],
+      subject_ids: ['Kamino Kyosuke'],
       request_text: '神野恭介をApproved Anchorから描く。',
     });
     expect(prepared.reference_assets).toContainEqual({
