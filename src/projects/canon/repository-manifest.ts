@@ -67,12 +67,12 @@ function parseSubjects(value: unknown, path: string): Record<string, ProjectSubj
 function mergeStringRecord<T extends ProjectDocuments | ProjectLabels>(defaults: T, value: unknown, path: string, field: string): T {
   if (value === undefined) return { ...defaults };
   if (!isRecord(value)) throw invalid(path, `${field} must be an object.`);
-  const result = { ...defaults } as Record<string, string>;
+  const result: T = { ...defaults };
   for (const [key, item] of Object.entries(value)) {
     if (!(key in defaults)) throw invalid(path, `Unknown ${field} key: ${key}.`);
-    result[key] = requiredString(item, path, `${field}.${key}`);
+    (result as Record<string, string>)[key] = requiredString(item, path, `${field}.${key}`);
   }
-  return result as T;
+  return result;
 }
 
 function requiredString(value: unknown, path: string, field: string): string {
