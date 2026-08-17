@@ -1,7 +1,7 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 
-import { createVisualDirectorCore } from '../src/core/visual-director.js';
 import { VisualDirectorError } from '../src/domain/types.js';
+import { resolveProjectCatalog } from '../src/projects/catalog-runtime.js';
 
 export default async function handler(req: IncomingMessage, res: ServerResponse): Promise<void> {
   if (req.method !== 'GET') {
@@ -12,7 +12,14 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
   }
 
   try {
-    writeJson(res, 200, { projects: await createVisualDirectorCore().listProjects() });
+    const projects = resolveProjectCatalog().list().map((entry) => ({
+      project_id: entry.project_id,
+      display_name: entry.display_name,
+      repository: `${entry.repository.owner}/${entry.repository.name}`,
+      ref: entry.ref,
+      adapter_type: entry.adapter_type,
+    }));
+    writeJson(res, 200, { projects });
   } catch (error) {
     if (error instanceof VisualDirectorError) {
       writeJson(res, 422, { error: { code: error.code, message: error.message, details: error.details } });
