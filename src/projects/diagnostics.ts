@@ -65,9 +65,7 @@ export async function diagnoseProjectRepository(
 
     if (items.some((item) => item.blocking)) return finalize(entry.project_id, items);
 
-    await diagnoseOverviewReferences(loadOverview, items);
-
-    const overview = await safeOverview(loadOverview);
+    const overview = await diagnoseOverviewReferences(loadOverview, items);
     items.push(overview?.visual_direction.grand_design
       ? {
           key: 'grand_design',
@@ -151,7 +149,7 @@ async function diagnosticDocuments(source: RepositorySource): Promise<ProjectDoc
 async function diagnoseOverviewReferences(
   loadOverview: () => Promise<ProjectVisualOverview>,
   items: ProjectDiagnosticItem[],
-): Promise<void> {
+): Promise<ProjectVisualOverview | null> {
   try {
     const overview = await loadOverview();
     items.push({
@@ -161,6 +159,7 @@ async function diagnoseOverviewReferences(
       blocking: false,
       message: `${overview.approved_anchors.length} Approved Anchors resolved.`,
     });
+    return overview;
   } catch (error) {
     if (error instanceof VisualDirectorError && (error.code === 'REFERENCE_NOT_FOUND' || error.code === 'APPROVED_ANCHOR_INCOMPLETE')) {
       items.push({
@@ -171,17 +170,9 @@ async function diagnoseOverviewReferences(
         message: error.message,
         ...(typeof error.details?.path === 'string' ? { path: error.details.path } : {}),
       });
-      return;
+      return null;
     }
     throw error;
-  }
-}
-
-async function safeOverview(loadOverview: () => Promise<ProjectVisualOverview>): Promise<ProjectVisualOverview | null> {
-  try {
-    return await loadOverview();
-  } catch {
-    return null;
   }
 }
 
