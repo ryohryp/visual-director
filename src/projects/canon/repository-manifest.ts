@@ -67,7 +67,7 @@ export function parseRepositoryCanonManifest(input: unknown, path = DEFAULT_CANO
 
 function parseDocuments(value: Record<string, unknown> | undefined, path: string): ProjectDocuments {
   if (value === undefined) return { ...DEFAULT_PROJECT_DOCUMENTS };
-  const allowedKeys = new Set([...Object.keys(DEFAULT_PROJECT_DOCUMENTS), 'grandDesign']);
+  const allowedKeys = new Set([...Object.keys(DEFAULT_PROJECT_DOCUMENTS), 'grandDesign', 'currentDesignBaseline']);
   for (const key of Object.keys(value)) {
     if (!allowedKeys.has(key)) throw invalid(path, `Unknown documents key: ${key}.`);
   }
