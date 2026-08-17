@@ -57,7 +57,7 @@ async function verifyEra(label, versionNegotiation) {
       },
     });
     if (prepared.isError === true) {
-      fail(`${label}: visual.prepare_generation returned an MCP tool error.`);
+      fail(`${label}: visual.prepare_generation returned an MCP tool error: ${describeToolError(prepared)}`);
     }
 
     const packageResult = prepared.structuredContent;
@@ -88,6 +88,25 @@ async function verifyEra(label, versionNegotiation) {
   } finally {
     await client.close().catch(() => undefined);
   }
+}
+
+function describeToolError(result) {
+  const text = Array.isArray(result.content)
+    ? result.content
+      .filter((item) => item?.type === 'text' && typeof item.text === 'string')
+      .map((item) => item.text.trim())
+      .filter(Boolean)
+      .join(' | ')
+    : '';
+  if (text) return text;
+  if (result.structuredContent !== undefined) {
+    try {
+      return JSON.stringify(result.structuredContent);
+    } catch {
+      return '[unserializable structuredContent]';
+    }
+  }
+  return '[no error detail returned]';
 }
 
 async function fetchJson(url, init) {
