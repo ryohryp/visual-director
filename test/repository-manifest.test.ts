@@ -8,20 +8,22 @@ describe('repository-native Canon manifest', () => {
     const definition = parseRepositoryCanonManifest({
       version: 1,
       project_id: 'game-a',
-      documents: { grandDesign: 'art/GRAND_DESIGN.md', globalStyle: 'art/GLOBAL.md' },
+      documents: { grandDesign: 'art/GRAND_DESIGN.md', currentDesignBaseline: 'art/CURRENT_DESIGN_BASELINE.md', globalStyle: 'art/GLOBAL.md' },
       subjects: { hero: { display_name: 'Hero', character_file: 'art/characters/hero.md', canon_heading: 'Hero', aliases: ['protagonist', '主人公'], anchor_requirements_file: 'art/characters/HERO_ANCHOR.md', required_new_anchor_terms: ['24歳', '配信者'] } },
     });
 
     expect(definition.projectId).toBe('game-a');
     expect(definition.documents.grandDesign).toBe('art/GRAND_DESIGN.md');
+    expect(definition.documents.currentDesignBaseline).toBe('art/CURRENT_DESIGN_BASELINE.md');
     expect(definition.documents.globalStyle).toBe('art/GLOBAL.md');
     expect(definition.documents.characterCanon).toBe(DEFAULT_PROJECT_DOCUMENTS.characterCanon);
     expect(definition.subjects.hero).toEqual({ id: 'hero', displayName: 'Hero', characterFile: 'art/characters/hero.md', canonHeading: 'Hero', aliases: ['protagonist', '主人公'], anchorRequirementsFile: 'art/characters/HERO_ANCHOR.md', requiredNewAnchorTerms: ['24歳', '配信者'] });
   });
 
-  it('does not invent a grand design when the manifest omits it', () => {
+  it('does not invent optional design documents when the manifest omits them', () => {
     const definition = parseRepositoryCanonManifest({ version: 1, project_id: 'game-a' });
     expect(definition.documents.grandDesign).toBeUndefined();
+    expect(definition.documents.currentDesignBaseline).toBeUndefined();
   });
 
   it('rejects unsupported manifest versions', () => {
