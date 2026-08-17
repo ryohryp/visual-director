@@ -17,6 +17,6 @@ describe('project home catalog rendering', () => {
     expect(source).not.toContain('p.candidates');
     expect(source).not.toContain('p.jobs');
     expect(source).not.toContain('p.failed_jobs');
-    expect(source).not.toContain('/api/projects/'+encodeURIComponent(id)+\'/asset');
+    expect(source).not.toContain('assetUrl=');
   });
 });
