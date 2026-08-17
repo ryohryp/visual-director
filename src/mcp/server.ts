@@ -35,32 +35,15 @@ export function createVisualDirectorServer(
       title: 'Configure project repository',
       description:
         'Backward-compatible runtime binding for a known project. Preparation can also use an explicit request-scoped scene_context.repository_path without this call.',
-      annotations: {
-        readOnlyHint: false,
-        destructiveHint: false,
-        idempotentHint: true,
-        openWorldHint: false,
-      },
-      inputSchema: z.object({
-        project_id: z.string().min(1),
-        repository_path: z.string().min(1),
-      }),
-      outputSchema: z.object({
-        project_id: z.string(),
-        repository_path: z.string(),
-        persistence: z.literal('runtime'),
-      }),
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+      inputSchema: z.object({ project_id: z.string().min(1), repository_path: z.string().min(1) }),
+      outputSchema: z.object({ project_id: z.string(), repository_path: z.string(), persistence: z.literal('runtime') }),
     },
     async (input) => {
       try {
         const configuration = await core.configureProject(input.project_id, input.repository_path);
-        return {
-          structuredContent: { ...configuration } as Record<string, unknown>,
-          content: [{ type: 'text' as const, text: JSON.stringify(configuration, null, 2) }],
-        };
-      } catch (error) {
-        return toolError(error);
-      }
+        return { structuredContent: { ...configuration } as Record<string, unknown>, content: [{ type: 'text' as const, text: JSON.stringify(configuration, null, 2) }] };
+      } catch (error) { return toolError(error); }
     },
   );
 
@@ -70,51 +53,22 @@ export function createVisualDirectorServer(
       title: 'Adopt Anchor and register Canon',
       description:
         'After explicit user approval, adopt one image as the subject Approved Visual Anchor. candidate_file accepts the ChatGPT/OpenAI file reference supplied by the host; candidate_path remains the repository-relative compatibility input.',
-      annotations: {
-        readOnlyHint: false,
-        destructiveHint: false,
-        idempotentHint: true,
-        openWorldHint: false,
-      },
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
       inputSchema: z.object({
-        project_id: z.string().min(1),
-        subject_id: z.string().min(1),
-        candidate_file: z.object({
-          download_url: z.string().url(),
-          file_id: z.string().min(1),
-          mime_type: z.string().min(1).optional(),
-          file_name: z.string().min(1).optional(),
-        }).optional(),
-        candidate_path: z.string().min(1).optional(),
-        approval: z.literal('approve'),
+        project_id: z.string().min(1), subject_id: z.string().min(1),
+        candidate_file: z.object({ download_url: z.string().url(), file_id: z.string().min(1), mime_type: z.string().min(1).optional(), file_name: z.string().min(1).optional() }).optional(),
+        candidate_path: z.string().min(1).optional(), approval: z.literal('approve'),
       }),
-      _meta: {
-        'openai/fileParams': ['candidate_file'],
-      },
+      _meta: { 'openai/fileParams': ['candidate_file'] },
       outputSchema: z.object({
-        project_id: z.string(),
-        subject_id: z.string(),
-        status: z.literal('approved'),
-        anchor_path: z.string(),
-        approved_anchor_path: z.string(),
-        canon_path: z.string(),
-        changed: z.boolean(),
-        sha256: z.string(),
-        mime_type: z.string(),
-        width: z.number().int().positive(),
-        height: z.number().int().positive(),
+        project_id: z.string(), subject_id: z.string(), status: z.literal('approved'), anchor_path: z.string(), approved_anchor_path: z.string(), canon_path: z.string(), changed: z.boolean(), sha256: z.string(), mime_type: z.string(), width: z.number().int().positive(), height: z.number().int().positive(),
       }),
     },
     async (input) => {
       try {
         const result = await core.adoptAnchor(input);
-        return {
-          structuredContent: { ...result } as Record<string, unknown>,
-          content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }],
-        };
-      } catch (error) {
-        return toolError(error);
-      }
+        return { structuredContent: { ...result } as Record<string, unknown>, content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+      } catch (error) { return toolError(error); }
     },
   );
 
@@ -124,23 +78,15 @@ export function createVisualDirectorServer(
       title: 'Prepare visual generation',
       description:
         'Return a fail-closed Generation Package from the MCP-independent Visual Director Core. An explicit scene_context.repository_path is sufficient for local requests; hosted read-only requests ignore client-local repository paths and resolve the project from the configured repository catalog.',
-      annotations: {
-        readOnlyHint: true,
-        destructiveHint: false,
-        idempotentHint: true,
-        openWorldHint: false,
-      },
+      annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
       inputSchema: z.object({
-        project_id: z.string().min(1),
-        asset_type: z.string().min(1),
-        subject_ids: z.array(z.string().min(1)).min(1),
-        request_text: z.string().min(1),
-        scene_context: z.record(z.string(), z.unknown()).optional(),
+        project_id: z.string().min(1), asset_type: z.string().min(1), subject_ids: z.array(z.string().min(1)).min(1), request_text: z.string().min(1), scene_context: z.record(z.string(), z.unknown()).optional(),
       }),
       outputSchema: z.object({
         project_id: z.string(),
         asset_type: z.string(),
         prompt_package: z.object({
+          grand_design_lock: z.string().optional(),
           style_lock: z.string(),
           subject_lock: z.array(z.string()),
           scene_requirements: z.array(z.string()),
@@ -148,18 +94,8 @@ export function createVisualDirectorServer(
           forbidden_changes: z.array(z.string()),
           avoid_block: z.array(z.string()),
         }),
-        reference_assets: z.array(
-          z.object({
-            role: z.enum(['global_reference', 'subject_anchor']),
-            path: z.string(),
-            subject_id: z.string().optional(),
-          }),
-        ),
-        policy: z.object({
-          must_use_approved_anchor: z.boolean(),
-          must_not_chain_from_candidate: z.literal(true),
-          must_review_after_generation: z.literal(true),
-        }),
+        reference_assets: z.array(z.object({ role: z.enum(['global_reference', 'subject_anchor']), path: z.string(), subject_id: z.string().optional() })),
+        policy: z.object({ must_use_approved_anchor: z.boolean(), must_not_chain_from_candidate: z.literal(true), must_review_after_generation: z.literal(true) }),
       }),
     },
     async (input) => {
@@ -170,24 +106,14 @@ export function createVisualDirectorServer(
           if (isHostedReadOnlyMode()) {
             const sceneContext = { ...(input.scene_context ?? {}) };
             delete sceneContext.repository_path;
-            prepareInput = {
-              ...input,
-              ...(Object.keys(sceneContext).length > 0 ? { scene_context: sceneContext } : { scene_context: undefined }),
-            };
+            prepareInput = { ...input, ...(Object.keys(sceneContext).length > 0 ? { scene_context: sceneContext } : { scene_context: undefined }) };
           } else {
-            // Compatibility only: Core preparation itself remains request-scoped and
-            // does not need this runtime binding to succeed.
             await core.configureProject(input.project_id, repositoryPath);
           }
         }
         const generationPackage = await core.prepareGeneration(prepareInput);
-        return {
-          structuredContent: { ...generationPackage } as Record<string, unknown>,
-          content: [{ type: 'text' as const, text: JSON.stringify(generationPackage, null, 2) }],
-        };
-      } catch (error) {
-        return toolError(error);
-      }
+        return { structuredContent: { ...generationPackage } as Record<string, unknown>, content: [{ type: 'text' as const, text: JSON.stringify(generationPackage, null, 2) }] };
+      } catch (error) { return toolError(error); }
     },
   );
 
@@ -195,20 +121,12 @@ export function createVisualDirectorServer(
 }
 
 function toolError(error: unknown) {
-  return {
-    isError: true,
-    content: [{ type: 'text' as const, text: JSON.stringify(serializeError(error), null, 2) }],
-  };
+  return { isError: true, content: [{ type: 'text' as const, text: JSON.stringify(serializeError(error), null, 2) }] };
 }
 
 function serializeError(error: unknown): Record<string, unknown> {
-  if (error instanceof VisualDirectorError) {
-    return { error: error.code, message: error.message, ...(error.details ? { details: error.details } : {}) };
-  }
-  return {
-    error: 'INTERNAL_ERROR',
-    message: error instanceof Error ? error.message : String(error),
-  };
+  if (error instanceof VisualDirectorError) return { error: error.code, message: error.message, ...(error.details ? { details: error.details } : {}) };
+  return { error: 'INTERNAL_ERROR', message: error instanceof Error ? error.message : String(error) };
 }
 
 function isHostedReadOnlyMode(): boolean {
@@ -218,22 +136,12 @@ function isHostedReadOnlyMode(): boolean {
 export async function runStdio(options: VisualDirectorServerOptions = {}): Promise<void> {
   const server = createVisualDirectorServer(options);
   const transport = new StdioServerTransport();
-  transport.onerror = (error) => {
-    logToStderr('MCP transport error', error);
-  };
-  try {
-    await server.connect(transport);
-  } catch (error) {
-    logToStderr('stdio connection failed', error);
-    await closeTransportAfterConnectionFailure(transport);
-    throw error;
-  }
+  transport.onerror = (error) => { logToStderr('MCP transport error', error); };
+  try { await server.connect(transport); }
+  catch (error) { logToStderr('stdio connection failed', error); await closeTransportAfterConnectionFailure(transport); throw error; }
 }
 
-interface HttpSession {
-  server: McpServer;
-  transport: NodeStreamableHTTPServerTransport;
-}
+interface HttpSession { server: McpServer; transport: NodeStreamableHTTPServerTransport; }
 
 export function createHttpServerForVisualDirector(
   options: VisualDirectorServerOptions = {},
@@ -241,9 +149,7 @@ export function createHttpServerForVisualDirector(
   const sessions = new Map<string, HttpSession>();
   const registry = createProjectRegistry(options);
   const httpServer = createHttpServer((req, res) => {
-    void handleHttpRequest(req, res, options, sessions, registry).catch((error: unknown) => {
-      writeHttpRequestError(res, error);
-    });
+    void handleHttpRequest(req, res, options, sessions, registry).catch((error: unknown) => { writeHttpRequestError(res, error); });
   });
   return { httpServer, sessions };
 }
@@ -258,111 +164,60 @@ async function handleHttpRequest(
   let newlyCreatedSession: HttpSession | undefined;
   let connected = false;
   try {
-    if (req.url !== '/mcp') {
-      writeJson(res, 404, { error: 'not_found' });
-      return;
-    }
-
+    if (req.url !== '/mcp') { writeJson(res, 404, { error: 'not_found' }); return; }
     const sessionId = headerValue(req.headers['mcp-session-id']);
     if (req.method === 'DELETE') {
       const session = sessionId ? sessions.get(sessionId) : undefined;
-      if (!session) {
-        writeSessionNotFound(res);
-        return;
-      }
+      if (!session) { writeSessionNotFound(res); return; }
       sessions.delete(sessionId as string);
       await session.transport.close();
       res.writeHead(204).end();
       return;
     }
-
     let session = sessionId ? sessions.get(sessionId) : undefined;
-    if (sessionId && !session) {
-      writeSessionNotFound(res);
-      return;
-    }
-
+    if (sessionId && !session) { writeSessionNotFound(res); return; }
     if (!session) {
       const server = createVisualDirectorServer(options, registry);
       const transport = new NodeStreamableHTTPServerTransport({
-        sessionIdGenerator: () => randomUUID(),
-        enableJsonResponse: true,
-        onsessioninitialized: (initializedSessionId) => {
-          if (newlyCreatedSession) sessions.set(initializedSessionId, newlyCreatedSession);
-        },
-        onsessionclosed: (closedSessionId) => {
-          if (closedSessionId) sessions.delete(closedSessionId);
-        },
+        sessionIdGenerator: () => randomUUID(), enableJsonResponse: true,
+        onsessioninitialized: (initializedSessionId) => { if (newlyCreatedSession) sessions.set(initializedSessionId, newlyCreatedSession); },
+        onsessionclosed: (closedSessionId) => { if (closedSessionId) sessions.delete(closedSessionId); },
       });
-      transport.onerror = (error) => {
-        logToStderr('MCP transport error', error);
-      };
+      transport.onerror = (error) => { logToStderr('MCP transport error', error); };
       newlyCreatedSession = { server, transport };
       session = newlyCreatedSession;
-      transport.onclose = () => {
-        const currentId = transport.sessionId;
-        if (currentId) sessions.delete(currentId);
-      };
+      transport.onclose = () => { const currentId = transport.sessionId; if (currentId) sessions.delete(currentId); };
       await server.connect(transport);
       connected = true;
     }
-
     await session.transport.handleRequest(req, res);
     const assignedId = session.transport.sessionId;
     if (assignedId) sessions.set(assignedId, session);
   } catch (error) {
     logToStderr('HTTP request lifecycle error', error);
-    if (newlyCreatedSession && (!connected || newlyCreatedSession.transport.sessionId === undefined)) {
-      await closeTransportAfterConnectionFailure(newlyCreatedSession.transport);
-    }
+    if (newlyCreatedSession && (!connected || newlyCreatedSession.transport.sessionId === undefined)) await closeTransportAfterConnectionFailure(newlyCreatedSession.transport);
     throw error;
   }
 }
 
 async function closeTransportAfterConnectionFailure(transport: { close: () => Promise<void> }): Promise<void> {
-  try {
-    await transport.close();
-  } catch (error) {
-    logToStderr('transport cleanup failed', error);
-  }
+  try { await transport.close(); } catch (error) { logToStderr('transport cleanup failed', error); }
 }
 
 function writeHttpRequestError(res: ServerResponse, error: unknown): void {
-  if (res.headersSent || res.writableEnded) {
-    if (!res.destroyed) res.destroy(error instanceof Error ? error : undefined);
-    return;
-  }
-
-  writeJson(res, 500, {
-    jsonrpc: '2.0',
-    id: null,
-    error: {
-      code: -32603,
-      message: 'Internal transport error while handling the MCP request.',
-      data: serializeError(error),
-    },
-  });
+  if (res.headersSent || res.writableEnded) { if (!res.destroyed) res.destroy(error instanceof Error ? error : undefined); return; }
+  writeJson(res, 500, { jsonrpc: '2.0', id: null, error: { code: -32603, message: 'Internal transport error while handling the MCP request.', data: serializeError(error) } });
 }
 
 function writeSessionNotFound(res: ServerResponse): void {
-  writeJson(res, 404, {
-    jsonrpc: '2.0',
-    id: null,
-    error: {
-      code: -32001,
-      message: 'MCP session not found. Reinitialize the connection; Canon state has not been evaluated.',
-    },
-  });
+  writeJson(res, 404, { jsonrpc: '2.0', id: null, error: { code: -32001, message: 'MCP session not found. Reinitialize the connection; Canon state has not been evaluated.' } });
 }
 
 function logToStderr(scope: string, error: unknown): void {
   process.stderr.write(`[visual-director] ${scope}: ${JSON.stringify(serializeError(error))}\n`);
 }
 
-function headerValue(value: string | string[] | undefined): string | undefined {
-  return Array.isArray(value) ? value[0] : value;
-}
-
+function headerValue(value: string | string[] | undefined): string | undefined { return Array.isArray(value) ? value[0] : value; }
 function writeJson(res: ServerResponse, status: number, payload: Record<string, unknown>): void {
   res.writeHead(status, { 'content-type': 'application/json; charset=utf-8' });
   res.end(JSON.stringify(payload));
