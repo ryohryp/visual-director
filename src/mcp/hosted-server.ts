@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { createServer as createHttpServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 
 import { toNodeHandler } from '@modelcontextprotocol/node';
@@ -33,7 +34,7 @@ async function handleHostedHttpRequest(
 
   if (pathname !== '/mcp') {
     res.writeHead(404, { 'content-type': 'application/json; charset=utf-8' });
-    res.end(JSON.stringify({ error: 'not_found' }));
+    res.end(JSON.stringify({ error: 'not_found', path: pathname }));
     return;
   }
 
@@ -46,7 +47,11 @@ export async function handleHostedMcpRequest(
   res: ServerResponse,
   options: VisualDirectorServerOptions = {},
 ): Promise<void> {
+  const requestId = req.headers['x-request-id']?.toString() || randomUUID();
+  res.setHeader('x-request-id', requestId);
+
   if (req.method !== 'POST') {
+    logHostedEvent('route_rejected', requestId, { method: req.method ?? 'UNKNOWN', reason: 'post_required' });
     res.writeHead(405, {
       allow: 'POST',
       'content-type': 'application/json; charset=utf-8',
@@ -54,22 +59,28 @@ export async function handleHostedMcpRequest(
     res.end(JSON.stringify({
       jsonrpc: '2.0',
       id: null,
-      error: { code: -32000, message: 'Hosted Visual Director uses stateless POST-only MCP over HTTP.' },
+      error: {
+        code: -32000,
+        message: 'Hosted Visual Director uses stateless POST-only MCP over HTTP.',
+        data: { kind: 'MCP_ROUTING_ERROR', request_id: requestId, retryable: false },
+      },
     }));
     return;
   }
 
+  logHostedEvent('request_received', requestId, { method: 'POST', path: '/mcp' });
   const handler = createMcpHandler(() => createVisualDirectorServer(options));
   const nodeHandler = toNodeHandler(handler, {
     onerror: (error) => {
-      process.stderr.write(`[visual-director] hosted MCP transport error: ${error.message}\n`);
+      logHostedEvent('transport_error', requestId, { message: error.message, retryable: true });
     },
   });
 
   try {
     await nodeHandler(req, res);
+    logHostedEvent('request_completed', requestId, { status_code: res.statusCode });
   } catch (error) {
-    writeHostedError(res, error);
+    writeHostedError(res, error, requestId);
   } finally {
     await handler.close().catch(() => undefined);
   }
@@ -80,19 +91,38 @@ export function writeHealthResponse(res: ServerResponse): void {
   res.end(JSON.stringify({ status: 'ok', service: 'visual-director', mode: 'hosted-read-only' }));
 }
 
-function writeHostedError(res: ServerResponse, error: unknown): void {
+function writeHostedError(res: ServerResponse, error: unknown, requestId = randomUUID()): void {
+  const message = error instanceof Error ? error.message : String(error);
+  logHostedEvent('request_failed', requestId, { message, retryable: true });
   if (res.headersSent || res.writableEnded) {
     if (!res.destroyed) res.destroy(error instanceof Error ? error : undefined);
     return;
   }
-  res.writeHead(500, { 'content-type': 'application/json; charset=utf-8' });
+  res.setHeader('x-request-id', requestId);
+  res.writeHead(503, { 'content-type': 'application/json; charset=utf-8' });
   res.end(JSON.stringify({
     jsonrpc: '2.0',
     id: null,
     error: {
-      code: -32603,
-      message: 'Internal hosted MCP transport error.',
-      data: error instanceof Error ? error.message : String(error),
+      code: -32001,
+      message: 'Hosted MCP request failed before the tool response completed. Reconnect and retry.',
+      data: {
+        kind: 'HOSTED_MCP_TRANSIENT_FAILURE',
+        request_id: requestId,
+        retryable: true,
+        reconnect: true,
+        cause: message,
+      },
     },
   }));
+}
+
+function logHostedEvent(event: string, requestId: string, details: Record<string, unknown>): void {
+  process.stderr.write(`${JSON.stringify({
+    service: 'visual-director',
+    component: 'hosted-mcp',
+    event,
+    request_id: requestId,
+    ...details,
+  })}\n`);
 }
