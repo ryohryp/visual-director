@@ -3,6 +3,7 @@ import { VisualDirectorError } from '../../domain/types.js';
 import type { ApprovedAnchorSummary, GenerationPackage, PrepareGenerationInput } from '../../domain/types.js';
 import { LocalRepositorySource } from '../repository-source.js';
 import { CanonAdapterBase, globalForbiddenChanges } from './adapter-base.js';
+import { parseGrandDesign, resolveGrandDesignContract } from './grand-design.js';
 import type { CanonProjectDefinition, CanonProjectAdapterOptions, ProjectSubjectDefinition } from './types.js';
 
 export type {
@@ -46,11 +47,26 @@ export class CanonProjectAdapter extends CanonAdapterBase {
   }
 
   override async prepare(input: PrepareGenerationInput): Promise<GenerationPackage> {
-    return super.prepare({
+    const normalizedInput = {
       ...input,
       asset_type: normalizeAssetType(input.asset_type),
       subject_ids: input.subject_ids.map((subjectId) => this.resolveSubjectId(subjectId)),
-    });
+    };
+    const prepared = await super.prepare(normalizedInput);
+    const grandDesignPath = this.definition.documents.grandDesign;
+    if (!grandDesignPath) return prepared;
+
+    const raw = await this.source.readText(grandDesignPath, 'Grand Design');
+    const grandDesign = parseGrandDesign(raw, this.projectId, grandDesignPath);
+    const contract = resolveGrandDesignContract(grandDesign, normalizedInput.asset_type);
+    const { grand_design_lock: _legacyGrandDesignLock, ...promptPackage } = prepared.prompt_package;
+    return {
+      ...prepared,
+      prompt_package: {
+        ...promptPackage,
+        ...(contract ? { grand_design_contract: contract } : {}),
+      },
+    };
   }
 
   protected async loadSubject(subjectId: string, canonMarkdown: string, assetType = ''): Promise<SubjectAnchor> {
