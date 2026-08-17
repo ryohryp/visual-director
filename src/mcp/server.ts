@@ -25,7 +25,7 @@ export function createVisualDirectorServer(
     { name: 'visual-director', version: '0.2.0' },
     {
       instructions:
-        'Visual Director is a fail-closed gate before image generation. visual.prepare_generation delegates Canon resolution and package construction to the MCP-independent Visual Director Core. Proceed to an image model only after that exact request returns a successful Generation Package with non-empty style_lock and subject_lock. If preparation returns a Canon validation error, do not reconstruct or guess character facts from memory, conversation history, legacy assets, or prior candidates. An explicit scene_context.repository_path is sufficient for that request and does not require prior MCP session state. For backward compatibility, the MCP adapter also remembers a valid explicit repository path as a runtime binding for subsequent calls in the same server lifecycle. visual.configure_project remains available for explicit runtime binding. Transport/session failures are connectivity errors, not Canon validation results. visual.adopt_anchor may only be called after explicit user approval. Visual Director never generates images or calls an image API.',
+        'Visual Director is a fail-closed gate before image generation. visual.prepare_generation delegates Canon resolution and package construction to the MCP-independent Visual Director Core. Proceed to an image model only after that exact request returns a successful Generation Package with non-empty style_lock. Character requests must also have non-empty subject_lock and Approved Anchor references. Subjectless non-character requests are allowed only when Grand Design explicitly defines the asset type and scene_context.reference_paths resolves to repository source assets; their subject_lock is intentionally empty and reference_assets must contain source_asset entries. If preparation returns a Canon validation error, do not reconstruct or guess facts from memory, conversation history, legacy assets, or prior candidates. An explicit scene_context.repository_path is sufficient for that request and does not require prior MCP session state. For backward compatibility, the MCP adapter also remembers a valid explicit repository path as a runtime binding for subsequent calls in the same server lifecycle. visual.configure_project remains available for explicit runtime binding. Transport/session failures are connectivity errors, not Canon validation results. visual.adopt_anchor may only be called after explicit user approval. Visual Director never generates images or calls an image API.',
     },
   );
 
@@ -77,16 +77,17 @@ export function createVisualDirectorServer(
     {
       title: 'Prepare visual generation',
       description:
-        'Return a fail-closed Generation Package from the MCP-independent Visual Director Core. An explicit scene_context.repository_path is sufficient for local requests; hosted read-only requests ignore client-local repository paths and resolve the project from the configured repository catalog.',
+        'Return a fail-closed Generation Package from the MCP-independent Visual Director Core. Character requests use subject_ids and Approved Anchors. Grand-Design non-character requests may use subject_ids: [] only when scene_context.reference_paths supplies repository-relative source assets. An explicit scene_context.repository_path is sufficient for local requests; hosted read-only requests ignore client-local repository paths and resolve the project from the configured repository catalog.',
       annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
       inputSchema: z.object({
-        project_id: z.string().min(1), asset_type: z.string().min(1), subject_ids: z.array(z.string().min(1)).min(1), request_text: z.string().min(1), scene_context: z.record(z.string(), z.unknown()).optional(),
+        project_id: z.string().min(1), asset_type: z.string().min(1), subject_ids: z.array(z.string().min(1)), request_text: z.string().min(1), scene_context: z.record(z.string(), z.unknown()).optional(),
       }),
       outputSchema: z.object({
         project_id: z.string(),
         asset_type: z.string(),
         prompt_package: z.object({
           grand_design_lock: z.string().optional(),
+          grand_design_contract: z.unknown().optional(),
           style_lock: z.string(),
           subject_lock: z.array(z.string()),
           scene_requirements: z.array(z.string()),
@@ -94,7 +95,7 @@ export function createVisualDirectorServer(
           forbidden_changes: z.array(z.string()),
           avoid_block: z.array(z.string()),
         }),
-        reference_assets: z.array(z.object({ role: z.enum(['global_reference', 'subject_anchor']), path: z.string(), subject_id: z.string().optional() })),
+        reference_assets: z.array(z.object({ role: z.enum(['global_reference', 'subject_anchor', 'source_asset']), path: z.string(), subject_id: z.string().optional() })),
         policy: z.object({ must_use_approved_anchor: z.boolean(), must_not_chain_from_candidate: z.literal(true), must_review_after_generation: z.literal(true) }),
       }),
     },
