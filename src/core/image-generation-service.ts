@@ -67,7 +67,7 @@ function generationPrompt(generationPackage: GenerationPackage, requestText: str
   return [
     requestText.trim(),
     '',
-    ...(p.grand_design_lock ? [`GRAND DESIGN LOCK: ${p.grand_design_lock}`] : []),
+    ...(p.grand_design_contract ? [`GRAND DESIGN CONTRACT: ${stableJson(p.grand_design_contract)}`] : []),
     `STYLE LOCK: ${p.style_lock}`,
     ...p.subject_lock.map((value) => `SUBJECT LOCK: ${value}`),
     ...p.scene_requirements.map((value) => `SCENE REQUIREMENT: ${value}`),
