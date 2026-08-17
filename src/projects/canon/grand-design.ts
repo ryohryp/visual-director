@@ -37,6 +37,12 @@ export interface GrandDesignContract {
   asset_contract: Record<string, unknown>;
 }
 
+declare module '../../domain/types.js' {
+  interface PromptPackage {
+    grand_design_contract?: GrandDesignContract;
+  }
+}
+
 export function parseGrandDesign(raw: string, expectedProjectId: string, path: string): GrandDesignDocument {
   let parsed: unknown;
   try {
