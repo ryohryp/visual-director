@@ -97,7 +97,7 @@ export interface AdoptAnchorResult {
 }
 
 export interface ReferenceAsset {
-  role: 'global_reference' | 'subject_anchor';
+  role: 'global_reference' | 'subject_anchor' | 'source_asset';
   path: string;
   subject_id?: string;
 }

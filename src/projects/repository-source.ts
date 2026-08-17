@@ -1,4 +1,4 @@
-import { access, readFile } from 'node:fs/promises';
+import { access, lstat, readFile } from 'node:fs/promises';
 import path from 'node:path';
 
 import { VisualDirectorError } from '../domain/types.js';
@@ -45,9 +45,13 @@ export class LocalRepositorySource implements RepositorySource {
   async ensureFile(relativePath: string, label: string): Promise<void> {
     const filePath = this.resolve(relativePath);
     try {
-      await access(filePath);
-    } catch {
-      throw new VisualDirectorError('REFERENCE_NOT_FOUND', `${label} does not exist.`, { path: relativePath });
+      const info = await lstat(filePath);
+      if (!info.isFile() || info.isSymbolicLink()) throw new Error('Path is not a regular file.');
+    } catch (error) {
+      throw new VisualDirectorError('REFERENCE_NOT_FOUND', `${label} does not exist as a regular repository file.`, {
+        path: relativePath,
+        reason: error instanceof Error ? error.message : String(error),
+      });
     }
   }
 
