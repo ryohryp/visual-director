@@ -47,7 +47,7 @@ export async function handleHostedMcpRequest(
   res: ServerResponse,
   options: VisualDirectorServerOptions = {},
 ): Promise<void> {
-  const requestId = req.headers['x-request-id']?.toString() || randomUUID();
+  const requestId: string = req.headers['x-request-id']?.toString() || randomUUID();
   res.setHeader('x-request-id', requestId);
 
   if (req.method !== 'POST') {
@@ -91,7 +91,7 @@ export function writeHealthResponse(res: ServerResponse): void {
   res.end(JSON.stringify({ status: 'ok', service: 'visual-director', mode: 'hosted-read-only' }));
 }
 
-function writeHostedError(res: ServerResponse, error: unknown, requestId = randomUUID()): void {
+function writeHostedError(res: ServerResponse, error: unknown, requestId: string = randomUUID()): void {
   const message = error instanceof Error ? error.message : String(error);
   logHostedEvent('request_failed', requestId, { message, retryable: true });
   if (res.headersSent || res.writableEnded) {
