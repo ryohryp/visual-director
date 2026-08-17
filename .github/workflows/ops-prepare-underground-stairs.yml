@@ -1,0 +1,34 @@
+name: Ops Prepare Underground Stairs
+
+on:
+  push:
+    branches:
+      - ops/deploy-main-20260818
+    paths:
+      - .github/workflows/ops-prepare-underground-stairs.yml
+
+permissions:
+  contents: read
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ops/deploy-main-20260818
+          persist-credentials: false
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Call production Visual Director
+        run: node scripts/ops-prepare-underground-stairs.mjs
+      - name: Upload Generation Package
+        uses: actions/upload-artifact@v4
+        with:
+          name: issue-131-underground-stairs-generation-package
+          path: underground-stairs-generation-package.json
+          retention-days: 3
