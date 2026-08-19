@@ -14,6 +14,7 @@ import type { ProjectRegistry } from '../projects/registry.js';
 export interface VisualDirectorServerOptions {
   repoPath?: string;
   projectsConfigPath?: string;
+  enableGenerationTool?: boolean;
 }
 
 export function createVisualDirectorServer(
@@ -25,7 +26,7 @@ export function createVisualDirectorServer(
     { name: 'visual-director', version: '0.2.0' },
     {
       instructions:
-        'Visual Director is a fail-closed gate before image generation. visual.prepare_generation delegates Canon resolution and package construction to the MCP-independent Visual Director Core. Proceed to an image model only after that exact request returns a successful Generation Package with non-empty style_lock. Character requests must also have non-empty subject_lock and Approved Anchor references. Subjectless non-character requests are allowed only when Grand Design explicitly defines the asset type and scene_context.reference_paths resolves to repository source assets; their subject_lock is intentionally empty and reference_assets must contain source_asset entries. If preparation returns a Canon validation error, do not reconstruct or guess facts from memory, conversation history, legacy assets, or prior candidates. An explicit scene_context.repository_path is sufficient for that request and does not require prior MCP session state. For backward compatibility, the MCP adapter also remembers a valid explicit repository path as a runtime binding for subsequent calls in the same server lifecycle. visual.configure_project remains available for explicit runtime binding. Transport/session failures are connectivity errors, not Canon validation results. visual.adopt_anchor may only be called after explicit user approval. Visual Director never generates images or calls an image API.',
+        'Visual Director is a fail-closed gate before image generation. visual.prepare_generation delegates Canon resolution and package construction to the MCP-independent Visual Director Core. Proceed to an image model only after that exact request returns a successful Generation Package with non-empty style_lock. Character requests must also have non-empty subject_lock and Approved Anchor references. Subjectless non-character requests are allowed only when Grand Design explicitly defines the asset type and scene_context.reference_paths resolves to repository source assets; their subject_lock is intentionally empty and reference_assets must contain source_asset entries. If preparation returns a Canon validation error, do not reconstruct or guess facts from memory, conversation history, legacy assets, or prior candidates. An explicit scene_context.repository_path is sufficient for that request and does not require prior MCP session state. For backward compatibility, the MCP adapter also remembers a valid explicit repository path as a runtime binding for subsequent calls in the same server lifecycle. visual.configure_project remains available for explicit runtime binding. Transport/session failures are connectivity errors, not Canon validation results. visual.adopt_anchor may only be called after explicit user approval. Host-native image generation is allowed only when the host can mechanically restrict image bindings to the current Generation Package; unrelated conversation images without an enforceable whitelist require fail-closed. After two consecutive wrong-reference results, stop instead of blindly regenerating. Local/tunnel visual.generate_image rebuilds the Generation Package and sends only its repository reference_assets to the configured generator; hosted read-only mode does not expose that tool.',
     },
   );
 
@@ -118,6 +119,43 @@ export function createVisualDirectorServer(
     },
   );
 
+  if (shouldExposeGenerationTool(options)) {
+    server.registerTool(
+      'visual.generate_image',
+      {
+        title: 'Generate isolated visual Candidate',
+        description:
+          'Local/tunnel-only isolated generation. Rebuilds the exact Generation Package from the supplied repository, sends only that package reference_assets to the configured image generator, and stores the output as a Candidate. The hosted read-only MCP surface does not expose this tool.',
+        annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
+        inputSchema: z.object({
+          project_id: z.string().min(1),
+          repository_path: z.string().min(1),
+          job_id: z.string().min(1),
+          asset_id: z.string().min(1),
+          asset_type: z.string().min(1),
+          subject_ids: z.array(z.string().min(1)),
+          request_text: z.string().min(1),
+          scene_context: z.record(z.string(), z.unknown()).optional(),
+        }),
+        outputSchema: z.object({
+          project_id: z.string(),
+          job_id: z.string(),
+          asset_id: z.string(),
+          status: z.literal('candidate'),
+          candidate_path: z.string(),
+          generator: z.string(),
+          generation_package_fingerprint: z.string(),
+        }),
+      },
+      async (input) => {
+        try {
+          const result = await core.generateImage(input);
+          return { structuredContent: { ...result } as Record<string, unknown>, content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+        } catch (error) { return toolError(error); }
+      },
+    );
+  }
+
   return server;
 }
 
@@ -128,6 +166,10 @@ function toolError(error: unknown) {
 function serializeError(error: unknown): Record<string, unknown> {
   if (error instanceof VisualDirectorError) return { error: error.code, message: error.message, ...(error.details ? { details: error.details } : {}) };
   return { error: 'INTERNAL_ERROR', message: error instanceof Error ? error.message : String(error) };
+}
+
+function shouldExposeGenerationTool(options: VisualDirectorServerOptions): boolean {
+  return options.enableGenerationTool ?? !isHostedReadOnlyMode();
 }
 
 function isHostedReadOnlyMode(): boolean {
