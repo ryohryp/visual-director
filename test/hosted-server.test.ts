@@ -93,6 +93,14 @@ async function connectClient(versionNegotiation: { mode: 'legacy' } | { mode: { 
 }
 
 async function expectPreparedPackage(client: Client): Promise<void> {
+  const tools = await client.listTools();
+  expect(tools.tools.map((tool) => tool.name)).toEqual([
+    'visual.configure_project',
+    'visual.adopt_anchor',
+    'visual.prepare_generation',
+  ]);
+  expect(tools.tools.map((tool) => tool.name)).not.toContain('visual.generate_image');
+
   const result = await client.callTool({
     name: 'visual.prepare_generation',
     arguments: {
