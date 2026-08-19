@@ -4,7 +4,7 @@ import path from 'node:path';
 
 import { VisualDirectorError } from '../domain/types.js';
 import type { GenerateImageInput, GenerateImageResult, GenerationPackage } from '../domain/types.js';
-import type { ImageGenerator } from '../generators/types.js';
+import type { ImageGenerationSize, ImageGenerator } from '../generators/types.js';
 import { beginGenerationJob, completeGenerationJob, failGenerationJob } from '../projects/generation-workflow-store.js';
 
 export interface ImageGenerationServiceInput {
@@ -30,7 +30,12 @@ export async function runImageGeneration(input: ImageGenerationServiceInput): Pr
   });
 
   try {
-    const generated = await generator.generate({ generation_package: generationPackage, repository_path: request.repository_path, prompt: generationPrompt(generationPackage, request.request_text) });
+    const generated = await generator.generate({
+      generation_package: generationPackage,
+      repository_path: request.repository_path,
+      prompt: generationPrompt(generationPackage, request.request_text),
+      size: resolveImageGenerationSize(request, generationPackage),
+    });
     const candidatePath = `.visual-director/candidates/${safeId(request.job_id)}/${safeId(request.asset_id)}.${generated.extension}`;
     const absolute = path.resolve(request.repository_path, candidatePath);
     await mkdir(path.dirname(absolute), { recursive: true });
@@ -60,6 +65,44 @@ export async function runImageGeneration(input: ImageGenerationServiceInput): Pr
 
 export function fingerprintGenerationPackage(generationPackage: GenerationPackage): string {
   return createHash('sha256').update(stableJson(generationPackage)).digest('hex');
+}
+
+export function resolveImageGenerationSize(
+  request: Pick<GenerateImageInput, 'asset_type' | 'scene_context'>,
+  generationPackage: GenerationPackage,
+): ImageGenerationSize {
+  for (const key of ['aspect_ratio', 'aspectRatio', 'orientation']) {
+    const value = request.scene_context?.[key];
+    if (typeof value !== 'string') continue;
+    const explicit = sizeFromExplicitHint(value);
+    if (explicit) return explicit;
+  }
+
+  const contextText = stableJson(request.scene_context ?? {}).toLowerCase();
+  const contextPrimary = sizeFromPrimaryComposition(contextText);
+  if (contextPrimary) return contextPrimary;
+
+  const requirements = generationPackage.prompt_package.scene_requirements.join('\n').toLowerCase();
+  const packagePrimary = sizeFromPrimaryComposition(requirements);
+  if (packagePrimary) return packagePrimary;
+
+  if (request.asset_type.trim().toLowerCase().includes('background')) return '1536x1024';
+  return '1024x1536';
+}
+
+function sizeFromExplicitHint(value: string): ImageGenerationSize | undefined {
+  const normalized = value.trim().toLowerCase().replace(/\s+/g, '');
+  if (normalized === '16:9' || normalized === 'landscape' || normalized === 'horizontal') return '1536x1024';
+  if (normalized === '9:16' || normalized === 'portrait' || normalized === 'vertical') return '1024x1536';
+  if (normalized === '1:1' || normalized === 'square') return '1024x1024';
+  return undefined;
+}
+
+function sizeFromPrimaryComposition(value: string): ImageGenerationSize | undefined {
+  if (value.includes('16:9 primary') || value.includes('primary 16:9')) return '1536x1024';
+  if (value.includes('9:16 primary') || value.includes('primary 9:16')) return '1024x1536';
+  if (value.includes('1:1 primary') || value.includes('primary 1:1')) return '1024x1024';
+  return undefined;
 }
 
 function generationPrompt(generationPackage: GenerationPackage, requestText: string): string {
