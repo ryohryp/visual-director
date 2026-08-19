@@ -38,7 +38,7 @@ export class OpenAIImageGenerator implements ImageGenerator {
     form.set('input_fidelity', 'high');
     form.set('quality', 'high');
     form.set('output_format', 'webp');
-    form.set('size', '1024x1536');
+    form.set('size', input.size);
 
     for (const reference of references) {
       const transportPath = await supportedTransportPath(input.repository_path, safeRelativePath(reference.path));
