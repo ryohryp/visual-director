@@ -23,4 +23,18 @@ describe('Visual Director Plus-first skill', () => {
     expect(skill).not.toContain('`visual.prepare_generation`が成功している。');
     expect(skill).not.toContain('`visual.prepare_generation`が利用できない場合は、Visual Director MCP');
   });
+
+  it('fails closed when conversation images cannot be isolated from native generation', async () => {
+    const skill = await readFile(skillPath, 'utf8');
+
+    expect(skill).toContain('Conversation image context isolation');
+    expect(skill).toContain('「新規生成だから過去画像は使われない」と仮定しない');
+    expect(skill).toContain('hostが今回のreferenceだけに明示限定できない');
+    expect(skill).toContain('同じ誤参照が2回連続したら、そのcontextでは生成を停止');
+    expect(skill).toContain('3回目を盲目的に再生成しない');
+    expect(skill).toContain('dashboard / UI / report');
+    expect(skill).toContain('local/tunnel限定の`visual.generate_image`');
+    expect(skill).toContain('Generation Packageの`reference_assets`だけをgeneratorへ送る');
+    expect(skill).toContain('Hosted read-onlyでは公開しない');
+  });
 });

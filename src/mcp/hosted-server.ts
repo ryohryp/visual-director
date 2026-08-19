@@ -69,7 +69,7 @@ export async function handleHostedMcpRequest(
   }
 
   logHostedEvent('request_received', requestId, { method: 'POST', path: '/mcp' });
-  const handler = createMcpHandler(() => createVisualDirectorServer(options));
+  const handler = createMcpHandler(() => createVisualDirectorServer({ ...options, enableGenerationTool: false }));
   const nodeHandler = toNodeHandler(handler, {
     onerror: (error) => {
       logHostedEvent('transport_error', requestId, { message: error.message, retryable: true });
