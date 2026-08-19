@@ -27,8 +27,25 @@ MCP failureをCanon failureとして扱わない。MCPが失敗したという�
 - `global_reference_path`を解決でき、GitHub上で実ファイルの存在を確認できる。
 - `must_use_approved_anchor: true`の場合、Approved Anchorを実際の参照画像として利用できる。
 - `forbidden_changes`と`avoid_block`を取得済みである。
+- `must_not_chain_from_candidate: true`を最終画像生成段階でも維持できる。
 
 参照アセットが見つからない、compiled Canonが存在しない、subjectが存在しない、policyが不整合、または参照画像を画像生成機能へ渡せない場合は生成を停止する。会話履歴、モデル記憶、旧アセット、candidate、他人物のAnchorから補完しない。
+
+### Conversation image context isolation
+
+ChatGPT native image generationを使う場合、Generation Packageが正しくても同一会話の過去画像が暗黙のgeneration parentになる可能性を前提にする。「新規生成だから過去画像は使われない」と仮定しない。
+
+次のいずれかに該当する場合はnative image generationをfail closedする。
+
+- 今回のGeneration Packageで許可された`reference_assets`以外のuploaded/generated imageがgeneration contextへ入る可能性がある。
+- 同一会話に無関係なgenerated/uploaded imageが存在し、hostが今回のreferenceだけに明示限定できない。
+- hostへ実際にbindされるreferenceの中に、今回のGeneration Packageに存在しない画像がある。
+
+この場合、その会話でnative image generationを呼ばない。新しいclean contextへ移るか、利用可能ならlocal/tunnel限定の`visual.generate_image`を使う。MCPが利用不能だからという理由で、このcontext-isolation gateを迂回しない。
+
+生成結果が別の会話画像や過去成果物を継承したと判断した場合は、prompt品質ではなくcontext/reference binding問題として扱う。同じ誤参照が2回連続したら、そのcontextでは生成を停止し、3回目を盲目的に再生成しない。
+
+誤参照で生成されたdashboard / UI / reportなどを切り出し、cropし、名称変更してbackground candidateとして再利用しない。Rejectのまま扱う。
 
 ## 意図ルーティングゲート
 
@@ -67,7 +84,22 @@ MCP failureをCanon failureとして扱わない。MCPが失敗したという�
    - avoid block = `avoid_block`
    - reference assets = global reference + Approved Anchors
    - policy = compiled Canonのpolicy
-8. 画像生成後、hard facts、人物同一性、Global Style、必須小物、服装などを照合する。外れていればRejectし、採用・登録へ進めない。
+8. 実際の画像生成経路を決める。
+   - local/tunnelで`visual.generate_image`が利用可能で、会話画像から機械的に分離した生成が必要ならこれを優先する。`visual.generate_image`はfreshなGeneration Packageを再構築し、そのrepository `reference_assets`だけをgeneratorへ渡す。
+   - host-native image generationを使う場合は、上記Conversation image context isolationを満たすことを確認する。明示限定できない無関係画像が会話にあるなら生成しない。
+   - Hosted read-only MCPに`visual.generate_image`が存在しないことは正常であり、Hosted write/generationを有効化して回避しない。
+9. 画像生成後、hard facts、人物同一性、Global Style、必須小物、服装などを照合する。外れていればRejectし、採用・登録へ進めない。
+
+## Isolated generation path
+
+`visual.generate_image`はlocal/tunnel限定のisolated generation pathである。利用可能な場合はVisual Director Coreの`generateImage()`へ委譲し、今回のrepositoryからfreshに解決したGeneration Packageだけを使う。
+
+- ChatGPT会話履歴の画像をgenerator inputに含めない。
+- Generation Packageの`reference_assets`だけをgeneratorへ送る。
+- 生成物は`.visual-director/candidates/`へCandidateとして保存する。
+- 自動Approved / Registered化しない。
+- Hosted read-onlyでは公開しない。
+- background / `16:9` primary compositionはportrait固定にせずlandscape canvasを使う。
 
 ## MCP failureの扱い
 
@@ -87,6 +119,7 @@ MCP failureをCanon failureとして扱わない。MCPが失敗したという�
 - ユーザーが明示していない年齢、服装、感情、天候、負傷、照明、時系列状態を追加しない。
 - Approved Anchor以外のcandidate / archived / legacy画像をgeneration parentとして使わない。
 - 参照画像を現在の画像生成機能へ実際に渡せない場合は生成を止める。参照なしで続行しない。
+- repository-native fallbackはconversation image context isolationを無効化しない。Canonを正しく読めてもhost-native generationのreference bindingが安全でなければ生成しない。
 
 ## 採用・登録
 
@@ -103,4 +136,4 @@ ChatGPT由来の一時ファイルや`/mnt/data/...`をrepository pathとして�
 
 ## 成功時の原則
 
-MCP経路とrepository-native経路のどちらを使っても、style / subject / reference / policyの意味を同値に保つ。利用経路の違いを理由にCanon制約を弱めない。
+MCP経路とrepository-native経路のどちらを使っても、style / subject / reference / policyの意味を同値に保つ。利用経路の違いを理由にCanon制約を弱めない。host-nativeかisolated generatorかという最終生成経路の違いでも`must_not_chain_from_candidate: true`を弱めない。
