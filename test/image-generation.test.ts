@@ -5,6 +5,7 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { createVisualDirectorCore } from '../src/core/visual-director.js';
+import { OpenAIImageGenerator } from '../src/generators/openai-image-generator.js';
 import type { ImageGenerator } from '../src/generators/types.js';
 
 let root: string;
@@ -30,6 +31,7 @@ describe('image generation orchestration', () => {
         ]);
         expect(input.prompt).toContain('STYLE LOCK');
         expect(input.prompt).toContain('Approved Visual Anchor');
+        expect(input.size).toBe('1024x1536');
         return {
           bytes: Buffer.from('generated-image'),
           mime_type: 'image/webp',
@@ -72,6 +74,63 @@ describe('image generation orchestration', () => {
       ],
       generation_package_fingerprint: result.generation_package_fingerprint,
     });
+  });
+
+  it('uses a landscape generator canvas for a background whose primary composition is 16:9', async () => {
+    let observedSize: string | undefined;
+    const generator: ImageGenerator = {
+      id: 'fake:landscape',
+      async generate(input) {
+        observedSize = input.size;
+        return {
+          bytes: Buffer.from('landscape-image'),
+          mime_type: 'image/webp',
+          extension: 'webp',
+          generator: 'fake:landscape',
+        };
+      },
+    };
+    const core = createVisualDirectorCore({ imageGenerator: generator });
+
+    await core.generateImage({
+      project_id: 'bottom-of-thirst',
+      repository_path: root,
+      job_id: 'job-background',
+      asset_id: 'asset-background',
+      asset_type: 'background_replacement_pair',
+      subject_ids: ['souma'],
+      request_text: '図書館背景を生成する',
+      scene_context: { composition: '16:9 primary composition with a centered 9:16 crop' },
+    });
+
+    expect(observedSize).toBe('1536x1024');
+  });
+
+  it('forwards the resolved landscape canvas to the OpenAI generator request', async () => {
+    let observedSize: FormDataEntryValue | null = null;
+    const fetchImpl = (async (_input: RequestInfo | URL, init?: RequestInit) => {
+      expect(init?.body).toBeInstanceOf(FormData);
+      observedSize = (init?.body as FormData).get('size');
+      return new Response(JSON.stringify({
+        data: [{ b64_json: Buffer.from('openai-generated-image').toString('base64') }],
+      }), { status: 200, headers: { 'content-type': 'application/json' } });
+    }) as typeof fetch;
+    const core = createVisualDirectorCore({
+      imageGenerator: new OpenAIImageGenerator({ apiKey: 'test-key', fetchImpl }),
+    });
+
+    await core.generateImage({
+      project_id: 'bottom-of-thirst',
+      repository_path: root,
+      job_id: 'job-openai-background',
+      asset_id: 'asset-openai-background',
+      asset_type: 'background',
+      subject_ids: ['souma'],
+      request_text: '横長の背景を生成する',
+      scene_context: { aspect_ratio: '16:9' },
+    });
+
+    expect(observedSize).toBe('1536x1024');
   });
 
   it('persists an explicit failed job when the generator fails', async () => {
