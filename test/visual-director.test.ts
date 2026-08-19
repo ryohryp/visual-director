@@ -71,7 +71,7 @@ describe('Project registry runtime configuration', () => {
 });
 
 describe('MCP tool', () => {
-  it('exposes visual.prepare_generation through the MCP protocol', async () => {
+  it('exposes preparation and isolated generation through the local MCP protocol', async () => {
     const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
     const server = createVisualDirectorServer();
     const client = new Client({ name: 'visual-director-test-client', version: '0.1.0' });
@@ -80,7 +80,12 @@ describe('MCP tool', () => {
 
     try {
       const tools = await client.listTools();
-      const expectedToolNames = ['visual.configure_project', 'visual.adopt_anchor', 'visual.prepare_generation'];
+      const expectedToolNames = [
+        'visual.configure_project',
+        'visual.adopt_anchor',
+        'visual.prepare_generation',
+        'visual.generate_image',
+      ];
       expect(tools.tools.map((candidate) => candidate.name)).toEqual(expectedToolNames);
       expect((await client.listTools()).tools.map((candidate) => candidate.name)).toEqual(expectedToolNames);
       const configureTool = tools.tools.find((candidate) => candidate.name === 'visual.configure_project');
@@ -104,7 +109,18 @@ describe('MCP tool', () => {
         },
       });
       expect(tool?.outputSchema).toBeDefined();
+      const generateTool = tools.tools.find((candidate) => candidate.name === 'visual.generate_image');
+      expect(generateTool).toMatchObject({
+        name: 'visual.generate_image',
+        annotations: {
+          readOnlyHint: false,
+          destructiveHint: false,
+          idempotentHint: false,
+          openWorldHint: true,
+        },
+      });
       expect(client.getInstructions()).toContain('visual.prepare_generation');
+      expect(client.getInstructions()).toContain('visual.generate_image');
 
       const configureResult = await client.callTool({
         name: 'visual.configure_project',
@@ -146,7 +162,7 @@ describe('MCP tool', () => {
     }
   });
 
-  it('serves the ChatGPT-compatible Streamable HTTP transport', async () => {
+  it('serves the ChatGPT-compatible Streamable HTTP transport with isolated generation locally', async () => {
     const { httpServer } = createHttpServerForVisualDirector({ repoPath: fixtureRoot });
     await new Promise<void>((resolve) => httpServer.listen(0, '127.0.0.1', resolve));
 
@@ -163,8 +179,10 @@ describe('MCP tool', () => {
         'visual.configure_project',
         'visual.adopt_anchor',
         'visual.prepare_generation',
+        'visual.generate_image',
       ]);
       expect(client.getInstructions()).toContain('visual.prepare_generation');
+      expect(client.getInstructions()).toContain('visual.generate_image');
     } finally {
       await client.close();
       await new Promise<void>((resolve, reject) => httpServer.close((error) => (error ? reject(error) : resolve())));
