@@ -23,6 +23,16 @@ describe('compiled Canon', () => {
     expect(first.grand_design?.asset_types.background).toEqual({ purpose: 'silhouette-first readability' });
     expect(first.global_reference_path).toBe('docs/assets/crownless-visual-design-reference-v0.1.jpg');
     expect(first.policy.must_use_approved_anchor).toBe(true);
+    expect(first.asset_type_rules.character_visual_anchor).toEqual({
+      must_use_approved_anchor: true,
+      must_not_chain_from_candidate: true,
+      must_review_after_generation: true,
+    });
+    expect(first.asset_type_rules.background).toEqual({
+      must_use_approved_anchor: false,
+      must_not_chain_from_candidate: true,
+      must_review_after_generation: true,
+    });
     expect(first.subjects).toEqual([expect.objectContaining({ subject_id: 'player-unarmed', approved_anchor_path: 'docs/assets/player-unarmed-approved-anchor-v0.2.webp' })]);
     expect(first.world_direction).toContain('Medieval fantasy world direction.');
     expect(firstSerialized).not.toContain('Compile repository Canon.');
