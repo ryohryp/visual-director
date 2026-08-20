@@ -137,7 +137,8 @@ export class CanonProjectAdapter extends CanonAdapterBase {
       });
     }
 
-    const referencePaths = explicitReferencePaths(input);
+    const sourceReferenceRequired = contract.asset_contract.source_reference_required !== false;
+    const referencePaths = explicitReferencePaths(input, sourceReferenceRequired);
     for (const referencePath of referencePaths) {
       if (referencePath.startsWith('.visual-director/')) {
         throw new VisualDirectorError('REFERENCE_OUTSIDE_PRODUCTION', 'Non-character source references must be production/reference assets, not Visual Director candidates or workflow files.', {
@@ -146,10 +147,12 @@ export class CanonProjectAdapter extends CanonAdapterBase {
       }
       await this.source.ensureFile(referencePath, `Source asset reference for ${input.asset_type}`);
     }
+    await this.source.ensureFile(this.definition.documents.globalReference, 'Global Visual Reference');
 
     const worldMarkdown = await this.source.readText(this.definition.documents.worldDirection, 'World Direction');
     const sceneContext = visibleSceneContext(input.scene_context);
     const contractForbidden = stringArray(contract.asset_contract.forbidden);
+    const hasSourceReference = referencePaths.length > 0;
 
     return {
       project_id: this.projectId,
@@ -164,19 +167,27 @@ export class CanonProjectAdapter extends CanonAdapterBase {
           ...Object.entries(sceneContext).map(([key, value]) => `Scene context: ${key}: ${formatSceneValue(value)}`),
           ...bullets(worldMarkdown).slice(0, 8).map((rule) => `World direction: ${rule}`),
         ],
-        allowed_changes: [
-          'Change only the physical, factual, compositional, lighting, wetness, dryness, damage, or evidence details explicitly required by this request and its Grand Design asset contract.',
-          'Preserve the referenced asset location or object identity, stable camera logic, material language, and recognizable memory anchors unless the request explicitly requires a change.',
-        ],
+        allowed_changes: hasSourceReference
+          ? [
+            'Change only the physical, factual, compositional, lighting, wetness, dryness, damage, or evidence details explicitly required by this request and its Grand Design asset contract.',
+            'Preserve the referenced asset location or object identity, stable camera logic, material language, and recognizable memory anchors unless the request explicitly requires a change.',
+          ]
+          : [
+            'Create a new subjectless visual asset only within the factual, compositional, material, lighting, and style boundaries defined by this request and its Grand Design asset contract.',
+            'Use the Global Visual Reference as the visual-family calibration source; do not borrow location identity, composition, or objects from unrelated generated or legacy assets.',
+          ],
         forbidden_changes: unique([
-          'Do not redesign the referenced location or object into a different place merely for visual drama.',
+          ...(hasSourceReference ? ['Do not redesign the referenced location or object into a different place merely for visual drama.'] : []),
           'Do not use a generated Candidate, superseded workflow asset, or unrelated legacy asset as an implicit generation parent.',
           'Do not invent people, objects, damage, water, blood, ritual props, symbols, weather, or supernatural evidence that are absent from the request and Canon.',
           ...contractForbidden,
         ]),
         avoid_block: unique([...grandDesign.fixed_avoid, ...contractForbidden]),
       },
-      reference_assets: referencePaths.map((path) => ({ role: 'source_asset' as const, path })),
+      reference_assets: [
+        { role: 'global_reference', path: this.definition.documents.globalReference },
+        ...referencePaths.map((path) => ({ role: 'source_asset' as const, path })),
+      ],
       policy: {
         must_use_approved_anchor: false,
         must_not_chain_from_candidate: true,
@@ -188,10 +199,11 @@ export class CanonProjectAdapter extends CanonAdapterBase {
   private resolveSubjectId(value: string): string { return this.subjectAliases.get(normalizeSubjectAlias(value)) ?? value.trim(); }
 }
 
-function explicitReferencePaths(input: PrepareGenerationInput): string[] {
+function explicitReferencePaths(input: PrepareGenerationInput, required = true): string[] {
   const value = input.scene_context?.reference_paths;
   if (!Array.isArray(value) || value.length === 0 || !value.every((item) => typeof item === 'string' && item.trim().length > 0)) {
-    throw new VisualDirectorError('REFERENCE_REQUIRED', 'Subjectless Grand Design assets require scene_context.reference_paths with at least one repository-relative source asset path.');
+    if (!required && (value === undefined || (Array.isArray(value) && value.length === 0))) return [];
+    throw new VisualDirectorError('REFERENCE_REQUIRED', 'Subjectless Grand Design assets require scene_context.reference_paths with at least one repository-relative source asset path unless the asset contract explicitly sets source_reference_required to false.');
   }
   return unique(value.map((item) => (item as string).trim().replace(/\\/g, '/').replace(/^\.\//, '')));
 }
