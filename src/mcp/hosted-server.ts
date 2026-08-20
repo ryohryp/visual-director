@@ -4,6 +4,7 @@ import { createServer as createHttpServer, type IncomingMessage, type Server, ty
 import { toNodeHandler } from '@modelcontextprotocol/node';
 import { createMcpHandler } from '@modelcontextprotocol/server';
 
+import { registerApprovedEditSourceTool } from './approved-edit-source.js';
 import { createVisualDirectorServer } from './server.js';
 import type { VisualDirectorServerOptions } from './server.js';
 
@@ -69,7 +70,11 @@ export async function handleHostedMcpRequest(
   }
 
   logHostedEvent('request_received', requestId, { method: 'POST', path: '/mcp' });
-  const handler = createMcpHandler(() => createVisualDirectorServer({ ...options, enableGenerationTool: false }));
+  const handler = createMcpHandler(() => {
+    const server = createVisualDirectorServer({ ...options, enableGenerationTool: false });
+    registerApprovedEditSourceTool(server);
+    return server;
+  });
   const nodeHandler = toNodeHandler(handler, {
     onerror: (error) => {
       logHostedEvent('transport_error', requestId, { message: error.message, retryable: true });

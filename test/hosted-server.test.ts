@@ -98,6 +98,7 @@ async function expectPreparedPackage(client: Client): Promise<void> {
     'visual.configure_project',
     'visual.adopt_anchor',
     'visual.prepare_generation',
+    'visual.bind_approved_edit_source',
   ]);
   expect(tools.tools.map((tool) => tool.name)).not.toContain('visual.generate_image');
 
