@@ -48,7 +48,7 @@ export async function compileRepositoryCanon(input: CompileRepositoryCanonInput)
     global_style_lock: baseline.prompt_package.style_lock,
     world_direction: baseline.prompt_package.scene_requirements.filter((rule) => rule.startsWith('World direction: ')).map((rule) => rule.slice('World direction: '.length)),
     avoid_block: baseline.prompt_package.avoid_block,
-    asset_type_rules: { character_visual_anchor: { ...baseline.policy } },
+    asset_type_rules: compiledAssetTypeRules(runtime.grandDesign, baseline.policy),
     subjects: prepared.map(({ anchor, generationPackage }) => ({ subject_id: anchor.subject_id, display_name: anchor.display_name, subject_lock: generationPackage.prompt_package.subject_lock[0] ?? '', approved_anchor_path: anchor.path, allowed_changes: [...generationPackage.prompt_package.allowed_changes], forbidden_changes: [...generationPackage.prompt_package.forbidden_changes] })).sort((left, right) => left.subject_id.localeCompare(right.subject_id)),
     global_reference_path: globalReference,
     policy: { ...baseline.policy },
@@ -83,6 +83,21 @@ async function createLocalCompileRuntime(projectId: string, repositoryPath: stri
 }
 
 async function runtimeFromAdapter(adapter: ProjectAdapter, projectId: string): Promise<LocalCompileRuntime> { return { overview: await adapter.getVisualOverview(), prepare: (subjectId) => adapter.prepare({ project_id: projectId, asset_type: 'character_visual_anchor', subject_ids: [subjectId], request_text: 'Compile repository Canon.' }) }; }
+function compiledAssetTypeRules(grandDesign: GrandDesignDocument | undefined, characterPolicy: GenerationPackage['policy']): CompiledCanon['asset_type_rules'] {
+  const subjectlessRules = Object.fromEntries(
+    Object.keys(grandDesign?.asset_types ?? {})
+      .filter((assetType) => assetType !== 'character_visual_anchor')
+      .map((assetType) => [assetType, {
+        must_use_approved_anchor: false,
+        must_not_chain_from_candidate: true as const,
+        must_review_after_generation: true as const,
+      }]),
+  );
+  return {
+    ...subjectlessRules,
+    character_visual_anchor: { ...characterPolicy },
+  };
+}
 function resolveCompiledCanonOutputPath(repositoryPath: string, outputPath?: string): string { const relativePath = (outputPath ?? COMPILED_CANON_RELATIVE_PATH).trim().replace(/\\/g, '/'); if (!relativePath || path.isAbsolute(relativePath) || /^[a-zA-Z]:/.test(relativePath) || relativePath.split('/').includes('..')) throw new VisualDirectorError('COMPILED_CANON_OUTPUT_INVALID', 'Compiled Canon output path must be repository-relative and stay inside the repository.', { output_path: outputPath ?? COMPILED_CANON_RELATIVE_PATH }); return path.resolve(repositoryPath, relativePath.replace(/^\.\//, '')); }
 function stableJson(value: unknown): string { return JSON.stringify(sortJson(value), null, 2); }
 function sortJson(value: unknown): unknown { if (Array.isArray(value)) return value.map(sortJson); if (!value || typeof value !== 'object') return value; return Object.fromEntries(Object.entries(value as Record<string, unknown>).sort(([left], [right]) => left.localeCompare(right)).map(([key, nested]) => [key, sortJson(nested)])); }
