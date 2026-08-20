@@ -7,7 +7,7 @@ import { createCatalogProjectAdapter } from '../src/projects/catalog-runtime.js'
 import { parseProjectCatalog } from '../src/projects/catalog.js';
 import { LocalRepositorySource } from '../src/projects/repository-source.js';
 
-function createBackgroundProject() {
+function createBackgroundProject(allowNewAsset = false) {
   const root = mkdtempSync(path.join(os.tmpdir(), 'visual-director-non-character-'));
   const files: Record<string, string | Buffer> = {
     '.visual-director/manifest.json': JSON.stringify({
@@ -33,11 +33,13 @@ function createBackgroundProject() {
         background: {
           purpose: 'observation base',
           variation_policy: 'preserve location identity',
+          ...(allowNewAsset ? { source_reference_required: false } : {}),
           forbidden: ['invent supernatural evidence', 'change location for drama'],
         },
       },
     }),
     'docs/WORLD_DIRECTION.md': '# World\n\n- 普通の場所として先に成立させる\n- 水と乾きは物語上の事実へ接続する\n',
+    'docs/visual/assets/character_only_reference.webp': Buffer.from('global-reference'),
     'public/images/backgrounds/underground_stairs.jpg': Buffer.from('production-background'),
   };
 
@@ -87,6 +89,7 @@ describe('non-character Grand Design preparation', () => {
     }));
     expect(prepared.prompt_package.scene_requirements.join('\n')).not.toContain('reference_paths');
     expect(prepared.reference_assets).toEqual([
+      { role: 'global_reference', path: 'docs/visual/assets/character_only_reference.webp' },
       { role: 'source_asset', path: 'public/images/backgrounds/underground_stairs.jpg' },
     ]);
     expect(prepared.policy).toEqual({
@@ -94,6 +97,26 @@ describe('non-character Grand Design preparation', () => {
       must_not_chain_from_candidate: true,
       must_review_after_generation: true,
     });
+  });
+
+  it('prepares a new subjectless asset from the Global Visual Reference when Grand Design explicitly allows it', async () => {
+    const { root, entry } = createBackgroundProject(true);
+    const adapter = await createCatalogProjectAdapter(entry, new LocalRepositorySource(root));
+
+    const prepared = await adapter.prepare({
+      project_id: 'bottom-of-thirst',
+      asset_type: 'background',
+      subject_ids: [],
+      request_text: '新しい観察地点の背景を作る。',
+      scene_context: { aspect_ratio: '16:9' },
+    });
+
+    expect(prepared.reference_assets).toEqual([
+      { role: 'global_reference', path: 'docs/visual/assets/character_only_reference.webp' },
+    ]);
+    expect(prepared.prompt_package.allowed_changes.join('\n')).toContain('Create a new subjectless visual asset');
+    expect(prepared.prompt_package.forbidden_changes.join('\n')).not.toContain('Do not redesign the referenced location');
+    expect(prepared.prompt_package.scene_requirements.join('\n')).toContain('aspect_ratio: 16:9');
   });
 
   it('fails closed without an explicit source asset', async () => {
