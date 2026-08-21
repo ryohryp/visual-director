@@ -249,9 +249,7 @@ async function downloadApprovedSourceFile(
     || typeof file.file_id !== 'string' || !file.file_id.trim()) {
     throw new VisualDirectorError('INVALID_FILE_REFERENCE', 'approved_source_file must include download_url and file_id.');
   }
-  if (file.file_name && /[\\/]/.test(file.file_name)) {
-    throw new VisualDirectorError('UNSAFE_FILE_REFERENCE', 'approved_source_file.file_name must be a file name, not a path.');
-  }
+  const fileName = hostFileName(file.file_name);
   let downloadUrl: URL;
   try {
     downloadUrl = new URL(file.download_url);
@@ -288,7 +286,7 @@ async function downloadApprovedSourceFile(
     }
     const image = inspectImage(bytes, {
       declaredMimeType: file.mime_type ?? response.headers.get('content-type') ?? undefined,
-      fileName: file.file_name,
+      fileName,
     });
     return { bytes, image };
   } catch (error) {
@@ -299,6 +297,14 @@ async function downloadApprovedSourceFile(
   } finally {
     clearTimeout(timeout);
   }
+}
+
+function hostFileName(value?: string): string | undefined {
+  if (!value) return undefined;
+  const normalized = value.trim().replace(/\\/g, '/');
+  const fileName = normalized.split('/').filter(Boolean).at(-1)?.trim();
+  if (!fileName || fileName === '.' || fileName === '..') return undefined;
+  return fileName;
 }
 
 function safeManifestPath(value: string): string {

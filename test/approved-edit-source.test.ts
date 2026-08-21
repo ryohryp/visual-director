@@ -84,6 +84,28 @@ describe('Approved edit source binding', () => {
     expect(Buffer.from(result.bytes).equals(Buffer.from(bytes))).toBe(true);
   });
 
+  it('accepts a host-managed file_name path by using only its basename as an image hint', async () => {
+    const bytes = Uint8Array.from(Buffer.from(PNG_BASE64, 'base64'));
+    const result = await bindApprovedEditSource(
+      'bottom-of-thirst',
+      MANIFEST_PATH,
+      {
+        ...fileReference(),
+        file_name: '/mnt/data/user-session/mnt/data/library.png',
+      },
+      sourceWithManifest(approvedManifest()),
+      fetchFor(bytes),
+    );
+
+    expect(result.binding).toMatchObject({
+      status: 'bound',
+      parent_generation_id: 'test-generation',
+      sha256: PNG_SHA256,
+      width: 2,
+      height: 1,
+    });
+  });
+
   it('rejects a manifest that is not approved', async () => {
     const bytes = Uint8Array.from(Buffer.from(PNG_BASE64, 'base64'));
     await expect(bindApprovedEditSource(
