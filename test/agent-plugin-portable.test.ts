@@ -57,6 +57,11 @@ describe('Agent Plugins 1.0 portable package', () => {
     expect(Object.keys(servers)).toEqual(['visual-director']);
 
     const server = servers['visual-director'];
+    expect(server).toBeDefined();
+    if (!server) {
+      throw new Error('visual-director MCP server entry is missing');
+    }
+
     expect(server).toEqual({
       type: 'streamable-http',
       url: 'https://visual-director-beta.vercel.app/mcp',
