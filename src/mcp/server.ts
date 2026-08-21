@@ -8,8 +8,12 @@ import { z } from 'zod';
 
 import { createVisualDirectorCore } from '../core/visual-director.js';
 import { VisualDirectorError } from '../domain/types.js';
+import { createCatalogRepositorySource, resolveCatalogEntry } from '../projects/catalog-runtime.js';
 import { createProjectRegistry } from '../projects/registry.js';
 import type { ProjectRegistry } from '../projects/registry.js';
+import { bindApprovedEditSource } from './approved-edit-source.js';
+
+const APPROVED_EDIT_SOURCE_COMPAT_SUBJECT = '__approved_edit_source__';
 
 export interface VisualDirectorServerOptions {
   repoPath?: string;
@@ -26,7 +30,7 @@ export function createVisualDirectorServer(
     { name: 'visual-director', version: '0.2.0' },
     {
       instructions:
-        'Visual Director is a fail-closed gate before image generation. visual.prepare_generation delegates Canon resolution and package construction to the MCP-independent Visual Director Core. Hosted read-only deployments also expose visual.prepare_non_character_generation as the subjectless entrypoint for Grand Design non-character assets; it never accepts character subject IDs. Proceed to an image model only after that exact request returns a successful Generation Package with non-empty style_lock. Character requests must also have non-empty subject_lock and Approved Anchor references. Subjectless non-character requests are allowed only when Grand Design explicitly defines the asset type and scene_context.reference_paths resolves to repository source assets; their subject_lock is intentionally empty and reference_assets must contain source_asset entries. If preparation returns a Canon validation error, do not reconstruct or guess facts from memory, conversation history, legacy assets, or prior candidates. An explicit scene_context.repository_path is sufficient for that request and does not require prior MCP session state. For backward compatibility, the MCP adapter also remembers a valid explicit repository path as a runtime binding for subsequent calls in the same server lifecycle. visual.configure_project remains available for explicit runtime binding. Transport/session failures are connectivity errors, not Canon validation results. visual.adopt_anchor may only be called after explicit user approval. Host-native image generation is allowed only when the host can mechanically restrict image bindings to the current Generation Package; unrelated conversation images without an enforceable whitelist require fail-closed. After two consecutive wrong-reference results, stop instead of blindly regenerating. Local/tunnel visual.generate_image rebuilds the Generation Package and sends only its repository reference_assets to the configured generator; hosted read-only mode does not expose that tool.',
+        'Visual Director is a fail-closed gate before image generation. visual.prepare_generation delegates Canon resolution and package construction to the MCP-independent Visual Director Core. Hosted read-only deployments also expose visual.prepare_non_character_generation as the subjectless entrypoint for Grand Design non-character assets; it never accepts character subject IDs. Proceed to an image model only after that exact request returns a successful Generation Package with non-empty style_lock. Character requests must also have non-empty subject_lock and Approved Anchor references. Subjectless non-character requests are allowed only when Grand Design explicitly defines the asset type and scene_context.reference_paths resolves to repository source assets; their subject_lock is intentionally empty and reference_assets must contain source_asset entries. If preparation returns a Canon validation error, do not reconstruct or guess facts from memory, conversation history, legacy assets, or prior candidates. An explicit scene_context.repository_path is sufficient for that request and does not require prior MCP session state. For backward compatibility, the MCP adapter also remembers a valid explicit repository path as a runtime binding for subsequent calls in the same server lifecycle. visual.configure_project remains available for explicit runtime binding. Transport/session failures are connectivity errors, not Canon validation results. visual.adopt_anchor may only be called after explicit user approval. Hosted clients whose tool list is cached may use visual.adopt_anchor with subject_id __approved_edit_source__, candidate_file set to the exact approved host file, and candidate_path set to its Approved Candidate manifest; that compatibility mode is read-only and returns the verified source pixels as image content rather than mutating Canon. Host-native image generation is allowed only when the host can mechanically restrict image bindings to the current Generation Package; unrelated conversation images without an enforceable whitelist require fail-closed. After two consecutive wrong-reference results, stop instead of blindly regenerating. Local/tunnel visual.generate_image rebuilds the Generation Package and sends only its repository reference_assets to the configured generator; hosted read-only mode does not expose that tool.',
     },
   );
 
@@ -53,7 +57,7 @@ export function createVisualDirectorServer(
     {
       title: 'Adopt Anchor and register Canon',
       description:
-        'After explicit user approval, adopt one image as the subject Approved Visual Anchor. candidate_file accepts the ChatGPT/OpenAI file reference supplied by the host; candidate_path remains the repository-relative compatibility input.',
+        'After explicit user approval, adopt one image as the subject Approved Visual Anchor. candidate_file accepts the ChatGPT/OpenAI file reference supplied by the host; candidate_path remains the repository-relative compatibility input. Hosted cached clients may use subject_id __approved_edit_source__ with both candidate_file and candidate_path to bind an exact Approved edit source without writing Canon.',
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
       inputSchema: z.object({
         project_id: z.string().min(1), subject_id: z.string().min(1),
@@ -67,6 +71,44 @@ export function createVisualDirectorServer(
     },
     async (input) => {
       try {
+        if (isHostedReadOnlyMode() && input.subject_id === APPROVED_EDIT_SOURCE_COMPAT_SUBJECT) {
+          if (!input.candidate_file || !input.candidate_path) {
+            throw new VisualDirectorError(
+              'APPROVED_SOURCE_BINDING_INPUT_REQUIRED',
+              'Cached-host compatibility binding requires candidate_file and candidate_path.',
+              { project_id: input.project_id },
+            );
+          }
+          const entry = resolveCatalogEntry(input.project_id);
+          const source = createCatalogRepositorySource(entry);
+          const bound = await bindApprovedEditSource(
+            input.project_id,
+            input.candidate_path,
+            input.candidate_file,
+            source,
+            fetch,
+          );
+          const compatibilityResult = {
+            project_id: bound.binding.project_id,
+            subject_id: APPROVED_EDIT_SOURCE_COMPAT_SUBJECT,
+            status: 'approved' as const,
+            anchor_path: bound.binding.manifest_path,
+            approved_anchor_path: bound.binding.manifest_path,
+            canon_path: bound.binding.manifest_path,
+            changed: false,
+            sha256: bound.binding.sha256,
+            mime_type: bound.binding.mime_type,
+            width: bound.binding.width,
+            height: bound.binding.height,
+          };
+          return {
+            structuredContent: { ...compatibilityResult } as Record<string, unknown>,
+            content: [
+              { type: 'text' as const, text: JSON.stringify({ mode: 'approved_edit_source_binding', ...bound.binding }, null, 2) },
+              { type: 'image' as const, data: Buffer.from(bound.bytes).toString('base64'), mimeType: bound.binding.mime_type },
+            ],
+          };
+        }
         const result = await core.adoptAnchor(input);
         return { structuredContent: { ...result } as Record<string, unknown>, content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
       } catch (error) { return toolError(error); }
