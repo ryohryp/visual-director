@@ -77,7 +77,7 @@ describe('Agent Plugins 1.0 portable package', () => {
 
   it('reuses the existing skill from the fixed portable discovery location', async () => {
     const skill = await readFile(skillPath, 'utf8');
-    const frontmatter = skill.match(/^---\n([\s\S]*?)\n---/u)?.[1] ?? '';
+    const frontmatter = skill.match(/^---\r?\n([\s\S]*?)\r?\n---/u)?.[1] ?? '';
 
     expect(frontmatter).toContain('name: visual-director');
     expect(frontmatter).toMatch(/description:\s*\S/u);
