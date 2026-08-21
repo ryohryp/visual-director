@@ -1,0 +1,18 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "visual-director",
+  "version": "0.1.0",
+  "description": "Prepare Canon-safe image generation packages with Visual Director skills and MCP.",
+  "author": {
+    "name": "ryohryp",
+    "url": "https://github.com/ryohryp"
+  },
+  "homepage": "https://github.com/ryohryp/visual-director#readme",
+  "repository": "https://github.com/ryohryp/visual-director",
+  "keywords": [
+    "game-development",
+    "image-generation",
+    "mcp",
+    "visual-canon"
+  ]
+}
