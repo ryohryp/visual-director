@@ -15,10 +15,12 @@ describe('global visual canon workspace', () => {
 
   it('links the project navigation to the Canon management view', async () => {
     const source = await readFile('src/web/project-pages.ts', 'utf8');
+    const shell = await readFile('src/web/project-shell.ts', 'utf8');
     const routes = await readFile('vercel.json', 'utf8');
     const workspace = await readFile('api/workspace.ts', 'utf8');
 
-    expect(source).toContain("['Global Canon',root+'/canon']");
+    expect(shell).toContain("['Global Canon','canon']");
+    expect(source).toContain("setupProjectShell(project,'canon')");
     expect(routes).toContain('^/projects/([^/]+)/canon/?$');
     expect(workspace).toContain("view === 'canon'");
   });
