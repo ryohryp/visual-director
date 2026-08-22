@@ -1,6 +1,8 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 
 import {
+  PROJECT_IMAGE_PREVIEW_CLIENT_SCRIPT,
+  PROJECT_IMAGE_PREVIEW_STYLES,
   PROJECT_SHELL_CLIENT_SCRIPT,
   PROJECT_SHELL_STYLES,
   projectShellMarkup,
@@ -50,14 +52,15 @@ a{color:#aab5c2}
 .error{color:#ffc0c0;border-color:#743a3a}
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:14px}
 .card{background:#141b23;border:1px solid #293542;border-radius:14px;overflow:hidden;color:inherit;text-decoration:none}
-.card img{width:100%;aspect-ratio:4/3;object-fit:cover;display:block}
+.card>img{width:100%;aspect-ratio:4/3;object-fit:cover;display:block}
 .body{padding:13px}
 .meta{font-size:11px;color:#8997a8;margin-top:5px}
 .empty{padding:28px;color:#7d8b9d}
 .nav{display:flex;gap:8px;flex-wrap:wrap}
 .nav a{padding:7px 10px;border:1px solid #293542;border-radius:999px;text-decoration:none}
 .nav a[aria-current="page"]{color:#fff;border-color:#5c728b;background:#1b2632}
-${PROJECT_SHELL_STYLES}`;
+${PROJECT_SHELL_STYLES}
+${PROJECT_IMAGE_PREVIEW_STYLES}`;
 
 const DASHBOARD = String.raw`<!doctype html>
 <html>
@@ -75,6 +78,7 @@ ${projectShellMarkup('Project')}
 <div id="stats" class="stats"></div>
 </main><script>
 ${PROJECT_SHELL_CLIENT_SCRIPT}
+${PROJECT_IMAGE_PREVIEW_CLIENT_SCRIPT}
 const m=location.pathname.match(/^\/projects\/([^/]+)\/?$/),project=m?decodeURIComponent(m[1]):'';
 const q=s=>document.querySelector(s),el=(t,c,x)=>{const n=document.createElement(t);if(c)n.className=c;if(x!==undefined)n.textContent=x;return n};
 const root='/projects/'+encodeURIComponent(project),asset=p=>'/api/projects/'+encodeURIComponent(project)+'/asset?path='+encodeURIComponent(p);
@@ -89,8 +93,8 @@ Promise.all([
   setProjectContext(p);
   q('#status').textContent=p.repository+' @ '+p.ref;
   for(const a of o.approved_anchors){
-    const card=el('a','card');card.href=root+'/anchors/'+encodeURIComponent(a.subject_id);
-    const img=el('img');img.src=asset(a.path);card.append(img,el('div','body',a.display_name));q('#anchors').append(card);
+    const name=a.display_name||a.subject_id;const card=el('a','card');card.href=root+'/anchors/'+encodeURIComponent(a.subject_id);
+    card.append(createImagePreview(asset(a.path),a.path,name),el('div','body',name));q('#anchors').append(card);
   }
   const counts={anchors:o.approved_anchors.length,candidates:o.workflow.assets.filter(a=>a.status==='candidate').length,jobs:o.workflow.jobs.length,failed:o.workflow.jobs.filter(j=>j.status==='failed').length};
   for(const [k,v] of Object.entries(counts)){const s=el('div','stat');s.append(el('div','value',String(v)),el('div','meta',k));q('#stats').append(s)}
@@ -140,6 +144,7 @@ ${projectShellMarkup('Global Visual Canon')}
 </div>
 </main><script>
 ${PROJECT_SHELL_CLIENT_SCRIPT}
+${PROJECT_IMAGE_PREVIEW_CLIENT_SCRIPT}
 const m=location.pathname.match(/^\/projects\/([^/]+)\/canon\/?$/),project=m?decodeURIComponent(m[1]):'';
 const q=s=>document.querySelector(s),el=(t,c,x)=>{const n=document.createElement(t);if(c)n.className=c;if(x!==undefined)n.textContent=x;return n};
 const root='/projects/'+encodeURIComponent(project),asset=p=>'/api/projects/'+encodeURIComponent(project)+'/asset?path='+encodeURIComponent(p);
@@ -156,7 +161,7 @@ Promise.all([
   q('#status').textContent=p.display_name+' · '+p.repository+' @ '+p.ref;
   q('#reference').src=asset(canon.asset_path);q('#documentPath').textContent=canon.document_path;q('#assetPath').textContent=canon.asset_path;
   const list=q('#anchorList');
-  for(const a of o.approved_anchors){const item=el('a','mini');item.href=root+'/anchors/'+encodeURIComponent(a.subject_id);const img=el('img');img.src=asset(a.path);img.alt='';item.append(img,el('span','',a.display_name));list.append(item)}
+  for(const a of o.approved_anchors){const name=a.display_name||a.subject_id;const item=el('a','mini');item.href=root+'/anchors/'+encodeURIComponent(a.subject_id);item.append(createImagePreview(asset(a.path),a.path,name),el('span','',name));list.append(item)}
   if(!o.approved_anchors.length)list.append(el('div','meta','No approved anchors yet.'));
   const approved=o.workflow.assets.filter(a=>a.status==='approved'||a.status==='registered').length;
   for(const [label,value] of [['Approved Anchors',o.approved_anchors.length],['Managed Assets',o.workflow.assets.length],['Approved / Registered',approved]]){const s=el('div','stat');s.append(el('div','value',String(value)),el('div','meta',label));q('#stats').append(s)}
@@ -172,6 +177,7 @@ ${projectShellMarkup('Loading…')}
 <div id="status" class="status">Loading repository state…</div><div id="content"></div>
 </main><script>
 ${PROJECT_SHELL_CLIENT_SCRIPT}
+${PROJECT_IMAGE_PREVIEW_CLIENT_SCRIPT}
 const m=location.pathname.match(/^\/projects\/([^/]+)\/(anchors|assets|generations)\/?$/),project=m?decodeURIComponent(m[1]):'',mode=m?m[2]:'';
 const q=s=>document.querySelector(s),el=(t,c,x)=>{const n=document.createElement(t);if(c)n.className=c;if(x!==undefined)n.textContent=x;return n};
 const root='/projects/'+encodeURIComponent(project),asset=p=>'/api/projects/'+encodeURIComponent(project)+'/asset?path='+encodeURIComponent(p);
@@ -185,8 +191,8 @@ Promise.all([
   if(!p)throw new Error('Unknown project_id: '+project);
   setProjectContext(p);q('#status').textContent=p.display_name;
   const out=q('#content'),grid=el('div','grid');
-  if(mode==='anchors')for(const a of o.approved_anchors){const card=el('a','card');card.href=root+'/anchors/'+encodeURIComponent(a.subject_id);const img=el('img');img.src=asset(a.path);img.alt=a.display_name||a.subject_id;card.append(img,el('div','body',a.display_name));grid.append(card)}
-  else if(mode==='assets')for(const a of o.workflow.assets){const card=el('div','card'),pth=a.registered_path||a.candidate_path;if(pth){const img=el('img');img.src=asset(pth);img.alt=a.asset_id||a.asset_type;card.append(img)}card.append(el('div','body',a.asset_type+' · '+a.status));grid.append(card)}
+  if(mode==='anchors')for(const a of o.approved_anchors){const name=a.display_name||a.subject_id;const card=el('a','card');card.href=root+'/anchors/'+encodeURIComponent(a.subject_id);card.append(createImagePreview(asset(a.path),a.path,name),el('div','body',name));grid.append(card)}
+  else if(mode==='assets')for(const a of o.workflow.assets){const card=el('div','card'),pth=a.registered_path||a.candidate_path;if(pth)card.append(createImagePreview(asset(pth),pth,a.asset_id||a.asset_type));card.append(el('div','body',a.asset_type+' · '+a.status));grid.append(card)}
   else for(const j of o.workflow.jobs)grid.append(el('div','card body',(j.request_text||j.job_id)+' · '+j.status));
   out.append(grid.children.length?grid:el('div','empty','No items registered.'));
 }).catch(e=>{q('#status').className='status error';q('#status').textContent=e.message});

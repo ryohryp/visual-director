@@ -1,6 +1,8 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 
 import {
+  PROJECT_IMAGE_PREVIEW_CLIENT_SCRIPT,
+  PROJECT_IMAGE_PREVIEW_STYLES,
   PROJECT_SHELL_CLIENT_SCRIPT,
   PROJECT_SHELL_STYLES,
   projectShellMarkup,
@@ -66,6 +68,7 @@ select{width:100%;padding:10px 11px;border-radius:9px;background:#0e141b;border:
 .kv dt{color:#7f8d9d}
 .kv dd{margin:0;overflow-wrap:anywhere}
 ${PROJECT_SHELL_STYLES}
+${PROJECT_IMAGE_PREVIEW_STYLES}
 @media(max-width:700px){main{padding:18px}.filters{grid-template-columns:1fr}.gallery{grid-template-columns:repeat(2,minmax(0,1fr))}.kv{grid-template-columns:1fr}}
 </style></head>
 <body><main>
@@ -77,6 +80,7 @@ ${projectShellMarkup('Loading…')}
 <aside id="detail" class="detail" hidden><button id="close" class="detail-close">Close</button><div class="eyebrow">Managed visual asset</div><h2 id="detail-title"></h2><div id="detail-status"></div><div class="detail-section"><h3>Asset metadata</h3><dl id="detail-meta" class="kv"></dl></div><div class="detail-section"><h3>Repository location</h3><div id="detail-path" class="ref"></div></div><div class="detail-section"><h3>Generation</h3><dl id="detail-job" class="kv"></dl></div><div class="detail-section"><h3>Reference lineage</h3><div id="detail-refs"></div></div></aside>
 <script>
 ${PROJECT_SHELL_CLIENT_SCRIPT}
+${PROJECT_IMAGE_PREVIEW_CLIENT_SCRIPT}
 const match=location.pathname.match(/^\/projects\/([^/]+)\/(anchors|assets|generations)\/?$/),project=match?decodeURIComponent(match[1]):'',mode=match?match[2]:'';
 const q=s=>document.querySelector(s),el=(t,c,x)=>{const n=document.createElement(t);if(c)n.className=c;if(x!==undefined)n.textContent=x;return n};
 const root='/projects/'+encodeURIComponent(project),assetUrl=p=>'/api/projects/'+encodeURIComponent(project)+'/asset?path='+encodeURIComponent(p),overviewUrl='/api/projects/'+encodeURIComponent(project)+'/overview';
@@ -89,7 +93,7 @@ function addKv(rootNode,key,value){rootNode.append(el('dt','',key),el('dd','',va
 function empty(message){return el('div','empty-state',message)}
 function renderAnchors(o){
   const grid=el('div','gallery');
-  for(const a of o.approved_anchors){const card=el('a','card');card.href=root+'/anchors/'+encodeURIComponent(a.subject_id);const img=el('img','thumb');img.src=assetUrl(a.path);img.alt=a.display_name||a.subject_id;const body=el('div','body');body.append(el('div','name',a.display_name||a.subject_id),el('div','path',a.path));card.append(img,body);grid.append(card)}
+  for(const a of o.approved_anchors){const name=a.display_name||a.subject_id;const card=el('a','card');card.href=root+'/anchors/'+encodeURIComponent(a.subject_id);const body=el('div','body');body.append(el('div','name',name),el('div','path',a.path));card.append(createImagePreview(assetUrl(a.path),a.path,name),body);grid.append(card)}
   q('#content').replaceChildren(grid.children.length?grid:empty('No approved anchors registered.'));
 }
 function filteredAssets(o){const subject=q('#subject').value,type=q('#type').value,status=q('#lifecycle').value;return o.workflow.assets.filter(a=>(!subject||a.subject_id===subject)&&(!type||a.asset_type===type)&&(!status||a.status===status))}
@@ -99,7 +103,7 @@ function renderAssets(o){
   const grid=el('div','gallery'),assets=filteredAssets(o);
   for(const a of assets){
     const card=el('article','card asset-card'),path=a.registered_path||a.candidate_path;
-    if(path){const img=el('img','thumb');img.src=assetUrl(path);img.alt=a.asset_id||a.asset_type;card.append(img)}else card.append(el('div','thumb empty','No image path'));
+    if(path)card.append(createImagePreview(assetUrl(path),path,a.asset_id||a.asset_type));else card.append(el('div','thumb empty','No image path'));
     const body=el('div','body');body.append(badge(a.status),el('div','name',a.asset_type||a.asset_id),el('div','meta',[a.subject_id,a.generator].filter(Boolean).join(' · ')),el('div','path',path||a.asset_id||'No repository path'));card.append(body);card.onclick=()=>showDetail(o,a);grid.append(card);
   }
   out.replaceChildren(grid.children.length?grid:empty('No assets match the current filters.'));

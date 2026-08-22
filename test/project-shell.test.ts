@@ -3,6 +3,8 @@ import { readFile } from 'node:fs/promises';
 import { describe, expect, it } from 'vitest';
 
 import {
+  PROJECT_IMAGE_PREVIEW_CLIENT_SCRIPT,
+  PROJECT_IMAGE_PREVIEW_STYLES,
   PROJECT_SHELL_CLIENT_SCRIPT,
   projectShellMarkup,
 } from '../src/web/project-shell.js';
@@ -24,6 +26,16 @@ describe('shared project workspace shell', () => {
     expect(PROJECT_SHELL_CLIENT_SCRIPT).toContain("setAttribute('aria-current','page')");
     expect(PROJECT_SHELL_CLIENT_SCRIPT).toContain("['Global Canon','canon']");
     expect(PROJECT_SHELL_CLIENT_SCRIPT).toContain('setProjectContext(project)');
+  });
+
+  it('defines a full-frame preview policy and explicit failure treatment', () => {
+    expect(PROJECT_IMAGE_PREVIEW_STYLES).toContain('object-fit:contain');
+    expect(PROJECT_IMAGE_PREVIEW_STYLES).toContain('aspect-ratio:4/3');
+    expect(PROJECT_IMAGE_PREVIEW_STYLES).toContain('.preview-fallback');
+    expect(PROJECT_IMAGE_PREVIEW_CLIENT_SCRIPT).toContain("img.alt=alt||'Approved Anchor preview'");
+    expect(PROJECT_IMAGE_PREVIEW_CLIENT_SCRIPT).toContain("fail('Preview unavailable')");
+    expect(PROJECT_IMAGE_PREVIEW_CLIENT_SCRIPT).toContain("fail('Preview unavailable: transparent asset')");
+    expect(PROJECT_IMAGE_PREVIEW_CLIENT_SCRIPT).toContain('preview-path');
   });
 
   it('is used by every project-scoped page family', async () => {
