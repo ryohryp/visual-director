@@ -62,7 +62,7 @@ if (!overview.workflow || !Array.isArray(overview.workflow.assets) || !Array.isA
 await html(`/projects/${encodedProject}`, ['<title>Project · Visual Director</title>', 'Project workspace', revisionMarker]);
 await html(`/projects/${encodedProject}/canon`, ['<title>Global Visual Canon · Visual Director</title>', 'Project workspace', revisionMarker]);
 for (const route of ['anchors', 'assets', 'generations']) {
-  await html(`/projects/${encodedProject}/${route}`, ['<title>Project view · Visual Director</title>', 'Project workspace', revisionMarker]);
+  await html(`/projects/${encodedProject}/${route}`, ['<title>Project workflow · Visual Director</title>', 'Project workspace', revisionMarker]);
 }
 
 console.log(`Review deployment verified: ${reviewUrl.origin} @ ${deployment.revision} (${deployment.branch})`);
