@@ -13,7 +13,7 @@ async function request(path) {
     cache: 'no-store',
     redirect: 'follow',
     headers: { 'user-agent': 'visual-director-review-smoke/1' },
-    signal: AbortSignal.timeout(timeoutMs),
+    signal: globalThis.AbortSignal.timeout(timeoutMs),
   });
   if (!response.ok) fail(`${path} returned HTTP ${response.status} (${response.url})`);
   return response;
