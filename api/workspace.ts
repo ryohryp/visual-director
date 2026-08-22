@@ -1,10 +1,10 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 
 import { homeHandler } from '../src/web/home.js';
+import { projectCollectionHandler } from '../src/web/project-collection.js';
 import {
   projectAnchorDetailHandler,
   projectCanonHandler,
-  projectCollectionHandler,
   projectDashboardHandler,
 } from '../src/web/project-pages.js';
 
