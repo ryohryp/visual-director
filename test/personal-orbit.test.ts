@@ -4,9 +4,11 @@ import path from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
+import { createCatalogProjectAdapter } from '../src/projects/catalog-runtime.js';
 import { PersonalOrbitAdapter } from '../src/projects/personal-orbit/adapter.js';
 import { personalOrbitDefinition } from '../src/projects/personal-orbit/definition.js';
 import { createProjectRegistry } from '../src/projects/registry.js';
+import { LocalRepositorySource } from '../src/projects/repository-source.js';
 
 let fixtureRoot: string;
 
@@ -70,6 +72,24 @@ describe('PersonalOrbitAdapter', () => {
     ).rejects.toMatchObject({
       code: 'SUBJECT_NOT_FOUND',
       details: { known_subject_ids: ['orby-town'] },
+    });
+  });
+  it('supports the Hosted catalog adapter through a repository source', async () => {
+    const adapter = await createCatalogProjectAdapter({
+      project_id: 'personal-orbit',
+      display_name: 'Personal Orbit',
+      repository: { owner: 'ryohryp', name: 'personal-orbit' },
+      ref: 'main',
+      adapter_type: 'personal-orbit',
+    }, new LocalRepositorySource(fixtureRoot));
+
+    await expect(adapter.prepare(input)).resolves.toMatchObject({
+      project_id: 'personal-orbit',
+      asset_type: 'town_scene',
+    });
+    await expect(adapter.getVisualOverview()).resolves.toMatchObject({
+      project_id: 'personal-orbit',
+      approved_anchors: [{ subject_id: 'orby-town', status: 'approved' }],
     });
   });
 });

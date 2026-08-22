@@ -1,7 +1,3 @@
-import { access } from 'node:fs/promises';
-import path from 'node:path';
-
-import { readUtf8File } from '../../domain/markdown.js';
 import { emptyWorkflowSummary, parseWorkflowIndex, WORKFLOW_INDEX_PATH } from '../../domain/visual-overview.js';
 import { VisualDirectorError } from '../../domain/types.js';
 import type {
@@ -11,23 +7,26 @@ import type {
   ProjectVisualOverview,
 } from '../../domain/types.js';
 import { LocalRepositorySource } from '../repository-source.js';
+import type { RepositorySource } from '../repository-source.js';
 import type { PersonalOrbitProjectDefinition } from './definition.js';
 
 export interface PersonalOrbitAdapterOptions {
-  repoPath: string;
+  repoPath?: string;
+  source?: RepositorySource;
 }
 
 export class PersonalOrbitAdapter implements ProjectAdapter {
   readonly projectId: string;
   private readonly definition: PersonalOrbitProjectDefinition;
-  private readonly repoPath: string;
-  private readonly source: LocalRepositorySource;
+  private readonly source: RepositorySource;
 
   constructor(definition: PersonalOrbitProjectDefinition, options: PersonalOrbitAdapterOptions) {
     this.projectId = definition.projectId;
     this.definition = definition;
-    this.repoPath = path.resolve(options.repoPath);
-    this.source = new LocalRepositorySource(this.repoPath);
+    if (!options.source && !options.repoPath?.trim()) {
+      throw new VisualDirectorError('PROJECT_CONFIG_MISSING', `No repository source is configured for project_id: ${definition.projectId}.`);
+    }
+    this.source = options.source ?? new LocalRepositorySource(options.repoPath as string);
   }
 
   async prepare(input: PrepareGenerationInput): Promise<GenerationPackage> {
@@ -43,15 +42,15 @@ export class PersonalOrbitAdapter implements ProjectAdapter {
     }
 
     const [townStyle, worldSource, orbySource, entrypoint] = await Promise.all([
-      readUtf8File(this.resolvePath(this.definition.documents.globalStyle), 'Orby Town style source'),
-      readUtf8File(this.resolvePath(this.definition.documents.worldDirection), 'Orby Town world source'),
-      readUtf8File(this.resolvePath(this.definition.documents.characterCanon), 'Orby visual source'),
-      readUtf8File(this.resolvePath(this.definition.documents.assetManifest), 'Orby Town entrypoint'),
+      this.source.readText(this.definition.documents.globalStyle, 'Orby Town style source'),
+      this.source.readText(this.definition.documents.worldDirection, 'Orby Town world source'),
+      this.source.readText(this.definition.documents.characterCanon, 'Orby visual source'),
+      this.source.readText(this.definition.documents.assetManifest, 'Orby Town entrypoint'),
     ]);
     if (!townStyle.trim() || !worldSource.trim() || !orbySource.trim() || !entrypoint.trim()) {
       throw new VisualDirectorError('CANON_READ_FAILED', 'Orby Town visual sources must not be empty.');
     }
-    await this.ensureFile(this.resolvePath(approvedAnchor), `Approved Anchor for ${subjectId}`);
+    await this.source.ensureFile(approvedAnchor, `Approved Anchor for ${subjectId}`);
 
     const context = Object.entries(input.scene_context ?? {})
       .map(([key, value]) => `${key}: ${String(value)}`)
@@ -168,22 +167,4 @@ export class PersonalOrbitAdapter implements ProjectAdapter {
     }
   }
 
-  private resolvePath(relativePath: string): string {
-    const resolved = path.resolve(this.repoPath, relativePath);
-    const prefix = this.repoPath.endsWith(path.sep) ? this.repoPath : `${this.repoPath}${path.sep}`;
-    if (path.isAbsolute(relativePath) || (resolved !== this.repoPath && !resolved.startsWith(prefix))) {
-      throw new VisualDirectorError('REFERENCE_OUTSIDE_REPO', 'A configured project path resolves outside the project repository.', {
-        path: relativePath,
-      });
-    }
-    return resolved;
-  }
-
-  private async ensureFile(filePath: string, label: string): Promise<void> {
-    try {
-      await access(filePath);
-    } catch {
-      throw new VisualDirectorError('REFERENCE_NOT_FOUND', `${label} does not exist.`, { path: filePath });
-    }
-  }
 }

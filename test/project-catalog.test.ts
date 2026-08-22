@@ -29,6 +29,13 @@ describe('Project Catalog', () => {
 
     expect(catalog.list()).toEqual(expect.arrayContaining([
       expect.objectContaining({
+        project_id: 'personal-orbit',
+        display_name: 'Personal Orbit',
+        repository: { owner: 'ryohryp', name: 'personal-orbit' },
+        ref: 'main',
+        adapter_type: 'personal-orbit',
+      }),
+      expect.objectContaining({
         project_id: 'bottom-of-thirst',
         display_name: 'The Bottom of Thirst',
         repository: { owner: 'ryohryp', name: '---The-Bottom-of-Thirst' },
@@ -43,6 +50,20 @@ describe('Project Catalog', () => {
         adapter_type: 'generic',
       }),
     ]));
+  });
+
+  it('accepts the Personal Orbit hosted adapter type', () => {
+    const catalog = parseProjectCatalog({
+      projects: [{
+        project_id: 'personal-orbit',
+        display_name: 'Personal Orbit',
+        repository: 'ryohryp/personal-orbit',
+        ref: 'main',
+        adapter_type: 'personal-orbit',
+      }],
+    });
+
+    expect(catalog.resolve('personal-orbit')).toMatchObject({ adapter_type: 'personal-orbit' });
   });
 
   it('loads two projects and resolves each id to exactly one repository/ref/adapter', () => {

@@ -4,6 +4,7 @@ import type { ProjectVisualOverview } from '../domain/types.js';
 import type { ProjectCatalogEntry } from './catalog.js';
 import { loadRepositoryCanonDefinition } from './canon/repository-manifest.js';
 import type { ProjectDocuments } from './canon/types.js';
+import { personalOrbitDefinition } from './personal-orbit/definition.js';
 import type { RepositorySource } from './repository-source.js';
 
 export type ProjectDiagnosticState =
@@ -47,7 +48,7 @@ export async function diagnoseProjectRepository(
       message: 'Repository is accessible.',
     });
 
-    const documents = await diagnosticDocuments(source);
+    const documents = await diagnosticDocuments(entry, source);
     const requiredFiles = [
       ['global_style', 'Global Visual Style', documents.globalStyle],
       ['character_canon', 'Character Visual Canon', documents.characterCanon],
@@ -142,7 +143,8 @@ export async function diagnoseProjectRepository(
   return finalize(entry.project_id, items);
 }
 
-async function diagnosticDocuments(source: RepositorySource): Promise<ProjectDocuments> {
+async function diagnosticDocuments(entry: ProjectCatalogEntry, source: RepositorySource): Promise<ProjectDocuments> {
+  if (entry.adapter_type === 'personal-orbit') return personalOrbitDefinition.documents;
   return (await loadRepositoryCanonDefinition(source)).documents;
 }
 

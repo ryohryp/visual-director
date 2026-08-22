@@ -25,6 +25,13 @@ describe('project list API', () => {
     const payload = JSON.parse(recorder.body()) as { projects: Array<Record<string, unknown>> };
     expect(payload.projects).toEqual(expect.arrayContaining([
       {
+        project_id: 'personal-orbit',
+        display_name: 'Personal Orbit',
+        repository: 'ryohryp/personal-orbit',
+        ref: 'main',
+        adapter_type: 'personal-orbit',
+      },
+      {
         project_id: 'bottom-of-thirst',
         display_name: 'The Bottom of Thirst',
         repository: 'ryohryp/---The-Bottom-of-Thirst',

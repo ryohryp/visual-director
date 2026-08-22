@@ -1,6 +1,13 @@
 {
   "projects": [
     {
+      "project_id": "personal-orbit",
+      "display_name": "Personal Orbit",
+      "repository": "ryohryp/personal-orbit",
+      "ref": "main",
+      "adapter_type": "personal-orbit"
+    },
+    {
       "project_id": "bottom-of-thirst",
       "display_name": "The Bottom of Thirst",
       "repository": "ryohryp/---The-Bottom-of-Thirst",
