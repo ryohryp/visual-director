@@ -200,26 +200,73 @@ Promise.all([
 
 const ANCHOR = String.raw`<!doctype html>
 <html>
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>Approved Anchor · Visual Director</title><style>${BASE_STYLE}</style></head>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>Approved Anchor · Visual Director</title><style>${BASE_STYLE}
+.anchor-review{display:grid;grid-template-columns:minmax(300px,.85fr) minmax(0,1.15fr);gap:18px;align-items:start;margin-top:20px}
+.anchor-visual{overflow:hidden}
+.anchor-image-frame{display:grid;place-items:center;min-height:280px;background:#080c11}
+.anchor-image-frame img{display:block;width:100%;height:auto;max-height:720px;object-fit:contain;background:#080c11}
+.visual-body{padding:18px}
+.eyebrow{font-size:11px;letter-spacing:.13em;text-transform:uppercase;color:#8290a0}
+.visual-body h2{margin:6px 0 0;font-size:23px}
+.badge{display:inline-block;padding:6px 9px;border:1px solid #29583b;border-radius:999px;background:#163625;color:#7de1a0;font-size:10px;font-weight:750;letter-spacing:.08em;text-transform:uppercase}
+.identity{display:grid;grid-template-columns:auto minmax(0,1fr);gap:10px 14px;margin:18px 0 0;font-size:12px}
+.identity dt,.lineage-label{color:#8593a4}
+.identity dd{margin:0;overflow-wrap:anywhere}
+.review-panel{overflow:hidden}
+.review-section{padding:18px;border-bottom:1px solid #26313d}
+.review-section:last-child{border-bottom:0}
+.review-section h2{margin:0 0 10px;font-size:11px;letter-spacing:.11em;text-transform:uppercase;color:#8795a5}
+.constraint-list,.lineage,.related{display:grid;gap:8px;margin:0}
+.constraint{margin:0;padding:10px 12px;border-radius:10px;background:#10171f;color:#cbd4df;font-size:13px;line-height:1.55}
+.empty-note{padding:10px 12px;border:1px dashed #34404e;border-radius:10px;color:#8997a8;font-size:12px;line-height:1.5}
+.lineage-item{display:grid;grid-template-columns:150px minmax(0,1fr);gap:10px;padding:9px 0;border-bottom:1px solid #202b36;font-size:12px}
+.lineage-item:last-child{border-bottom:0}
+.lineage-value{margin:0;overflow-wrap:anywhere;color:#cbd4df}
+.related-asset{display:grid;gap:4px;padding:11px 12px;border:1px solid #293642;border-radius:10px;background:#111820}
+.related-asset strong{font-size:12px}
+.related-asset span{font-size:11px;color:#8997a8;overflow-wrap:anywhere}
+@media(max-width:760px){.anchor-review{grid-template-columns:1fr;gap:14px}.anchor-image-frame{min-height:220px}.identity{grid-template-columns:1fr;gap:4px}.identity dd{margin-bottom:6px}.lineage-item{grid-template-columns:1fr;gap:4px}}
+</style></head>
 <body><main>
 ${projectShellMarkup('Approved Anchor')}
-<div id="status" class="status">Loading…</div><div id="content" class="grid"></div>
+<div id="status" class="status">Loading Approved Anchor…</div>
+<div id="content" class="anchor-review" hidden>
+  <article class="card anchor-visual">
+    <div class="anchor-image-frame"><img id="anchor-image" alt="Approved Anchor image"></div>
+    <div class="visual-body"><div class="eyebrow">Approved Anchor</div><h2 id="display-name">Loading…</h2>
+      <dl class="identity"><dt>Subject ID</dt><dd id="subject-id"></dd><dt>Approval state</dt><dd><span id="approval-state" class="badge"></span></dd><dt>Repository path</dt><dd id="anchor-path" class="path"></dd></dl>
+    </div>
+  </article>
+  <article class="card review-panel">
+    <section class="review-section"><h2>Subject Lock</h2><div id="subject-lock" class="constraint-list"></div></section>
+    <section class="review-section"><h2>Style Lock</h2><div id="style-lock" class="constraint-list"></div></section>
+    <section class="review-section"><h2>Allowed Changes</h2><div id="allowed-changes" class="constraint-list"></div></section>
+    <section class="review-section"><h2>Forbidden Changes</h2><div id="forbidden-changes" class="constraint-list"></div></section>
+    <section class="review-section"><h2>Avoid Block</h2><div id="avoid-block" class="constraint-list"></div></section>
+    <section class="review-section"><h2>Reference Lineage</h2><div id="lineage" class="lineage"></div></section>
+    <section class="review-section"><h2>Related Managed Assets</h2><div id="related-assets" class="related"></div></section>
+  </article>
+</div>
 </main><script>
 ${PROJECT_SHELL_CLIENT_SCRIPT}
 const m=location.pathname.match(/^\/projects\/([^/]+)\/anchors\/([^/]+)\/?$/),project=m?decodeURIComponent(m[1]):'',subject=m?decodeURIComponent(m[2]):'';
-const q=s=>document.querySelector(s),asset=p=>'/api/projects/'+encodeURIComponent(project)+'/asset?path='+encodeURIComponent(p);
+const q=s=>document.querySelector(s),el=(t,c,x)=>{const n=document.createElement(t);if(c)n.className=c;if(x!==undefined)n.textContent=x;return n},asset=p=>'/api/projects/'+encodeURIComponent(project)+'/asset?path='+encodeURIComponent(p);
 setupProjectShell(project,'anchors');
+function values(value){return (Array.isArray(value)?value:[value]).filter(item=>typeof item==='string'&&item.trim())}
+function renderConstraints(selector,value,emptyMessage){const target=q(selector);target.replaceChildren();const entries=values(value);if(!entries.length){target.append(el('div','empty-note',emptyMessage));return}for(const entry of entries)target.append(el('p','constraint',entry))}
+function renderLineageItem(label,value){const item=el('div','lineage-item');item.append(el('div','lineage-label',label),el('div','lineage-value',value||'Not recorded.'));return item}
 Promise.all([
   fetch('/api/projects').then(async r=>{const d=await r.json();if(!r.ok)throw new Error(d?.error?.message||'Project catalog request failed');return d}),
   fetch('/api/projects/'+encodeURIComponent(project)+'/anchor-detail?subject_id='+encodeURIComponent(subject)).then(async r=>{const d=await r.json();if(!r.ok)throw new Error(d?.error?.message||'Anchor detail failed');return d}),
 ]).then(([catalog,d])=>{
-  const p=catalog.projects?.find(x=>x.project_id===project);
-  if(!p)throw new Error('Unknown project_id: '+project);
-  setProjectContext(p);
-  q('#title').textContent=d.anchor.display_name;
-  q('#status').textContent=d.anchor.path;
-  const img=document.createElement('img');img.src=asset(d.anchor.path);img.alt=d.anchor.display_name||subject;img.style.width='100%';img.style.height='auto';img.style.aspectRatio='auto';img.style.objectFit='contain';
-  const card=document.createElement('div');card.className='card';card.append(img);q('#content').append(card);
-  const info=document.createElement('div');info.className='card body';info.textContent=d.canon_constraints.subject_lock.join(' ');q('#content').append(info);
+  const p=catalog.projects?.find(x=>x.project_id===project);if(!p)throw new Error('Unknown project_id: '+project);
+  const anchor=d.anchor||{},constraints=d.canon_constraints||{},lineage=d.lineage||{};
+  setProjectContext(p);q('#title').textContent=anchor.display_name||subject;q('#display-name').textContent=anchor.display_name||subject;q('#subject-id').textContent=anchor.subject_id||subject;q('#anchor-path').textContent=anchor.path||'Repository path not recorded.';
+  const approval=anchor.status||'Approval state not recorded';q('#approval-state').textContent=approval;q('#status').textContent=(anchor.display_name||subject)+' · '+approval;
+  const img=q('#anchor-image');img.src=asset(anchor.path);img.alt=(anchor.display_name||subject)+' — Approved Anchor';img.style.width='100%';img.style.height='auto';img.style.aspectRatio='auto';img.style.objectFit='contain';
+  renderConstraints('#subject-lock',constraints.subject_lock,'No subject lock is recorded.');renderConstraints('#style-lock',constraints.style_lock,'No style lock is recorded.');renderConstraints('#allowed-changes',constraints.allowed_changes,'No allowed changes are recorded.');renderConstraints('#forbidden-changes',constraints.forbidden_changes,'No forbidden changes are recorded.');renderConstraints('#avoid-block',constraints.avoid_block,'No avoid block is recorded.');
+  const lineageNode=q('#lineage');lineageNode.replaceChildren();lineageNode.append(renderLineageItem('Global reference',lineage.global_reference?.path),renderLineageItem('Subject anchor reference',lineage.subject_anchor?.path));
+  const relatedNode=q('#related-assets'),related=lineage.related_assets||[];relatedNode.replaceChildren();if(!related.length)relatedNode.append(el('div','empty-note','No managed assets are registered for this subject yet.'));else for(const item of related){const path=item.registered_path||item.candidate_path||item.archived_path||item.asset_id||'Repository path not recorded.';const relatedItem=el('div','related-asset');relatedItem.append(el('strong','',item.asset_type||'Managed asset'),el('span','',[item.status||'Status not recorded',path].join(' · ')));relatedNode.append(relatedItem)}
+  q('#content').hidden=false;
 }).catch(e=>{q('#status').className='status error';q('#status').textContent=e.message});
 </script></body></html>`;
