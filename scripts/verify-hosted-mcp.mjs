@@ -64,8 +64,31 @@ async function verifyEra(label, versionNegotiation) {
     if (packageResult?.project_id !== 'bottom-of-thirst') {
       fail(`${label}: visual.prepare_generation returned an unexpected project.`);
     }
+    const grandDesignLock = packageResult?.prompt_package?.grand_design_lock;
+    if (typeof grandDesignLock !== 'string' || grandDesignLock.trim() === '') {
+      fail(`${label}: visual.prepare_generation did not return grand_design_lock.`);
+    }
+    let grandDesign;
+    try {
+      grandDesign = JSON.parse(grandDesignLock);
+    } catch {
+      fail(`${label}: grand_design_lock is not valid JSON.`);
+    }
+    if (grandDesign?.project_id !== 'bottom-of-thirst' || grandDesign?.schema_version !== 1) {
+      fail(`${label}: grand_design_lock does not match the Bottom of Thirst Grand Design.`);
+    }
+    if (typeof packageResult?.prompt_package?.style_lock !== 'string' || packageResult.prompt_package.style_lock.trim() === '') {
+      fail(`${label}: visual.prepare_generation did not preserve style_lock.`);
+    }
+    if (!Array.isArray(packageResult?.prompt_package?.subject_lock)
+      || !packageResult.prompt_package.subject_lock.some((lock) => typeof lock === 'string' && lock.includes('kamino_kyosuke'))) {
+      fail(`${label}: visual.prepare_generation did not preserve the Kamino subject_lock.`);
+    }
     if (packageResult?.policy?.must_use_approved_anchor !== true) {
       fail(`${label}: visual.prepare_generation did not require the Approved Anchor.`);
+    }
+    if (packageResult?.policy?.must_not_chain_from_candidate !== true) {
+      fail(`${label}: visual.prepare_generation did not forbid Candidate chaining.`);
     }
     if (!Array.isArray(packageResult.reference_assets) || !packageResult.reference_assets.some((asset) => (
       asset?.role === 'global_reference'
@@ -81,7 +104,7 @@ async function verifyEra(label, versionNegotiation) {
       fail(`${label}: visual.prepare_generation did not return the expected Kamino subject_anchor.`);
     }
 
-    console.log(`${label}: ok (tools=${tools.tools.length}, anchor=${EXPECTED_SUBJECT_ANCHOR})`);
+    console.log(`${label}: ok (tools=${tools.tools.length}, anchor=${EXPECTED_SUBJECT_ANCHOR}, grand-design=v${grandDesign.schema_version})`);
   } catch (error) {
     if (process.exitCode === 1) throw error;
     fail(`${label}: ${error instanceof Error ? error.message : String(error)}`);
