@@ -6,6 +6,7 @@ import {
   PROJECT_IMAGE_PREVIEW_CLIENT_SCRIPT,
   PROJECT_IMAGE_PREVIEW_STYLES,
   PROJECT_SHELL_CLIENT_SCRIPT,
+  PROJECT_SHELL_STYLES,
   projectShellMarkup,
 } from '../src/web/project-shell.js';
 
@@ -14,10 +15,12 @@ describe('shared project workspace shell', () => {
     const markup = projectShellMarkup('Approved Anchor');
 
     expect(markup).toContain('class="project-shell"');
+    expect(markup).toContain('<nav class="project-breadcrumb" aria-label="Breadcrumb">');
     expect(markup).toContain('id="project-context"');
     expect(markup).toContain('aria-live="polite"');
     expect(markup).toContain('id="nav" class="nav project-nav"');
     expect(markup).toContain('aria-label="Project navigation"');
+    expect(markup).toContain('aria-label="Back to Projects"');
     expect(markup).toContain('← Projects');
   });
 
@@ -25,7 +28,15 @@ describe('shared project workspace shell', () => {
     expect(PROJECT_SHELL_CLIENT_SCRIPT).toContain("root='/projects/'+encodeURIComponent(project)");
     expect(PROJECT_SHELL_CLIENT_SCRIPT).toContain("setAttribute('aria-current','page')");
     expect(PROJECT_SHELL_CLIENT_SCRIPT).toContain("['Global Canon','canon']");
+    expect(PROJECT_SHELL_CLIENT_SCRIPT).toContain("current==='anchor-detail'?'anchors':current");
+    expect(PROJECT_SHELL_CLIENT_SCRIPT).toContain("['Assets','assets']");
     expect(PROJECT_SHELL_CLIENT_SCRIPT).toContain('setProjectContext(project)');
+  });
+
+  it('keeps the shared navigation usable when the project identity is long or the viewport is narrow', () => {
+    expect(PROJECT_SHELL_STYLES).toContain('overflow-wrap:anywhere');
+    expect(PROJECT_SHELL_STYLES).toContain('flex-wrap:wrap');
+    expect(PROJECT_SHELL_STYLES).toContain('@media(max-width:640px)');
   });
 
   it('defines a full-frame preview policy and explicit failure treatment', () => {
