@@ -17,6 +17,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "verify:hosted": "node scripts/verify-hosted-mcp.mjs",
+    "verify:review": "node scripts/verify-review-deployment.mjs",
     "check": "npm run lint && npm run typecheck && npm test"
   },
   "dependencies": {
