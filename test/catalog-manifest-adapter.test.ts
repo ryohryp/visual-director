@@ -56,6 +56,17 @@ describe('catalog repository manifest adapter', () => {
     for (const [relativePath, content] of Object.entries(files)) { const absolutePath = path.join(root, relativePath); mkdirSync(path.dirname(absolutePath), { recursive: true }); writeFileSync(absolutePath, content); }
 
     const adapter = await createCatalogProjectAdapter(catalogEntry('bottom-of-thirst'), new LocalRepositorySource(root));
+
+    const characterAnchor = await adapter.prepare({ project_id: 'bottom-of-thirst', asset_type: 'character_visual_anchor', subject_ids: ['Kamino Kyosuke'], request_text: '神野恭介のApproved Visual Anchorを正本としてGeneration Packageを取得する。' });
+    expect(characterAnchor.prompt_package.grand_design_lock).toBe(files['.visual-director/grand-design.json']);
+    expect(characterAnchor.prompt_package.grand_design_contract).toBeUndefined();
+    expect(characterAnchor.prompt_package.style_lock).toContain('STYLE LOCK');
+    expect(characterAnchor.prompt_package.subject_lock.join('\n')).toContain('神野 恭介 (kamino_kyosuke)');
+    expect(characterAnchor.reference_assets).toContainEqual({ role: 'subject_anchor', subject_id: 'kamino_kyosuke', path: 'public/images/characters/kamino_kyosuke/v2/default.avif' });
+    expect(characterAnchor.policy.must_use_approved_anchor).toBe(true);
+    expect(characterAnchor.policy.must_not_chain_from_candidate).toBe(true);
+    expect(characterAnchor.prompt_package.forbidden_changes.join('\n')).toContain('candidate or derived variation');
+
     const prepared = await adapter.prepare({ project_id: 'bottom-of-thirst', asset_type: 'event_cg', subject_ids: ['Kamino Kyosuke'], request_text: '神野恭介をApproved Anchorから描く。' });
     expect(prepared.reference_assets).toContainEqual({ role: 'subject_anchor', subject_id: 'kamino_kyosuke', path: 'public/images/characters/kamino_kyosuke/v2/default.avif' });
     expect(prepared.prompt_package.subject_lock.join('\n')).toContain('神野 恭介 (kamino_kyosuke)');
