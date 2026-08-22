@@ -1,5 +1,11 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 
+import {
+  PROJECT_SHELL_CLIENT_SCRIPT,
+  PROJECT_SHELL_STYLES,
+  projectShellMarkup,
+} from './project-shell.js';
+
 export function projectCollectionHandler(req: IncomingMessage, res: ServerResponse): void {
   if (req.method !== 'GET') {
     res.statusCode = 405;
@@ -14,8 +20,112 @@ export function projectCollectionHandler(req: IncomingMessage, res: ServerRespon
   res.end(HTML);
 }
 
-const HTML = String.raw`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Project workflow · Visual Director</title><style>
-:root{font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#f4f7fa;background:#0c1117;color-scheme:dark}*{box-sizing:border-box}body{margin:0;background:#0c1117;min-height:100vh}main{max-width:1200px;margin:auto;padding:28px}a{color:#aab5c2}.back{display:inline-block;margin-bottom:12px;text-decoration:none}.top{display:flex;align-items:end;justify-content:space-between;gap:18px;margin-bottom:18px}.eyebrow{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:#8391a2}.title{font-size:30px;margin:4px 0 0}.nav{display:flex;gap:8px;flex-wrap:wrap;margin:14px 0}.nav a{padding:7px 10px;border:1px solid #293542;border-radius:999px;text-decoration:none}.nav a[aria-current="page"]{color:#fff;border-color:#5c728b;background:#1b2632}.status{padding:14px;border:1px solid #2d3947;border-radius:12px;background:#141b23;margin:18px 0}.error{color:#ffc0c0;border-color:#743a3a}.filters{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;padding:14px;border:1px solid #293440;background:#131a22;border-radius:14px;margin:14px 0 18px}.filters[hidden]{display:none}select{width:100%;padding:10px 11px;border-radius:9px;background:#0e141b;border:1px solid #303b48;color:#dbe1e8}.gallery{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:14px}.card{background:#141b23;border:1px solid #2a3542;border-radius:14px;overflow:hidden;color:inherit;text-decoration:none}.asset-card{cursor:pointer;transition:transform .15s,border-color .15s}.asset-card:hover{transform:translateY(-2px);border-color:#52677f}.thumb{width:100%;aspect-ratio:4/3;object-fit:cover;background:#090c10;display:block}.thumb.empty{display:grid;place-items:center;color:#6f7e90;font-size:12px}.body{padding:13px}.badge{display:inline-block;padding:5px 8px;border-radius:999px;border:1px solid #3a4655;font-size:9px;font-weight:750;letter-spacing:.08em;text-transform:uppercase}.badge.candidate{color:#ffd77c;border-color:#66542a;background:#2b2517}.badge.approved,.badge.registered{color:#7ee3a3;border-color:#2b6040;background:#163824}.badge.rejected,.badge.failed{color:#ff9b9b;border-color:#673838;background:#2b1919}.badge.superseded{color:#aab2bd;border-color:#4a5059;background:#21252b}.name{font-weight:660;margin-top:8px;font-size:13px}.meta,.path{font-size:11px;color:#8997a8;margin-top:5px;overflow-wrap:anywhere}.path{font-family:ui-monospace,SFMono-Regular,Consolas,monospace}.jobs{display:grid;gap:9px}.job{padding:13px 15px;border-radius:12px;border:1px solid #293440;background:#121920;display:grid;grid-template-columns:1fr auto;gap:12px}.job.failed{border-color:#703939}.job-title{font-size:13px;font-weight:650}.job-meta{font-size:11px;color:#8996a6;margin-top:5px;overflow-wrap:anywhere}.error-text{color:#ff9f9f;font-size:11px;margin-top:6px}.empty-state{padding:30px;border:1px dashed #34404e;border-radius:14px;color:#7d8b9d;text-align:center}.detail{position:fixed;right:0;top:0;width:min(500px,100%);height:100vh;background:#10171f;border-left:1px solid #303b48;box-shadow:-20px 0 50px rgba(0,0,0,.32);padding:22px;overflow:auto;z-index:10}.detail[hidden]{display:none}.detail-close{float:right;border:0;background:#212b36;color:#dbe2e9;border-radius:8px;padding:8px 10px;cursor:pointer}.detail h2{margin-top:34px}.detail-section{margin-top:20px;padding-top:16px;border-top:1px solid #293440}.detail-section h3{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:#8593a4}.ref{font:11px ui-monospace,SFMono-Regular,Consolas,monospace;color:#9ba9b9;margin:6px 0;overflow-wrap:anywhere}.kv{display:grid;grid-template-columns:120px 1fr;gap:7px 12px;font-size:12px}.kv dt{color:#7f8d9d}.kv dd{margin:0;overflow-wrap:anywhere}@media(max-width:700px){main{padding:18px}.top{align-items:start;flex-direction:column}.filters{grid-template-columns:1fr}.gallery{grid-template-columns:repeat(2,minmax(0,1fr))}.kv{grid-template-columns:1fr}}
-</style></head><body><main><a id="back" class="back">← Project</a><div class="top"><div><div class="eyebrow">Repository visual workflow</div><h1 id="title" class="title">Loading…</h1></div></div><div id="nav" class="nav"></div><div id="status" class="status">Loading repository state…</div><div id="filters" class="filters" hidden><select id="subject"><option value="">All subjects</option></select><select id="type"><option value="">All asset types</option></select><select id="lifecycle"><option value="">All states</option><option>candidate</option><option>approved</option><option>rejected</option><option>registered</option><option>superseded</option></select></div><div id="content"></div></main><aside id="detail" class="detail" hidden><button id="close" class="detail-close">Close</button><div class="eyebrow">Managed visual asset</div><h2 id="detail-title"></h2><div id="detail-status"></div><div class="detail-section"><h3>Asset metadata</h3><dl id="detail-meta" class="kv"></dl></div><div class="detail-section"><h3>Repository location</h3><div id="detail-path" class="ref"></div></div><div class="detail-section"><h3>Generation</h3><dl id="detail-job" class="kv"></dl></div><div class="detail-section"><h3>Reference lineage</h3><div id="detail-refs"></div></div></aside><script>
-const match=location.pathname.match(/^\/projects\/([^/]+)\/(anchors|assets|generations)\/?$/),project=match?decodeURIComponent(match[1]):'',mode=match?match[2]:'';const q=s=>document.querySelector(s),el=(t,c,x)=>{const n=document.createElement(t);if(c)n.className=c;if(x!==undefined)n.textContent=x;return n};const root='/projects/'+encodeURIComponent(project),assetUrl=p=>'/api/projects/'+encodeURIComponent(project)+'/asset?path='+encodeURIComponent(p),overviewUrl='/api/projects/'+encodeURIComponent(project)+'/overview';const unique=a=>[...new Set(a.filter(Boolean))].sort();const label={anchors:'Approved Anchors',assets:'Asset Gallery',generations:'Generation Jobs'}[mode]||'Project workflow';q('#back').href=root;q('#title').textContent=label;for(const [name,path] of [['Overview',root],['Global Canon',root+'/canon'],['Anchors',root+'/anchors'],['Generations',root+'/generations'],['Assets',root+'/assets']]){const a=el('a','',name);a.href=path;if((mode==='anchors'&&name==='Anchors')||(mode==='generations'&&name==='Generations')||(mode==='assets'&&name==='Assets'))a.setAttribute('aria-current','page');q('#nav').append(a)}function option(select,value){const o=document.createElement('option');o.value=value;o.textContent=value;select.append(o)}function badge(status){const b=el('span','badge '+status,status);return b}function addKv(root,key,value){root.append(el('dt','',key),el('dd','',value||'—'))}function empty(message){return el('div','empty-state',message)}function renderAnchors(o){const grid=el('div','gallery');for(const a of o.approved_anchors){const card=el('a','card');card.href=root+'/anchors/'+encodeURIComponent(a.subject_id);const img=el('img','thumb');img.src=assetUrl(a.path);img.alt=a.display_name||a.subject_id;const body=el('div','body');body.append(el('div','name',a.display_name||a.subject_id),el('div','path',a.path));card.append(img,body);grid.append(card)}q('#content').replaceChildren(grid.children.length?grid:empty('No approved anchors registered.'))}function filteredAssets(o){const subject=q('#subject').value,type=q('#type').value,status=q('#lifecycle').value;return o.workflow.assets.filter(a=>(!subject||a.subject_id===subject)&&(!type||a.asset_type===type)&&(!status||a.status===status))}function renderAssets(o){const out=q('#content');if(!o.workflow.available){out.replaceChildren(empty('No .visual-director/asset-index.json exists yet. No generation history is invented.'));return}const grid=el('div','gallery'),assets=filteredAssets(o);for(const a of assets){const card=el('article','card asset-card'),path=a.registered_path||a.candidate_path;if(path){const img=el('img','thumb');img.src=assetUrl(path);img.alt=a.asset_id||a.asset_type;card.append(img)}else card.append(el('div','thumb empty','No image path'));const body=el('div','body');body.append(badge(a.status),el('div','name',a.asset_type||a.asset_id),el('div','meta',[a.subject_id,a.generator].filter(Boolean).join(' · ')),el('div','path',path||a.asset_id||'No repository path'));card.append(body);card.onclick=()=>showDetail(o,a);grid.append(card)}out.replaceChildren(grid.children.length?grid:empty('No assets match the current filters.'))}function renderJobs(o){const out=q('#content');if(!o.workflow.available){out.replaceChildren(empty('No .visual-director/asset-index.json exists yet. No generation history is invented.'));return}if(!o.workflow.jobs.length){out.replaceChildren(empty('No Generation Jobs are registered yet.'));return}const jobs=el('div','jobs');for(const job of o.workflow.jobs){const row=el('div','job'+(job.status==='failed'?' failed':'')),left=el('div'),title=el('div','job-title',job.request_text||job.job_id),meta=el('div','job-meta',[job.job_id,job.asset_type,(job.subject_ids||[]).join(', '),job.generator,job.generation_package_fingerprint].filter(Boolean).join(' · '));left.append(title,meta);if(job.error)left.append(el('div','error-text',job.error));row.append(left,badge(job.status));jobs.append(row)}out.replaceChildren(jobs)}function showDetail(o,a){const job=o.workflow.jobs.find(j=>j.job_id===a.source_job_id),path=a.registered_path||a.candidate_path,meta=q('#detail-meta'),generation=q('#detail-job');q('#detail-title').textContent=a.asset_type||a.asset_id;q('#detail-status').replaceChildren(badge(a.status));meta.replaceChildren();addKv(meta,'Asset ID',a.asset_id);addKv(meta,'Subject',a.subject_id);addKv(meta,'Asset type',a.asset_type);addKv(meta,'Source job',a.source_job_id);q('#detail-path').textContent=path||'No repository image path recorded.';generation.replaceChildren();addKv(generation,'Request',job?.request_text);addKv(generation,'Generator',a.generator||job?.generator);addKv(generation,'Fingerprint',a.generation_package_fingerprint||job?.generation_package_fingerprint);const refs=q('#detail-refs');refs.replaceChildren();const paths=a.reference_paths||[];if(!paths.length)refs.textContent='No reference paths recorded.';else for(const path of paths)refs.append(el('div','ref',path));q('#detail').hidden=false}q('#close').onclick=()=>q('#detail').hidden=true;Promise.all([fetch('/api/projects',{cache:'no-store'}).then(async r=>{const d=await r.json();if(!r.ok)throw new Error(d?.error?.message||'Project catalog request failed');return d}),fetch(overviewUrl,{cache:'no-store'}).then(async r=>{const d=await r.json();if(!r.ok)throw new Error(d?.error?.message||'Overview failed');return d})]).then(([catalog,o])=>{const selected=catalog.projects?.find(p=>p.project_id===project);if(!selected)throw new Error('Unknown project_id: '+project);q('#status').textContent=selected.display_name+' · '+selected.repository+' @ '+selected.ref;if(mode==='anchors')return renderAnchors(o);if(mode==='assets'){q('#filters').hidden=false;for(const value of unique(o.workflow.assets.map(a=>a.subject_id)))option(q('#subject'),value);for(const value of unique(o.workflow.assets.map(a=>a.asset_type)))option(q('#type'),value);for(const id of ['#subject','#type','#lifecycle'])q(id).onchange=()=>renderAssets(o);return renderAssets(o)}renderJobs(o)}).catch(e=>{q('#status').className='status error';q('#status').textContent=e.message;q('#content').replaceChildren(empty(e.message))});
+const HTML = String.raw`<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Project workflow · Visual Director</title><style>
+:root{font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#f4f7fa;background:#0c1117;color-scheme:dark}
+*{box-sizing:border-box}
+body{margin:0;background:#0c1117;min-height:100vh}
+main{max-width:1200px;margin:auto;padding:28px}
+a{color:#aab5c2}
+.status{padding:14px;border:1px solid #2d3947;border-radius:12px;background:#141b23;margin:18px 0}
+.error{color:#ffc0c0;border-color:#743a3a}
+.filters{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;padding:14px;border:1px solid #293440;background:#131a22;border-radius:14px;margin:14px 0 18px}
+.filters[hidden]{display:none}
+select{width:100%;padding:10px 11px;border-radius:9px;background:#0e141b;border:1px solid #303b48;color:#dbe1e8}
+.gallery{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:14px}
+.card{background:#141b23;border:1px solid #2a3542;border-radius:14px;overflow:hidden;color:inherit;text-decoration:none}
+.asset-card{cursor:pointer;transition:transform .15s,border-color .15s}
+.asset-card:hover{transform:translateY(-2px);border-color:#52677f}
+.thumb{width:100%;aspect-ratio:4/3;object-fit:cover;background:#090c10;display:block}
+.thumb.empty{display:grid;place-items:center;color:#6f7e90;font-size:12px}
+.body{padding:13px}
+.badge{display:inline-block;padding:5px 8px;border-radius:999px;border:1px solid #3a4655;font-size:9px;font-weight:750;letter-spacing:.08em;text-transform:uppercase}
+.badge.candidate{color:#ffd77c;border-color:#66542a;background:#2b2517}
+.badge.approved,.badge.registered{color:#7ee3a3;border-color:#2b6040;background:#163824}
+.badge.rejected,.badge.failed{color:#ff9b9b;border-color:#673838;background:#2b1919}
+.badge.superseded{color:#aab2bd;border-color:#4a5059;background:#21252b}
+.name{font-weight:660;margin-top:8px;font-size:13px}
+.meta,.path{font-size:11px;color:#8997a8;margin-top:5px;overflow-wrap:anywhere}
+.path{font-family:ui-monospace,SFMono-Regular,Consolas,monospace}
+.jobs{display:grid;gap:9px}
+.job{padding:13px 15px;border-radius:12px;border:1px solid #293440;background:#121920;display:grid;grid-template-columns:1fr auto;gap:12px}
+.job.failed{border-color:#703939}
+.job-title{font-size:13px;font-weight:650}
+.job-meta{font-size:11px;color:#8996a6;margin-top:5px;overflow-wrap:anywhere}
+.error-text{color:#ff9f9f;font-size:11px;margin-top:6px}
+.empty-state{padding:30px;border:1px dashed #34404e;border-radius:14px;color:#7d8b9d;text-align:center}
+.detail{position:fixed;right:0;top:0;width:min(500px,100%);height:100vh;background:#10171f;border-left:1px solid #303b48;box-shadow:-20px 0 50px rgba(0,0,0,.32);padding:22px;overflow:auto;z-index:10}
+.detail[hidden]{display:none}
+.detail-close{float:right;border:0;background:#212b36;color:#dbe2e9;border-radius:8px;padding:8px 10px;cursor:pointer}
+.detail h2{margin-top:34px}
+.detail-section{margin-top:20px;padding-top:16px;border-top:1px solid #293440}
+.detail-section h3{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:#8593a4}
+.ref{font:11px ui-monospace,SFMono-Regular,Consolas,monospace;color:#9ba9b9;margin:6px 0;overflow-wrap:anywhere}
+.kv{display:grid;grid-template-columns:120px 1fr;gap:7px 12px;font-size:12px}
+.kv dt{color:#7f8d9d}
+.kv dd{margin:0;overflow-wrap:anywhere}
+${PROJECT_SHELL_STYLES}
+@media(max-width:700px){main{padding:18px}.filters{grid-template-columns:1fr}.gallery{grid-template-columns:repeat(2,minmax(0,1fr))}.kv{grid-template-columns:1fr}}
+</style></head>
+<body><main>
+${projectShellMarkup('Loading…')}
+<div id="status" class="status">Loading repository state…</div>
+<div id="filters" class="filters" hidden><select id="subject"><option value="">All subjects</option></select><select id="type"><option value="">All asset types</option></select><select id="lifecycle"><option value="">All states</option><option>candidate</option><option>approved</option><option>rejected</option><option>registered</option><option>superseded</option></select></div>
+<div id="content"></div>
+</main>
+<aside id="detail" class="detail" hidden><button id="close" class="detail-close">Close</button><div class="eyebrow">Managed visual asset</div><h2 id="detail-title"></h2><div id="detail-status"></div><div class="detail-section"><h3>Asset metadata</h3><dl id="detail-meta" class="kv"></dl></div><div class="detail-section"><h3>Repository location</h3><div id="detail-path" class="ref"></div></div><div class="detail-section"><h3>Generation</h3><dl id="detail-job" class="kv"></dl></div><div class="detail-section"><h3>Reference lineage</h3><div id="detail-refs"></div></div></aside>
+<script>
+${PROJECT_SHELL_CLIENT_SCRIPT}
+const match=location.pathname.match(/^\/projects\/([^/]+)\/(anchors|assets|generations)\/?$/),project=match?decodeURIComponent(match[1]):'',mode=match?match[2]:'';
+const q=s=>document.querySelector(s),el=(t,c,x)=>{const n=document.createElement(t);if(c)n.className=c;if(x!==undefined)n.textContent=x;return n};
+const root='/projects/'+encodeURIComponent(project),assetUrl=p=>'/api/projects/'+encodeURIComponent(project)+'/asset?path='+encodeURIComponent(p),overviewUrl='/api/projects/'+encodeURIComponent(project)+'/overview';
+const unique=a=>[...new Set(a.filter(Boolean))].sort();
+const label={anchors:'Approved Anchors',assets:'Asset Gallery',generations:'Generation Jobs'}[mode]||'Project workflow';
+setupProjectShell(project,mode);q('#title').textContent=label;
+function option(select,value){const optionNode=document.createElement('option');optionNode.value=value;optionNode.textContent=value;select.append(optionNode)}
+function badge(status){return el('span','badge '+status,status)}
+function addKv(rootNode,key,value){rootNode.append(el('dt','',key),el('dd','',value||'—'))}
+function empty(message){return el('div','empty-state',message)}
+function renderAnchors(o){
+  const grid=el('div','gallery');
+  for(const a of o.approved_anchors){const card=el('a','card');card.href=root+'/anchors/'+encodeURIComponent(a.subject_id);const img=el('img','thumb');img.src=assetUrl(a.path);img.alt=a.display_name||a.subject_id;const body=el('div','body');body.append(el('div','name',a.display_name||a.subject_id),el('div','path',a.path));card.append(img,body);grid.append(card)}
+  q('#content').replaceChildren(grid.children.length?grid:empty('No approved anchors registered.'));
+}
+function filteredAssets(o){const subject=q('#subject').value,type=q('#type').value,status=q('#lifecycle').value;return o.workflow.assets.filter(a=>(!subject||a.subject_id===subject)&&(!type||a.asset_type===type)&&(!status||a.status===status))}
+function renderAssets(o){
+  const out=q('#content');
+  if(!o.workflow.available){out.replaceChildren(empty('No .visual-director/asset-index.json exists yet. No generation history is invented.'));return}
+  const grid=el('div','gallery'),assets=filteredAssets(o);
+  for(const a of assets){
+    const card=el('article','card asset-card'),path=a.registered_path||a.candidate_path;
+    if(path){const img=el('img','thumb');img.src=assetUrl(path);img.alt=a.asset_id||a.asset_type;card.append(img)}else card.append(el('div','thumb empty','No image path'));
+    const body=el('div','body');body.append(badge(a.status),el('div','name',a.asset_type||a.asset_id),el('div','meta',[a.subject_id,a.generator].filter(Boolean).join(' · ')),el('div','path',path||a.asset_id||'No repository path'));card.append(body);card.onclick=()=>showDetail(o,a);grid.append(card);
+  }
+  out.replaceChildren(grid.children.length?grid:empty('No assets match the current filters.'));
+}
+function renderJobs(o){
+  const out=q('#content');
+  if(!o.workflow.available){out.replaceChildren(empty('No .visual-director/asset-index.json exists yet. No generation history is invented.'));return}
+  if(!o.workflow.jobs.length){out.replaceChildren(empty('No Generation Jobs are registered yet.'));return}
+  const jobs=el('div','jobs');
+  for(const job of o.workflow.jobs){const row=el('div','job'+(job.status==='failed'?' failed':'')),left=el('div'),title=el('div','job-title',job.request_text||job.job_id),meta=el('div','job-meta',[job.job_id,job.asset_type,(job.subject_ids||[]).join(', '),job.generator,job.generation_package_fingerprint].filter(Boolean).join(' · '));left.append(title,meta);if(job.error)left.append(el('div','error-text',job.error));row.append(left,badge(job.status));jobs.append(row)}
+  out.replaceChildren(jobs);
+}
+function showDetail(o,a){
+  const job=o.workflow.jobs.find(j=>j.job_id===a.source_job_id),path=a.registered_path||a.candidate_path,meta=q('#detail-meta'),generation=q('#detail-job');
+  q('#detail-title').textContent=a.asset_type||a.asset_id;q('#detail-status').replaceChildren(badge(a.status));meta.replaceChildren();addKv(meta,'Asset ID',a.asset_id);addKv(meta,'Subject',a.subject_id);addKv(meta,'Asset type',a.asset_type);addKv(meta,'Source job',a.source_job_id);q('#detail-path').textContent=path||'No repository image path recorded.';generation.replaceChildren();addKv(generation,'Request',job?.request_text);addKv(generation,'Generator',a.generator||job?.generator);addKv(generation,'Fingerprint',a.generation_package_fingerprint||job?.generation_package_fingerprint);
+  const refs=q('#detail-refs');refs.replaceChildren();const paths=a.reference_paths||[];if(!paths.length)refs.textContent='No reference paths recorded.';else for(const referencePath of paths)refs.append(el('div','ref',referencePath));q('#detail').hidden=false;
+}
+q('#close').onclick=()=>q('#detail').hidden=true;
+Promise.all([
+  fetch('/api/projects',{cache:'no-store'}).then(async r=>{const d=await r.json();if(!r.ok)throw new Error(d?.error?.message||'Project catalog request failed');return d}),
+  fetch(overviewUrl,{cache:'no-store'}).then(async r=>{const d=await r.json();if(!r.ok)throw new Error(d?.error?.message||'Overview failed');return d}),
+]).then(([catalog,o])=>{
+  const selected=catalog.projects?.find(p=>p.project_id===project);if(!selected)throw new Error('Unknown project_id: '+project);
+  setProjectContext(selected);q('#status').textContent=selected.display_name+' · '+selected.repository+' @ '+selected.ref;
+  if(mode==='anchors')return renderAnchors(o);
+  if(mode==='assets'){q('#filters').hidden=false;for(const value of unique(o.workflow.assets.map(a=>a.subject_id)))option(q('#subject'),value);for(const value of unique(o.workflow.assets.map(a=>a.asset_type)))option(q('#type'),value);for(const id of ['#subject','#type','#lifecycle'])q(id).onchange=()=>renderAssets(o);return renderAssets(o)}
+  renderJobs(o);
+}).catch(e=>{q('#status').className='status error';q('#status').textContent=e.message;q('#content').replaceChildren(empty(e.message))});
 </script></body></html>`;
