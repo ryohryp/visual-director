@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import type { ProjectVisualOverview } from '../src/domain/types.js';
 import { VisualDirectorError } from '../src/domain/types.js';
 import { diagnoseProjectRepository } from '../src/projects/diagnostics.js';
+import { personalOrbitDefinition } from '../src/projects/personal-orbit/definition.js';
 import type { RepositorySource } from '../src/projects/repository-source.js';
 
 const entry = {
@@ -97,6 +98,28 @@ describe('repository setup diagnostics', () => {
       expect.objectContaining({ key: 'world_direction', state: 'ready', path: 'docs/visual/WORLD_DIRECTION.md' }),
       expect.objectContaining({ key: 'asset_manifest', state: 'ready', path: 'docs/assets/README.md' }),
       expect.objectContaining({ key: 'global_reference', state: 'ready', path: 'docs/assets/crownless-visual-design-reference-v0.1.jpg' }),
+    ]));
+  });
+
+  it('uses the built-in Personal Orbit document paths without a generic manifest', async () => {
+    const personalOrbitEntry = {
+      project_id: 'personal-orbit',
+      display_name: 'Personal Orbit',
+      repository: { owner: 'ryohryp', name: 'personal-orbit' },
+      ref: 'main',
+      adapter_type: 'personal-orbit' as const,
+    };
+    const result = await diagnoseProjectRepository(
+      personalOrbitEntry,
+      new FakeSource(new Set(Object.values(personalOrbitDefinition.documents))),
+      async () => overview('personal-orbit'),
+    );
+
+    expect(result.state).toBe('ready');
+    expect(result.usable).toBe(true);
+    expect(result.items).toEqual(expect.arrayContaining([
+      expect.objectContaining({ key: 'global_style', state: 'ready', path: personalOrbitDefinition.documents.globalStyle }),
+      expect.objectContaining({ key: 'global_reference', state: 'ready', path: personalOrbitDefinition.documents.globalReference }),
     ]));
   });
 

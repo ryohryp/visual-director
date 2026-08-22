@@ -4,7 +4,7 @@ import { VisualDirectorError } from '../domain/types.js';
 import type { ProjectVisualOverview } from '../domain/types.js';
 import type { ProjectDiagnostics } from './diagnostics.js';
 
-export type ProjectAdapterType = 'generic';
+export type ProjectAdapterType = 'generic' | 'personal-orbit';
 
 export interface ProjectCatalogEntry {
   project_id: string;
@@ -44,6 +44,13 @@ interface RawCatalog {
 const DEFAULT_PROJECT_CATALOG_PATH = 'projects.catalog.json';
 const DEFAULT_PROJECT_CATALOG = {
   projects: [
+    {
+      project_id: 'personal-orbit',
+      display_name: 'Personal Orbit',
+      repository: 'ryohryp/personal-orbit',
+      ref: 'main',
+      adapter_type: 'personal-orbit',
+    },
     {
       project_id: 'bottom-of-thirst',
       display_name: 'The Bottom of Thirst',
@@ -186,7 +193,7 @@ function normalizeEntry(value: unknown, index: number): ProjectCatalogEntry {
     throw new VisualDirectorError('PROJECT_CATALOG_INVALID', 'repository must be in owner/name form.', { repository });
   }
   const adapterType = required(value.adapter_type, `projects[${index}].adapter_type`);
-  if (adapterType !== 'generic') {
+  if (adapterType !== 'generic' && adapterType !== 'personal-orbit') {
     throw new VisualDirectorError('PROJECT_CATALOG_INVALID', `Unsupported adapter_type: ${adapterType}.`, { adapter_type: adapterType });
   }
   return {
