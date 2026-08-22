@@ -67,7 +67,9 @@ function createHarness(
 }
 
 async function flush(): Promise<void> {
-  for (let index = 0; index < 6; index += 1) await Promise.resolve();
+  for (let index = 0; index < 3; index += 1) {
+    await new Promise<void>((resolve) => setImmediate(resolve));
+  }
 }
 
 function retryButton(status: FakeNode): FakeNode {
