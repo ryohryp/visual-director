@@ -1,6 +1,9 @@
 name: Deploy Production
 
 on:
+  push:
+    branches:
+      - main
   workflow_dispatch:
 
 permissions:
@@ -37,6 +40,13 @@ jobs:
           ref: main
           persist-credentials: false
 
+      - name: Capture deployment metadata
+        shell: bash
+        run: |
+          echo "VISUAL_DIRECTOR_BUILD_SHA=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+          echo "VISUAL_DIRECTOR_BUILD_REF=main" >> "$GITHUB_ENV"
+          echo "VISUAL_DIRECTOR_BUILD_TIME=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> "$GITHUB_ENV"
+
       - name: Setup Node.js
         uses: actions/setup-node@v5
         with:
@@ -59,7 +69,10 @@ jobs:
         id: deploy
         shell: bash
         run: |
-          url="$(npx --yes vercel@latest deploy --prebuilt --prod --token="$VERCEL_TOKEN")"
+          url="$(npx --yes vercel@latest deploy --prebuilt --prod --token="$VERCEL_TOKEN" \
+            --env VISUAL_DIRECTOR_BUILD_SHA="$VISUAL_DIRECTOR_BUILD_SHA" \
+            --env VISUAL_DIRECTOR_BUILD_REF="$VISUAL_DIRECTOR_BUILD_REF" \
+            --env VISUAL_DIRECTOR_BUILD_TIME="$VISUAL_DIRECTOR_BUILD_TIME")"
           echo "url=$url" >> "$GITHUB_OUTPUT"
           echo "Production deployment: $url"
 
@@ -68,10 +81,19 @@ jobs:
           VISUAL_DIRECTOR_MCP_URL: ${{ env.PRODUCTION_URL }}/mcp
         run: npm run verify:hosted
 
+      - name: Verify Review Deployment
+        env:
+          VISUAL_DIRECTOR_REVIEW_URL: ${{ env.PRODUCTION_URL }}
+        run: EXPECTED_REVISION="$VISUAL_DIRECTOR_BUILD_SHA" npm run verify:review
+
       - name: Deployment summary
+        shell: bash
         run: |
           echo "### Visual Director Production" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Main commit: \`${GITHUB_SHA}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Main commit: \`$VISUAL_DIRECTOR_BUILD_SHA\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Branch: \`$VISUAL_DIRECTOR_BUILD_REF\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Build time: \`$VISUAL_DIRECTOR_BUILD_TIME\`" >> "$GITHUB_STEP_SUMMARY"
           echo "- Deployment: ${{ steps.deploy.outputs.url }}" >> "$GITHUB_STEP_SUMMARY"
           echo "- Production: ${{ env.PRODUCTION_URL }}" >> "$GITHUB_STEP_SUMMARY"
           echo "- Hosted MCP verification: passed" >> "$GITHUB_STEP_SUMMARY"
+          echo "- UI review smoke verification: passed" >> "$GITHUB_STEP_SUMMARY"
