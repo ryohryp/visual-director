@@ -56,6 +56,7 @@ export class CanonProjectAdapter extends CanonAdapterBase {
     const raw = await this.source.readText(grandDesignPath, 'Grand Design');
     const grandDesign = parseGrandDesign(raw, this.projectId, grandDesignPath);
     const contract = resolveGrandDesignContract(grandDesign, normalizedInput.asset_type);
+    if (!contract && prepared.policy.must_use_approved_anchor) return prepared;
     const promptPackage = { ...prepared.prompt_package };
     delete promptPackage.grand_design_lock;
     return { ...prepared, prompt_package: { ...promptPackage, ...(contract ? { grand_design_contract: contract } : {}) } };
