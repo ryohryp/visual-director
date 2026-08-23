@@ -93,14 +93,18 @@ describe('v0.4 multi-project isolation', () => {
       process.env.VISUAL_DIRECTOR_PROJECT_CATALOG = catalogPath;
       process.env.VISUAL_DIRECTOR_GITHUB_TOKEN = 'test-token';
       const calls: string[] = [];
-      globalThis.fetch = async (input) => {
+      const accepts: Array<string | null> = [];
+      globalThis.fetch = async (input, init) => {
         calls.push(String(input));
-        return fileResponse('asset-bytes');
+        accepts.push(new Headers(init?.headers).get('accept'));
+        return new Response(Buffer.from('asset-bytes'));
       };
 
       const a = await invokeAsset('/api/asset?project_id=game-a&path=public/images/shared.png');
       expect(a.statusCode).toBe(200);
+      expect(a.body.toString('utf8')).toBe('asset-bytes');
       expect(calls.at(-1)).toContain('/repos/example/repo-a/contents/public/images/shared.png?ref=main');
+      expect(accepts.at(-1)).toBe('application/vnd.github.raw+json');
 
       const b = await invokeAsset('/api/asset?project_id=game-b&path=public/images/shared.png');
       expect(b.statusCode).toBe(200);
@@ -110,6 +114,36 @@ describe('v0.4 multi-project isolation', () => {
       expect((await invokeAsset('/api/asset?project_id=game-b&path=../repo-a/secret.png')).statusCode).toBe(400);
       expect((await invokeAsset('/api/asset?project_id=unknown-game&path=public/images/shared.png')).statusCode).toBe(404);
       expect(calls).toHaveLength(beforeRejected);
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
+  it('streams repository assets larger than the Contents API base64 limit through raw media', async () => {
+    const directory = await mkdtemp(path.join(tmpdir(), 'visual-director-large-asset-'));
+    try {
+      const entry = entries[0]!;
+      const catalogPath = path.join(directory, 'projects.json');
+      await writeFile(catalogPath, JSON.stringify({ projects: [{
+        project_id: entry.project_id,
+        display_name: entry.display_name,
+        repository: `${entry.repository.owner}/${entry.repository.name}`,
+        ref: entry.ref,
+        adapter_type: entry.adapter_type,
+      }] }));
+      process.env.VISUAL_DIRECTOR_PROJECT_CATALOG = catalogPath;
+      process.env.VISUAL_DIRECTOR_GITHUB_TOKEN = 'test-token';
+      const largePng = Buffer.alloc(1024 * 1024 + 1, 0x5a);
+      globalThis.fetch = async (_input, init) => {
+        expect(new Headers(init?.headers).get('accept')).toBe('application/vnd.github.raw+json');
+        return new Response(largePng);
+      };
+
+      const result = await invokeAsset('/api/asset?project_id=game-a&path=assets/approved-anchor.png');
+
+      expect(result.statusCode).toBe(200);
+      expect(result.body).toEqual(largePng);
+      expect(result.headers.get('content-type')).toBe('image/png');
     } finally {
       await rm(directory, { recursive: true, force: true });
     }
@@ -157,15 +191,16 @@ function fileResponse(content: string): Response {
   }), { status: 200, headers: { 'content-type': 'application/json' } });
 }
 
-async function invokeAsset(url: string): Promise<{ statusCode: number; body: Buffer }> {
+async function invokeAsset(url: string): Promise<{ statusCode: number; body: Buffer; headers: Map<string, string> }> {
   let statusCode = 0;
   let body = Buffer.alloc(0);
+  const headers = new Map<string, string>();
   const res = {
     set statusCode(value: number) { statusCode = value; },
     get statusCode() { return statusCode; },
-    setHeader() {},
+    setHeader(name: string, value: string) { headers.set(name.toLowerCase(), value); },
     end(value?: string | Buffer) { body = Buffer.isBuffer(value) ? value : Buffer.from(value ?? ''); },
   } as unknown as ServerResponse;
   await assetHandler({ method: 'GET', url } as IncomingMessage, res);
-  return { statusCode, body };
+  return { statusCode, body, headers };
 }

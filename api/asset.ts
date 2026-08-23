@@ -47,7 +47,7 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
     `https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/contents/${encodedPath}?ref=${encodeURIComponent(entry.ref)}`,
     {
       headers: {
-        accept: 'application/vnd.github+json',
+        accept: 'application/vnd.github.raw+json',
         authorization: `Bearer ${token}`,
         'x-github-api-version': '2022-11-28',
         'user-agent': 'visual-director-dashboard',
@@ -59,16 +59,9 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
     res.end('Asset could not be loaded.');
     return;
   }
-  const payload = await response.json() as { type?: string; content?: string; encoding?: string; name?: string };
-  if (payload.type !== 'file' || payload.encoding !== 'base64' || typeof payload.content !== 'string') {
-    res.statusCode = 404;
-    res.end('Asset could not be loaded.');
-    return;
-  }
-
-  const bytes = Buffer.from(payload.content.replace(/\s/g, ''), 'base64');
+  const bytes = Buffer.from(await response.arrayBuffer());
   res.statusCode = 200;
-  res.setHeader('content-type', mimeType(payload.name ?? assetPath));
+  res.setHeader('content-type', mimeType(assetPath));
   res.setHeader('cache-control', 'private, max-age=300');
   res.end(bytes);
 }
