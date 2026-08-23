@@ -12,6 +12,7 @@ import { createCatalogRepositorySource, resolveCatalogEntry } from '../projects/
 import { createProjectRegistry } from '../projects/registry.js';
 import type { ProjectRegistry } from '../projects/registry.js';
 import { bindApprovedEditSource } from './approved-edit-source.js';
+import { adoptHostedApprovedAnchor } from './hosted-anchor-adoption.js';
 
 const APPROVED_EDIT_SOURCE_COMPAT_SUBJECT = '__approved_edit_source__';
 
@@ -30,7 +31,7 @@ export function createVisualDirectorServer(
     { name: 'visual-director', version: '0.2.0' },
     {
       instructions:
-        'Visual Director is a fail-closed gate before image generation. visual.prepare_generation delegates Canon resolution and package construction to the MCP-independent Visual Director Core. Hosted read-only deployments also expose visual.prepare_non_character_generation as the subjectless entrypoint for Grand Design non-character assets; it never accepts character subject IDs. Proceed to an image model only after that exact request returns a successful Generation Package with non-empty style_lock. Character requests must also have non-empty subject_lock and Approved Anchor references. Subjectless non-character requests are allowed only when Grand Design explicitly defines the asset type and scene_context.reference_paths resolves to repository source assets; their subject_lock is intentionally empty and reference_assets must contain source_asset entries. If preparation returns a Canon validation error, do not reconstruct or guess facts from memory, conversation history, legacy assets, or prior candidates. An explicit scene_context.repository_path is sufficient for that request and does not require prior MCP session state. For backward compatibility, the MCP adapter also remembers a valid explicit repository path as a runtime binding for subsequent calls in the same server lifecycle. visual.configure_project remains available for explicit runtime binding. Transport/session failures are connectivity errors, not Canon validation results. visual.adopt_anchor may only be called after explicit user approval. Hosted clients whose tool list is cached may use visual.adopt_anchor with subject_id __approved_edit_source__, candidate_file set to the exact approved host file, and candidate_path set to its Approved Candidate manifest; that compatibility mode is read-only and returns the verified source pixels as image content rather than mutating Canon. Host-native image generation is allowed only when the host can mechanically restrict image bindings to the current Generation Package; unrelated conversation images without an enforceable whitelist require fail-closed. After two consecutive wrong-reference results, stop instead of blindly regenerating. Local/tunnel visual.generate_image rebuilds the Generation Package and sends only its repository reference_assets to the configured generator; hosted read-only mode does not expose that tool.',
+        'Visual Director is a fail-closed gate before image generation. visual.prepare_generation delegates Canon resolution and package construction to the MCP-independent Visual Director Core. Hosted read-only deployments also expose visual.prepare_non_character_generation as the subjectless entrypoint for Grand Design non-character assets; it never accepts character subject IDs. Proceed to an image model only after that exact request returns a successful Generation Package with non-empty style_lock. Character requests must also have non-empty subject_lock and Approved Anchor references. Subjectless non-character requests are allowed only when Grand Design explicitly defines the asset type and scene_context.reference_paths resolves to repository source assets; their subject_lock is intentionally empty and reference_assets must contain source_asset entries. If preparation returns a Canon validation error, do not reconstruct or guess facts from memory, conversation history, legacy assets, or prior candidates. An explicit scene_context.repository_path is sufficient for that request and does not require prior MCP session state. For backward compatibility, the MCP adapter also remembers a valid explicit repository path as a runtime binding for subsequent calls in the same server lifecycle. visual.configure_project remains available for explicit runtime binding. Transport/session failures are connectivity errors, not Canon validation results. visual.adopt_anchor may only be called after explicit user approval. Hosted adoption is a separately reviewed narrow write path: it requires both the Approved Candidate manifest and exact approved host file, validates project/subject/SHA/dimensions before changing Canon, and leaves all other hosted workflow mutations disabled. Hosted clients whose tool list is cached may use visual.adopt_anchor with subject_id __approved_edit_source__, candidate_file set to the exact approved host file, and candidate_path set to its Approved Candidate manifest; that compatibility mode is read-only and returns the verified source pixels as image content rather than mutating Canon. Host-native image generation is allowed only when the host can mechanically restrict image bindings to the current Generation Package; unrelated conversation images without an enforceable whitelist require fail-closed. After two consecutive wrong-reference results, stop instead of blindly regenerating. Local/tunnel visual.generate_image rebuilds the Generation Package and sends only its repository reference_assets to the configured generator; hosted read-only mode does not expose that tool.',
     },
   );
 
@@ -57,7 +58,7 @@ export function createVisualDirectorServer(
     {
       title: 'Adopt Anchor and register Canon',
       description:
-        'After explicit user approval, adopt one image as the subject Approved Visual Anchor. candidate_file accepts the ChatGPT/OpenAI file reference supplied by the host; candidate_path remains the repository-relative compatibility input. Hosted cached clients may use subject_id __approved_edit_source__ with both candidate_file and candidate_path to bind an exact Approved edit source without writing Canon.',
+        'After explicit user approval, adopt one image as the subject Approved Visual Anchor. Local mode accepts either candidate_file or candidate_path. Hosted mode requires candidate_file to be the exact approved host file and candidate_path to be its Approved Candidate manifest; only the requested subject binding may be persisted. Hosted cached clients may use subject_id __approved_edit_source__ with both values to bind an exact Approved edit source without writing Canon.',
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
       inputSchema: z.object({
         project_id: z.string().min(1), subject_id: z.string().min(1),
@@ -109,7 +110,9 @@ export function createVisualDirectorServer(
             ],
           };
         }
-        const result = await core.adoptAnchor(input);
+        const result = isHostedReadOnlyMode()
+          ? await adoptHostedApprovedAnchor(input)
+          : await core.adoptAnchor(input);
         return { structuredContent: { ...result } as Record<string, unknown>, content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
       } catch (error) { return toolError(error); }
     },
