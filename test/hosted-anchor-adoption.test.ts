@@ -194,6 +194,7 @@ function crownlessSource(options: {
   const binary = new Set([
     ANCHOR_PATH,
     'docs/assets/crownless-visual-design-reference-v0.1.jpg',
+    'docs/assets/enemy-rusher.png',
   ]);
   return {
     kind: 'github',
