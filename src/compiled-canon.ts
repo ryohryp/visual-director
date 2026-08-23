@@ -37,8 +37,8 @@ export async function compileRepositoryCanon(input: CompileRepositoryCanonInput)
   const outputPath = resolveCompiledCanonOutputPath(repositoryPath, input.outputPath);
   const source = new LocalRepositorySource(repositoryPath);
   const compiled = await source.fileExists(DEFAULT_CANON_MANIFEST_PATH)
-    ? compileCanonFromSource(input.projectId, source)
-    : compileCanonFromRuntime(input.projectId, await createLegacyLocalCompileRuntime(input.projectId, repositoryPath));
+    ? await compileCanonFromSource(input.projectId, source)
+    : await compileCanonFromRuntime(input.projectId, await createLegacyLocalCompileRuntime(input.projectId, repositoryPath));
   const serialized = serializeCompiledCanon(compiled);
   if (input.check) {
     let current: string;
