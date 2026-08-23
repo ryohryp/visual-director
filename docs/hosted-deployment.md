@@ -5,26 +5,53 @@ Hosted mode removes the local Secure MCP Tunnel and local project checkout from 
 ```text
 ChatGPT
   -> HTTPS /mcp
-  -> Visual Director Core
-  -> GitHub contents API (read-only)
+  -> Visual Director
+  -> GitHub contents API (read-only Canon resolution)
   -> project Canon + Approved Anchors
 ```
 
+The service remains read-only for generation and Candidate workflow operations. The only reviewed hosted repository mutation is explicit Approved Anchor adoption through `visual.adopt_anchor`.
+
 ## Security boundary
 
-Hosted `visual.prepare_generation` reads Canon and checks Approved Anchor objects through GitHub. It does not receive repository write permission.
+`visual.prepare_generation` reads Canon and checks Approved Anchor objects through GitHub. Its ordinary credential remains read-only.
 
-`visual.adopt_anchor`, Candidate lifecycle mutations, and hosted generation persistence are deliberately disabled and return `HOSTED_WRITE_DISABLED`. Do not broaden the existing read credential to enable them.
+The following hosted operations remain disabled with `HOSTED_WRITE_DISABLED`:
 
-The reviewed prerequisites for any future hosted mutation path are defined in [`hosted-write-boundary.md`](./hosted-write-boundary.md). That document is an enablement gate, not an instruction to turn writes on.
+- image generation persistence
+- Candidate registration
+- Candidate review / promotion
+- arbitrary repository writes
 
-Never expose the GitHub token in source control, MCP output, logs, prompt packages, or error details.
+Hosted `visual.adopt_anchor` is a narrow exception with a separate validation and credential boundary. It requires:
+
+- `approval: "approve"`
+- the repository-relative Approved Candidate manifest in `candidate_path`
+- the exact approved host file in `candidate_file`
+- manifest status `approved_candidate`
+- matching `project_id` and `subject_id`
+- matching SHA-256, dimensions, and MIME type
+- an existing repository source asset at the manifest `source.path`
+
+If Character Canon already contains that exact Approved Anchor path, adoption succeeds idempotently with `changed: false` and does not require a write credential.
+
+If Canon must change, only the configured project's Character Canon and `.visual-director/compiled-canon.json` are written. They are committed together in one Git commit against the configured catalog repository/ref. Request input cannot choose a repository, branch, Canon path, or compiled Canon path.
+
+Never broaden `VISUAL_DIRECTOR_GITHUB_TOKEN` for this purpose. Never expose either GitHub token in source control, MCP output, logs, prompt packages, or error details.
 
 ## Required environment variables
 
 Set this as a secret in the deployment environment:
 
-- `VISUAL_DIRECTOR_GITHUB_TOKEN` — a fine-grained GitHub credential restricted to the required private repository with **Contents: Read-only** access.
+- `VISUAL_DIRECTOR_GITHUB_TOKEN` — fine-grained GitHub credential restricted to the required private repositories with **Contents: Read-only** access.
+
+Only deployments that must persist a newly reviewed Approved Anchor also require:
+
+- `VISUAL_DIRECTOR_GITHUB_WRITE_TOKEN` — separate repository-scoped credential with the minimum **Contents: Read and write** permission required to create the reviewed Anchor adoption commit.
+
+Do not reuse or broaden the read token. Prefer a dedicated GitHub App installation credential or another short-lived repository-scoped credential over a broad personal token.
+
+When the write credential is absent and a repository mutation is actually required, Visual Director returns `HOSTED_ANCHOR_WRITE_UNAVAILABLE` after validation. This is a deployment capability failure, not an invalid Candidate/manifest result.
 
 Optional configuration:
 
@@ -33,36 +60,41 @@ Optional configuration:
 
 Do not set `BOTTOM_OF_THIRST_REPO_PATH` in hosted production. That variable is for local compatibility only.
 
-## Automated Vercel setup
+## Approved Anchor request
 
-The hosted runtime needs a GitHub bearer credential because the application reads Canon and Approved Anchor files through the GitHub Contents API. The Vercel-GitHub deployment connection alone is not used as an application credential.
+Hosted adoption uses both the Approved Candidate manifest and exact approved host file:
 
-Use a fine-grained GitHub credential scoped only to `ryohryp/---The-Bottom-of-Thirst` with **Contents: Read-only** access. Keep it in the current PowerShell process only; do not put it in a file, command-line argument, commit, or log.
-
-From this repository, set a Vercel CLI token and the GitHub credential in the process environment, then run:
-
-```powershell
-$env:VERCEL_TOKEN = '<Vercel CLI token>'
-$env:VISUAL_DIRECTOR_GITHUB_TOKEN = '<fine-grained GitHub credential>'
-powershell -ExecutionPolicy Bypass -File scripts/configure-hosted-vercel.ps1
+```json
+{
+  "project_id": "crownless",
+  "subject_id": "player-unarmed",
+  "candidate_path": "docs/assets/player-unarmed-approved-anchor-v0.3.json",
+  "candidate_file": {
+    "download_url": "https://files.example/...",
+    "file_id": "file_...",
+    "mime_type": "image/png",
+    "file_name": "player-unarmed-approved-anchor-v0.3.png"
+  },
+  "approval": "approve"
+}
 ```
 
-The script validates that the credential can read the target Canon file, links the `visual-director` project in the `ryohryps-projects` scope, adds or updates only the production `VISUAL_DIRECTOR_GITHUB_TOKEN` secret, and redeploys the current production deployment once. It suppresses CLI output and never prints the secret value.
+A successful response is explicit:
 
-If GitHub CLI is already authenticated with a credential that has only the required repository read access, the token may be obtained without placing it in the shell history:
-
-```powershell
-$env:VERCEL_TOKEN = '<Vercel CLI token>'
-powershell -ExecutionPolicy Bypass -File scripts/configure-hosted-vercel.ps1 -UseGitHubCliToken
+```text
+status = approved
+approved_anchor_path = <manifest source.path>
+changed = false | true
+sha256 / width / height = verified source bytes
 ```
 
-Do not use `-UseGitHubCliToken` with a broad personal token. If no suitable credential already exists, creating the fine-grained credential remains the one-time human step; the script handles the Vercel configuration and deployment afterward.
+`changed: false` means the repository was already in the reviewed state. `changed: true` means the Character Canon and deterministic compiled Canon were committed together.
 
 ## Vercel runtime
 
 When `VERCEL=1`, `src/index.ts` starts the hosted HTTP server on `PORT` and binds to `0.0.0.0`.
 
-Hosted HTTP is intentionally stateless at the MCP transport layer: each POST receives a fresh `McpServer` and `StreamableHTTPServerTransport` with no server-generated MCP session id. This avoids depending on process-local session maps across serverless instances.
+Hosted HTTP is intentionally stateless at the MCP transport layer: each POST receives a fresh `McpServer` and `StreamableHTTPServerTransport` with no server-generated MCP session id. Repository Canon therefore remains the durable source of truth; adoption does not rely on server memory.
 
 Endpoints:
 
@@ -71,38 +103,36 @@ Endpoints:
 
 A Canon/authentication check belongs in a real `visual.prepare_generation` request so that failures remain explicit and fail closed.
 
+## Read-only credential setup
+
+The existing setup script configures the ordinary read credential. Keep using a fine-grained credential with only the repository read access required by the project catalog.
+
+```powershell
+$env:VERCEL_TOKEN = '<Vercel CLI token>'
+$env:VISUAL_DIRECTOR_GITHUB_TOKEN = '<fine-grained read credential>'
+powershell -ExecutionPolicy Bypass -File scripts/configure-hosted-vercel.ps1
+```
+
+The script validates read access, updates only the production `VISUAL_DIRECTOR_GITHUB_TOKEN`, and redeploys. It does not configure the separate Anchor write credential.
+
+Do not place write credentials in shell history, repository files, Issue/PR text, or logs.
+
 ## Deployment verification
 
 After deploying and configuring the GitHub read-only secret:
 
-1. `GET /health` returns HTTP 200 and `mode: hosted-read-only`.
+1. `GET /health` returns HTTP 200.
 2. Add the production `/mcp` URL to ChatGPT as the Visual Director remote MCP connection.
-3. Run the redacted, fail-closed verifier. It checks `/health`, MCP initialize, `tools/list`, and the exact `visual.prepare_generation` result without printing response payloads or credentials:
+3. Run the redacted fail-closed verifier:
 
 ```powershell
 npm.cmd run verify:hosted -- https://visual-director-beta.vercel.app/mcp
 ```
 
-For a local HTTP server only, set `VISUAL_DIRECTOR_ALLOW_INSECURE_HTTP=1` for that process. The verifier still requires `/mcp`, and it never sends a repository path in the hosted request.
+The verifier checks `/health`, MCP initialize, `tools/list`, and the exact `visual.prepare_generation` result without printing response payloads or credentials.
 
-The underlying request is:
+For `bottom-of-thirst`, the successful Generation Package must continue to resolve the configured Approved Anchor and `policy.must_use_approved_anchor = true`.
 
-```text
-project_id: bottom-of-thirst
-asset_type: character_visual_anchor
-subject_ids: [kamino_kyosuke]
-request_text: 神野恭介のApproved Visual Anchorを正本としてGeneration Packageを取得する。画像生成は行わない。
-```
+For hosted Anchor adoption, first test an already-bound reviewed Anchor. That path must return `status: approved` and `changed: false` without a write credential. Configure the dedicated write credential only when the deployment is intentionally allowed to persist a new reviewed binding.
 
-The successful Generation Package must contain:
-
-```text
-reference_assets:
-  role: subject_anchor
-  subject_id: kamino_kyosuke
-  path: public/images/characters/kamino_kyosuke/v2/default.avif
-
-policy.must_use_approved_anchor = true
-```
-
-If the GitHub credential is missing, unauthorized, the Canon document is missing, or the Anchor object is absent, do not fall back to conversation memory or a legacy image. Fix the deployment or Canon and retry.
+If a GitHub credential is missing, unauthorized, the Canon document is missing, or the Anchor object is absent, do not fall back to conversation memory or a legacy image. Fix the deployment or Canon and retry.
