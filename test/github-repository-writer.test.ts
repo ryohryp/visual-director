@@ -5,7 +5,7 @@ import { GitHubRepositoryWriter } from '../src/projects/github-repository-writer
 describe('GitHubRepositoryWriter', () => {
   it('creates one commit from the expected branch head and advances the ref without force', async () => {
     let blob = 0;
-    const fetchImpl = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = new URL(String(input));
       const method = init?.method ?? 'GET';
       if (method === 'GET' && url.pathname.endsWith('/git/ref/heads/main')) {
@@ -39,7 +39,8 @@ describe('GitHubRepositoryWriter', () => {
         return json({ object: { sha: 'new-commit-sha' } });
       }
       return new Response('{}', { status: 404 });
-    }) as unknown as typeof fetch;
+    });
+    const fetchImpl = fetchMock as unknown as typeof fetch;
 
     const writer = new GitHubRepositoryWriter({
       owner: 'ryohryp',
@@ -58,8 +59,8 @@ describe('GitHubRepositoryWriter', () => {
       ref: 'main',
       changed_paths: ['docs/visual/CHARACTER_VISUAL_CANON.md', '.visual-director/compiled-canon.json'],
     });
-    expect(fetchImpl).toHaveBeenCalledTimes(7);
-    for (const call of fetchImpl.mock.calls) {
+    expect(fetchMock).toHaveBeenCalledTimes(7);
+    for (const call of fetchMock.mock.calls) {
       const init = call[1] as RequestInit | undefined;
       expect((init?.headers as Record<string, string>)?.authorization).toBe('Bearer write-secret');
     }
