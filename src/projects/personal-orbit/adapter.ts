@@ -8,6 +8,7 @@ import type {
 } from '../../domain/types.js';
 import { LocalRepositorySource } from '../repository-source.js';
 import type { RepositorySource } from '../repository-source.js';
+import { loadProjectAssetInventory } from '../asset-inventory.js';
 import type { PersonalOrbitProjectDefinition } from './definition.js';
 
 export interface PersonalOrbitAdapterOptions {
@@ -128,19 +129,27 @@ export class PersonalOrbitAdapter implements ProjectAdapter {
     const workflow = await this.source.fileExists(WORKFLOW_INDEX_PATH)
       ? parseWorkflowIndex(await this.source.readText(WORKFLOW_INDEX_PATH, 'Visual Director workflow asset index'))
       : emptyWorkflowSummary();
+    const visualDirection: ProjectVisualOverview['visual_direction'] = {
+      grand_design: null,
+      global_style: {
+        role: 'global_style',
+        document_path: this.definition.documents.globalStyle,
+        asset_path: this.definition.documents.globalReference,
+      },
+    };
+    const inventory = await loadProjectAssetInventory({
+      source: this.source,
+      workflow,
+      approvedAnchors,
+      visualDirection,
+    });
 
     return {
       project_id: this.projectId,
-      visual_direction: {
-        grand_design: null,
-        global_style: {
-          role: 'global_style',
-          document_path: this.definition.documents.globalStyle,
-          asset_path: this.definition.documents.globalReference,
-        },
-      },
+      visual_direction: visualDirection,
       approved_anchors: approvedAnchors,
       workflow,
+      inventory,
     };
   }
 

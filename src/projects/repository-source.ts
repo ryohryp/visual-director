@@ -1,4 +1,4 @@
-import { access, lstat, readFile } from 'node:fs/promises';
+import { access, lstat, readFile, readdir } from 'node:fs/promises';
 import path from 'node:path';
 
 import { VisualDirectorError } from '../domain/types.js';
@@ -9,6 +9,7 @@ export interface RepositorySource {
   readText(relativePath: string, label: string): Promise<string>;
   ensureFile(relativePath: string, label: string): Promise<void>;
   fileExists(relativePath: string): Promise<boolean>;
+  listFiles?(relativeRoot: string): Promise<string[]>;
 }
 
 export class LocalRepositorySource implements RepositorySource {
@@ -57,11 +58,47 @@ export class LocalRepositorySource implements RepositorySource {
 
   async fileExists(relativePath: string): Promise<boolean> {
     try {
-      await access(this.resolve(relativePath));
-      return true;
+      const info = await lstat(this.resolve(relativePath));
+      return info.isFile() && !info.isSymbolicLink();
     } catch {
       return false;
     }
+  }
+
+  async listFiles(relativeRoot: string): Promise<string[]> {
+    const normalizedRoot = safeRelativePath(relativeRoot);
+    const absoluteRoot = this.resolve(normalizedRoot);
+    let rootInfo;
+    try {
+      rootInfo = await lstat(absoluteRoot);
+    } catch (error) {
+      if (isMissingFileError(error)) return [];
+      throw scanError('The configured asset scan root could not be inspected.', normalizedRoot, error);
+    }
+    if (!rootInfo.isDirectory() || rootInfo.isSymbolicLink()) {
+      throw scanError('The configured asset scan root must be a regular repository directory.', normalizedRoot);
+    }
+
+    const files: string[] = [];
+    const visit = async (absoluteDirectory: string, relativeDirectory: string): Promise<void> => {
+      let entries;
+      try {
+        entries = await readdir(absoluteDirectory, { withFileTypes: true });
+      } catch (error) {
+        throw scanError('A configured asset directory could not be read.', relativeDirectory, error);
+      }
+      for (const entry of entries) {
+        const relativePath = `${relativeDirectory}/${entry.name}`.replace(/\\/g, '/');
+        const absolutePath = path.join(absoluteDirectory, entry.name);
+        if (entry.isSymbolicLink()) {
+          throw scanError('Asset scan roots must not contain symbolic links.', relativePath);
+        }
+        if (entry.isDirectory()) await visit(absolutePath, relativePath);
+        else if (entry.isFile()) files.push(relativePath);
+      }
+    };
+    await visit(absoluteRoot, normalizedRoot);
+    return files.sort((left, right) => left.localeCompare(right));
   }
 
   private resolve(relativePath: string): string {
@@ -151,6 +188,47 @@ export class GitHubRepositorySource implements RepositorySource {
     return payload.type === 'file';
   }
 
+  async listFiles(relativeRoot: string): Promise<string[]> {
+    const normalizedRoot = safeRelativePath(relativeRoot);
+    const queue = [normalizedRoot];
+    const files: string[] = [];
+    let root = true;
+    while (queue.length > 0) {
+      const directory = queue.shift() as string;
+      const response = await this.request(directory);
+      if (response.status === 404 && root) return [];
+      root = false;
+      if (!response.ok) throw this.apiError(response.status, directory);
+      const payload = await response.json() as unknown;
+      if (!Array.isArray(payload)) {
+        throw scanError('The configured hosted asset scan root did not resolve to a directory.', directory);
+      }
+      if (payload.length >= 1_000) {
+        throw new VisualDirectorError(
+          'ASSET_SCAN_INCOMPLETE',
+          'A hosted asset scan directory reached the GitHub Contents API limit and cannot be reconciled safely.',
+          { path: directory, repository: `${this.owner}/${this.repo}`, ref: this.ref },
+        );
+      }
+      for (const value of payload) {
+        if (!isRecord(value) || typeof value.path !== 'string' || typeof value.type !== 'string') {
+          throw scanError('The hosted asset directory returned an invalid entry.', directory);
+        }
+        const entryPath = safeRelativePath(value.path);
+        const expectedPrefix = `${directory}/`;
+        if (!entryPath.startsWith(expectedPrefix) || entryPath.slice(expectedPrefix.length).includes('/')) {
+          throw scanError('The hosted asset directory returned an entry outside its requested scope.', entryPath);
+        }
+        if (value.type === 'dir') queue.push(entryPath);
+        else if (value.type === 'file') files.push(entryPath);
+        else {
+          throw scanError('Asset scan roots must not contain symbolic links or submodules.', entryPath);
+        }
+      }
+    }
+    return files.sort((left, right) => left.localeCompare(right));
+  }
+
   private request(relativePath: string): Promise<Response> {
     const encodedPath = relativePath.split('/').map(encodeURIComponent).join('/');
     const url = `https://api.github.com/repos/${encodeURIComponent(this.owner)}/${encodeURIComponent(this.repo)}/contents/${encodedPath}?ref=${encodeURIComponent(this.ref)}`;
@@ -190,4 +268,19 @@ function required(value: string, field: string): string {
   const trimmed = value.trim();
   if (!trimmed) throw new VisualDirectorError('PROJECT_CONFIG_INVALID', `GitHub repository ${field} must not be empty.`);
   return trimmed;
+}
+
+function scanError(message: string, pathName: string, error?: unknown): VisualDirectorError {
+  return new VisualDirectorError('ASSET_SCAN_FAILED', message, {
+    path: pathName,
+    ...(error ? { reason: error instanceof Error ? error.message : String(error) } : {}),
+  });
+}
+
+function isMissingFileError(error: unknown): boolean {
+  return typeof error === 'object' && error !== null && 'code' in error && error.code === 'ENOENT';
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }

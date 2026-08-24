@@ -215,6 +215,12 @@ Local / tunnel MCP では追加で `visual.generate_image` を公開します。
 
 背景系 asset は landscape generator canvas を利用します。明示された `16:9` / landscape primary composition は `1536x1024`、`9:16` / portrait は `1024x1536`、`1:1` は `1024x1024` へ解決します。Production の正確な crop / composition contract は generation 後の review で確認します。
 
+## Visual Asset Inventory
+
+各 Project Repository は `.visual-director/asset-plan.json` で必要画像を宣言できます。Core はこの Required Asset Plan、既存 `.visual-director/asset-index.json`、Approved Anchors / Canon reference、実ファイルを突き合わせ、`MISSING / REVIEW_REQUIRED / READY / BROKEN / UNMANAGED / SUPERSEDED` を算出します。status は Plan へ保存しません。
+
+Dashboard と canonical Assets 画面は同じ `ProjectVisualOverview.inventory` read model を表示します。Plan がない既存 Project は明示的に workflow-only 表示へ戻り、必要画像を推測しません。schema、workflow との関連付け、scan root / ignore rule は [`docs/visual-asset-inventory.md`](docs/visual-asset-inventory.md) と [`asset-plan.example.json`](asset-plan.example.json) を参照してください。Hosted は引き続き read-only です。
+
 ## セットアップ
 
 Node.js 20 以降が必要です。
@@ -323,6 +329,9 @@ npm.cmd run build
 - MCP Streamable HTTP transport
 - stale session と Canon error の区別
 - Anchor 採用時の画像検証と rollback
+- Required Asset Plan の strict validation と repository path safety
+- Required / workflow / actual file reconciliation と derived state
+- explicit scan root 内の unmanaged image 検出と multi-project isolation
 
 ## トラブルシューティング
 
@@ -333,6 +342,9 @@ npm.cmd run build
 | `PROJECT_NOT_FOUND` | `project_id` を確認する |
 | `SUBJECT_NOT_FOUND` | Canon / project definition に存在する subject ID を使う |
 | `REFERENCE_NOT_FOUND` | Canon に記載された Approved Anchor / reference asset の実ファイルを確認する |
+| `ASSET_PLAN_INVALID` | `.visual-director/asset-plan.json` のversion、strict schema、重複ID、production path、scan scopeを確認する |
+| `ASSET_INVENTORY_CONFLICT` | workflow の `required_asset_id` / `asset_id` / `registered_path` が同じ Required Asset を指すよう修正する |
+| `ASSET_SCAN_FAILED` / `ASSET_SCAN_INCOMPLETE` | 明示したscan root、symlink/submodule、GitHub directory sizeを確認する。結果を推測しない |
 | `HOSTED_WRITE_DISABLED` | Hosted read-only では generation / workflow mutation を行わない。reviewed local path を使う |
 | unsafe conversation image context | host が current Generation Package の reference だけを機械的に bind できないため native generation を停止。clean context または local isolated generation を使う |
 | `Session terminated` | Canon error ではない。MCP / tunnel / ChatGPT 接続層を再初期化する |

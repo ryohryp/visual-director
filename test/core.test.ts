@@ -89,6 +89,10 @@ describe('Visual Director Core', () => {
       jobs: [],
       assets: [],
     });
+    expect(result.inventory).toMatchObject({
+      plan: { metadata_path: '.visual-director/asset-plan.json', available: false },
+      assets: [],
+    });
   });
 
   it('reads repository-managed Generation Job and asset metadata when present', async () => {
@@ -128,6 +132,16 @@ describe('Visual Director Core', () => {
     const core = createVisualDirectorCore();
     await expect(core.getProjectVisualOverview({ project_id: 'bottom-of-thirst', repository_path: fixtureRoot }))
       .rejects.toMatchObject({ code: 'WORKFLOW_INDEX_INVALID' });
+  });
+
+  it('fails closed when the repository Required Asset Plan is malformed', async () => {
+    const planPath = path.join(fixtureRoot, '.visual-director/asset-plan.json');
+    await mkdir(path.dirname(planPath), { recursive: true });
+    await writeFile(planPath, '{"version":1,"assets":"wrong"}', 'utf8');
+
+    const core = createVisualDirectorCore();
+    await expect(core.getProjectVisualOverview({ project_id: 'bottom-of-thirst', repository_path: fixtureRoot }))
+      .rejects.toMatchObject({ code: 'ASSET_PLAN_INVALID', details: { path: '.visual-director/asset-plan.json' } });
   });
 });
 

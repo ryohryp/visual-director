@@ -46,6 +46,7 @@ describe('image generation orchestration', () => {
       repository_path: root,
       job_id: 'job-001',
       asset_id: 'asset-001',
+      required_asset_id: 'chapter1-archive-cg',
       asset_type: 'event_cg',
       subject_ids: ['souma'],
       request_text: '地下の記録保管庫で古い記録を確認しているイベントCG',
@@ -61,13 +62,15 @@ describe('image generation orchestration', () => {
     expect(await readFile(path.join(root, result.candidate_path), 'utf8')).toBe('generated-image');
 
     const index = JSON.parse(await readFile(path.join(root, '.visual-director/asset-index.json'), 'utf8')) as {
-      jobs: Array<{ status: string; error?: string }>;
-      assets: Array<{ status: string; reference_paths: string[]; generation_package_fingerprint?: string }>;
+      jobs: Array<{ status: string; required_asset_id?: string; error?: string }>;
+      assets: Array<{ status: string; required_asset_id?: string; reference_paths: string[]; generation_package_fingerprint?: string }>;
     };
     expect(index.jobs[0]?.status).toBe('candidate');
+    expect(index.jobs[0]?.required_asset_id).toBe('chapter1-archive-cg');
     expect(index.jobs[0]?.error).toBeUndefined();
     expect(index.assets[0]).toMatchObject({
       status: 'candidate',
+      required_asset_id: 'chapter1-archive-cg',
       reference_paths: [
         'docs/visual/assets/global_visual_style_reference.webp',
         'public/images/characters/souma/v2/default.avif',

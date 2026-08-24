@@ -42,10 +42,17 @@ export async function registerCandidate(input: RegisterCandidateInput): Promise<
   if (!input.job.subject_ids.length || input.job.subject_ids.some((value) => !value.trim())) {
     throw new VisualDirectorError('INVALID_INPUT', 'job.subject_ids must contain at least one non-empty subject id.');
   }
+  const jobRequiredAssetId = optionalRequiredAssetId(input.job.required_asset_id, 'job.required_asset_id');
+  const assetRequiredAssetId = optionalRequiredAssetId(input.asset.required_asset_id, 'asset.required_asset_id');
+  if (jobRequiredAssetId && assetRequiredAssetId && jobRequiredAssetId !== assetRequiredAssetId) {
+    throw new VisualDirectorError('INVALID_INPUT', 'job.required_asset_id and asset.required_asset_id must match when both are supplied.');
+  }
+  const requiredAssetId = assetRequiredAssetId || jobRequiredAssetId;
 
   const now = new Date().toISOString();
   const job = {
     job_id: required(input.job.job_id, 'job.job_id'),
+    ...(requiredAssetId ? { required_asset_id: requiredAssetId } : {}),
     asset_type: required(input.job.asset_type, 'job.asset_type'),
     subject_ids: input.job.subject_ids.map((value) => value.trim()),
     request_text: required(input.job.request_text, 'job.request_text'),
@@ -59,6 +66,7 @@ export async function registerCandidate(input: RegisterCandidateInput): Promise<
   };
   const asset: ManagedVisualAssetSummary = {
     asset_id: required(input.asset.asset_id, 'asset.asset_id'),
+    ...(requiredAssetId ? { required_asset_id: requiredAssetId } : {}),
     asset_type: required(input.asset.asset_type, 'asset.asset_type'),
     status: 'candidate',
     ...(input.asset.subject_id?.trim() ? { subject_id: input.asset.subject_id.trim() } : {}),
@@ -313,7 +321,7 @@ function safeRelativePath(value: string, field: string): string {
 }
 
 function safeId(value: string): string {
-  if (!/^[a-zA-Z0-9_-]+$/.test(value)) {
+  if (!/^[a-zA-Z0-9][a-zA-Z0-9._-]*$/.test(value)) {
     throw new VisualDirectorError('UNSAFE_REPOSITORY_PATH', 'asset_id cannot be used for a superseded archive path.', { asset_id: value });
   }
   return value;
@@ -323,6 +331,15 @@ function required(value: string | undefined, field: string): string {
   const trimmed = value?.trim() ?? '';
   if (!trimmed) throw new VisualDirectorError('INVALID_INPUT', `${field} must be a non-empty string.`);
   return trimmed;
+}
+
+function optionalRequiredAssetId(value: string | undefined, field: string): string | undefined {
+  const normalized = value?.trim();
+  if (!normalized) return undefined;
+  if (!/^[a-zA-Z0-9][a-zA-Z0-9._-]*$/.test(normalized)) {
+    throw new VisualDirectorError('INVALID_INPUT', `${field} must use only letters, numbers, dot, underscore, or hyphen.`);
+  }
+  return normalized;
 }
 
 function validateProjectInput(projectId: string, repositoryPath: string): void {

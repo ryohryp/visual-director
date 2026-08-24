@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { createVisualDirectorCore } from '../src/core/visual-director.js';
 import type { ProjectVisualOverview } from '../src/domain/types.js';
+import { emptyProjectAssetInventory } from '../src/projects/asset-inventory.js';
 import { loadProjectCatalog, parseProjectCatalog } from '../src/projects/catalog.js';
 
 const rawCatalog = {
@@ -186,5 +187,6 @@ function overview(
         reference_paths: [],
       })),
     },
+    inventory: emptyProjectAssetInventory(),
   };
 }

@@ -31,19 +31,22 @@ describe('candidate workflow', () => {
 
     expect(result.asset).toMatchObject({
       asset_id: 'asset-1',
+      required_asset_id: 'kamino-portrait',
       status: 'candidate',
       candidate_path: '.visual-director/candidates/gen-1/candidate.webp',
       source_job_id: 'gen-1',
       reference_paths: ['docs/visual/assets/global.webp'],
     });
-    expect(result.workflow.jobs[0]).toMatchObject({ job_id: 'gen-1', status: 'candidate' });
+    expect(result.workflow.jobs[0]).toMatchObject({ job_id: 'gen-1', required_asset_id: 'kamino-portrait', status: 'candidate' });
 
     const stored = JSON.parse(await readFile(path.join(root, '.visual-director/asset-index.json'), 'utf8')) as {
-      jobs: Array<{ job_id: string }>;
-      assets: Array<{ asset_id: string }>;
+      jobs: Array<{ job_id: string; required_asset_id?: string }>;
+      assets: Array<{ asset_id: string; required_asset_id?: string }>;
     };
     expect(stored.jobs[0]?.job_id).toBe('gen-1');
+    expect(stored.jobs[0]?.required_asset_id).toBe('kamino-portrait');
     expect(stored.assets[0]?.asset_id).toBe('asset-1');
+    expect(stored.assets[0]?.required_asset_id).toBe('kamino-portrait');
   });
 
   it('rejects a Candidate without deleting its image', async () => {
@@ -175,6 +178,15 @@ describe('candidate workflow', () => {
 
     await expect(core.registerCandidate(candidateInput())).rejects.toMatchObject({ code: 'HOSTED_WRITE_DISABLED' });
   });
+
+  it('rejects conflicting Required Asset associations before writing workflow state', async () => {
+    const core = createVisualDirectorCore();
+    const input = candidateInput();
+    input.asset.required_asset_id = 'different-required-asset';
+
+    await expect(core.registerCandidate(input)).rejects.toMatchObject({ code: 'INVALID_INPUT' });
+    await expect(access(path.join(root, '.visual-director/asset-index.json'))).rejects.toThrow();
+  });
 });
 
 function candidateInput() {
@@ -183,6 +195,7 @@ function candidateInput() {
     repository_path: root,
     job: {
       job_id: 'gen-1',
+      required_asset_id: 'kamino-portrait',
       asset_type: 'character_portrait',
       subject_ids: ['kamino_kyosuke'],
       request_text: '神野恭介のポートレートを生成',
@@ -191,6 +204,7 @@ function candidateInput() {
     },
     asset: {
       asset_id: 'asset-1',
+      required_asset_id: 'kamino-portrait',
       asset_type: 'character_portrait',
       subject_id: 'kamino_kyosuke',
       candidate_path: '.visual-director/candidates/gen-1/candidate.webp',

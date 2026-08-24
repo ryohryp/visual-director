@@ -225,6 +225,7 @@ export function createVisualDirectorServer(
           repository_path: z.string().min(1),
           job_id: z.string().min(1),
           asset_id: z.string().min(1),
+          required_asset_id: z.string().min(1).optional(),
           asset_type: z.string().min(1),
           subject_ids: z.array(z.string().min(1)),
           request_text: z.string().min(1),

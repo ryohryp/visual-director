@@ -232,6 +232,15 @@ class TextOverlayRepositorySource implements RepositorySource {
   fileExists(relativePath: string): Promise<boolean> {
     return this.text.has(relativePath) ? Promise.resolve(true) : this.base.fileExists(relativePath);
   }
+
+  listFiles(relativeRoot: string): Promise<string[]> {
+    if (!this.base.listFiles) {
+      throw new VisualDirectorError('ASSET_SCAN_UNSUPPORTED', 'The repository source cannot enumerate asset scan roots.', {
+        path: relativeRoot,
+      });
+    }
+    return this.base.listFiles(relativeRoot);
+  }
 }
 
 function safeRepositoryPath(value: string, field: string): string {

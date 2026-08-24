@@ -49,6 +49,7 @@ function parseJob(value: unknown, index: number): GenerationJobSummary {
   }
   return compact({
     job_id: jobId,
+    required_asset_id: optionalRequiredAssetId(value.required_asset_id, `jobs[${index}].required_asset_id`),
     asset_type: assetType,
     subject_ids: value.subject_ids.map((item) => item.trim()),
     request_text: requestText,
@@ -73,16 +74,17 @@ function parseAsset(value: unknown, index: number): ManagedVisualAssetSummary {
   }
   return compact({
     asset_id: assetId,
+    required_asset_id: optionalRequiredAssetId(value.required_asset_id, `assets[${index}].required_asset_id`),
     asset_type: assetType,
     status,
     subject_id: optionalString(value.subject_id),
     source_job_id: optionalString(value.source_job_id),
-    candidate_path: optionalString(value.candidate_path),
-    registered_path: optionalString(value.registered_path),
-    archived_path: optionalString(value.archived_path),
+    candidate_path: optionalRepositoryPath(value.candidate_path, `assets[${index}].candidate_path`),
+    registered_path: optionalRepositoryPath(value.registered_path, `assets[${index}].registered_path`),
+    archived_path: optionalRepositoryPath(value.archived_path, `assets[${index}].archived_path`),
     generator: optionalString(value.generator),
     generation_package_fingerprint: optionalString(value.generation_package_fingerprint),
-    reference_paths: referencePaths.map((item) => item.trim()),
+    reference_paths: referencePaths.map((item, referenceIndex) => repositoryPath(item, `assets[${index}].reference_paths[${referenceIndex}]`)),
     created_at: optionalString(value.created_at),
     approved_at: optionalString(value.approved_at),
     supersedes: optionalString(value.supersedes),
@@ -97,6 +99,24 @@ function optionalString(value: unknown): string | undefined {
   if (value === undefined || value === null) return undefined;
   if (!isNonEmptyString(value)) throw invalidIndex('Optional workflow string values must be non-empty when present.');
   return value.trim();
+}
+function optionalRepositoryPath(value: unknown, field: string): string | undefined {
+  const stringValue = optionalString(value);
+  return stringValue === undefined ? undefined : repositoryPath(stringValue, field);
+}
+function optionalRequiredAssetId(value: unknown, field: string): string | undefined {
+  const stringValue = optionalString(value);
+  if (stringValue !== undefined && !/^[a-zA-Z0-9][a-zA-Z0-9._-]*$/.test(stringValue)) {
+    throw invalidIndex(`${field} must use only letters, numbers, dot, underscore, or hyphen.`);
+  }
+  return stringValue;
+}
+function repositoryPath(value: string, field: string): string {
+  const normalized = value.trim().replace(/\\/g, '/').replace(/^\.\//, '').replace(/\/{2,}/g, '/');
+  if (!normalized || normalized === '.' || normalized.startsWith('/') || /^[a-zA-Z]:/.test(normalized) || normalized.split('/').includes('..')) {
+    throw invalidIndex(`${field} must be a safe repository-relative path.`);
+  }
+  return normalized;
 }
 function compact<T extends Record<string, unknown>>(value: T): T {
   return Object.fromEntries(Object.entries(value).filter(([, item]) => item !== undefined)) as T;
