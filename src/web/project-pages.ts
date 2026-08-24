@@ -65,16 +65,18 @@ ${PROJECT_IMAGE_PREVIEW_STYLES}`;
 const DASHBOARD = String.raw`<!doctype html>
 <html>
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>Project · Visual Director</title><style>${BASE_STYLE}
-.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.stats{display:grid;grid-template-columns:repeat(6,1fr);gap:10px}
 .stat{padding:14px;border:1px solid #293542;border-radius:12px;background:#141b23}
 .value{font-size:25px;font-weight:750}
+@media(max-width:900px){.stats{grid-template-columns:repeat(3,1fr)}}
 @media(max-width:640px){.stats{grid-template-columns:repeat(2,1fr)}}
 </style></head>
 <body><main>
 ${projectShellMarkup('Project')}
 <div id="status" class="status">Loading project…</div>
 <div id="anchors" class="grid"></div>
-<h2>Workflow</h2>
+<h2>Visual Asset Inventory</h2>
+<div id="inventory-state" class="meta"></div>
 <div id="stats" class="stats"></div>
 </main><script>
 ${PROJECT_SHELL_CLIENT_SCRIPT}
@@ -96,8 +98,9 @@ Promise.all([
     const name=a.display_name||a.subject_id;const card=el('a','card');card.href=root+'/anchors/'+encodeURIComponent(a.subject_id);
     card.append(createImagePreview(asset(a.path),a.path,name),el('div','body',name));q('#anchors').append(card);
   }
-  const counts={anchors:o.approved_anchors.length,candidates:o.workflow.assets.filter(a=>a.status==='candidate').length,jobs:o.workflow.jobs.length,failed:o.workflow.jobs.filter(j=>j.status==='failed').length};
-  for(const [k,v] of Object.entries(counts)){const s=el('div','stat');s.append(el('div','value',String(v)),el('div','meta',k));q('#stats').append(s)}
+  const inventory=o.inventory,available=Boolean(inventory?.plan?.available),counts=available?[['Required',inventory.summary.total_required],['Ready',inventory.summary.ready],['Review required',inventory.summary.review_required],['Missing',inventory.summary.missing],['Problems',inventory.summary.broken],['Unmanaged',inventory.summary.unmanaged]]:[['Approved Anchors',o.approved_anchors.length],['Candidates',o.workflow.assets.filter(a=>a.status==='candidate').length],['Generation Jobs',o.workflow.jobs.length],['Failed Jobs',o.workflow.jobs.filter(j=>j.status==='failed').length]];
+  q('#inventory-state').textContent=available?'Derived from '+inventory.plan.metadata_path+'. Repository files and workflow history remain the source evidence.':'No .visual-director/asset-plan.json exists yet. Workflow counts are shown without inventing required assets.';
+  for(const [label,value] of counts){const s=el('div','stat');s.append(el('div','value',String(value)),el('div','meta',label));q('#stats').append(s)}
 }).catch(e=>{q('#status').className='status error';q('#status').textContent=e.message});
 </script></body></html>`;
 

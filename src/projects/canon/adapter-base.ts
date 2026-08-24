@@ -9,6 +9,7 @@ import type {
   ProjectVisualOverview,
 } from '../../domain/types.js';
 import type { RepositorySource } from '../repository-source.js';
+import { loadProjectAssetInventory } from '../asset-inventory.js';
 import type { ProjectDocuments, ProjectLabels } from './types.js';
 
 export type CanonSubjectMode = 'approved_anchor' | 'new_anchor_candidate';
@@ -112,22 +113,30 @@ export abstract class CanonAdapterBase implements ProjectAdapter {
     await this.source.ensureFile(this.documents.globalReference, 'Global Visual Reference');
     const approvedAnchors = await this.listApprovedAnchors(documents.canonMarkdown);
     const workflow = await this.readWorkflowSummary();
+    const visualDirection: ProjectVisualOverview['visual_direction'] = {
+      grand_design: this.documents.grandDesign ? {
+        role: 'grand_design',
+        document_path: this.documents.grandDesign,
+      } : null,
+      global_style: {
+        role: 'global_style',
+        document_path: this.documents.globalStyle,
+        asset_path: this.documents.globalReference,
+      },
+    };
+    const inventory = await loadProjectAssetInventory({
+      source: this.source,
+      workflow,
+      approvedAnchors,
+      visualDirection,
+    });
 
     return {
       project_id: this.projectId,
-      visual_direction: {
-        grand_design: this.documents.grandDesign ? {
-          role: 'grand_design',
-          document_path: this.documents.grandDesign,
-        } : null,
-        global_style: {
-          role: 'global_style',
-          document_path: this.documents.globalStyle,
-          asset_path: this.documents.globalReference,
-        },
-      },
+      visual_direction: visualDirection,
       approved_anchors: approvedAnchors,
       workflow,
+      inventory,
     };
   }
 

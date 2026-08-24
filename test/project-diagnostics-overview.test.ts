@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import type { ProjectVisualOverview } from '../src/domain/types.js';
+import { emptyProjectAssetInventory } from '../src/projects/asset-inventory.js';
 import { diagnoseProjectRepository } from '../src/projects/diagnostics.js';
 import type { RepositorySource } from '../src/projects/repository-source.js';
 
@@ -59,5 +60,6 @@ function overview(): ProjectVisualOverview {
     },
     approved_anchors: [],
     workflow: { metadata_path: '.visual-director/asset-index.json', available: false, jobs: [], assets: [] },
+    inventory: emptyProjectAssetInventory(),
   };
 }

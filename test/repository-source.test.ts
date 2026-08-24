@@ -49,4 +49,53 @@ describe('GitHubRepositorySource', () => {
       details: { status: 401 },
     });
   });
+
+  it('recursively lists only repository files beneath an explicit hosted scan root', async () => {
+    const calls: string[] = [];
+    const source = new GitHubRepositorySource({
+      owner: 'ryohryp', repo: 'private-game', ref: 'release', token: 'token',
+      fetchImpl: async (input) => {
+        const url = String(input);
+        calls.push(url);
+        if (url.includes('/contents/public/images/backgrounds?')) {
+          return new Response(JSON.stringify([
+            { type: 'file', path: 'public/images/backgrounds/gate.webp' },
+          ]));
+        }
+        return new Response(JSON.stringify([
+          { type: 'file', path: 'public/images/hero.png' },
+          { type: 'dir', path: 'public/images/backgrounds' },
+        ]));
+      },
+    });
+
+    await expect(source.listFiles('public/images')).resolves.toEqual([
+      'public/images/backgrounds/gate.webp',
+      'public/images/hero.png',
+    ]);
+    expect(calls).toEqual([
+      expect.stringContaining('/contents/public/images?ref=release'),
+      expect.stringContaining('/contents/public/images/backgrounds?ref=release'),
+    ]);
+  });
+
+  it('treats a missing explicit scan root as an empty scope', async () => {
+    const source = new GitHubRepositorySource({
+      owner: 'ryohryp', repo: 'private-game', token: 'token',
+      fetchImpl: async () => new Response('{}', { status: 404 }),
+    });
+
+    await expect(source.listFiles('public/images')).resolves.toEqual([]);
+  });
+
+  it('fails closed when a hosted directory response escapes the requested scan scope', async () => {
+    const source = new GitHubRepositorySource({
+      owner: 'ryohryp', repo: 'private-game', token: 'token',
+      fetchImpl: async () => new Response(JSON.stringify([
+        { type: 'file', path: 'docs/outside.png' },
+      ])),
+    });
+
+    await expect(source.listFiles('public/images')).rejects.toMatchObject({ code: 'ASSET_SCAN_FAILED' });
+  });
 });

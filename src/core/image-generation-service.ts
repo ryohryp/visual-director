@@ -17,8 +17,10 @@ export async function runImageGeneration(input: ImageGenerationServiceInput): Pr
   const { request, generationPackage, generator } = input;
   const fingerprint = fingerprintGenerationPackage(generationPackage);
   const now = new Date().toISOString();
+  const requiredAssetId = request.required_asset_id?.trim() ? safeId(request.required_asset_id) : undefined;
   await beginGenerationJob(request.repository_path, {
     job_id: request.job_id,
+    ...(requiredAssetId ? { required_asset_id: requiredAssetId } : {}),
     asset_type: request.asset_type,
     subject_ids: [...request.subject_ids],
     request_text: request.request_text,
@@ -43,6 +45,7 @@ export async function runImageGeneration(input: ImageGenerationServiceInput): Pr
 
     await completeGenerationJob(request.repository_path, request.job_id, {
       asset_id: request.asset_id,
+      ...(requiredAssetId ? { required_asset_id: requiredAssetId } : {}),
       asset_type: request.asset_type,
       status: 'candidate',
       ...(request.subject_ids.length === 1 && request.subject_ids[0] ? { subject_id: request.subject_ids[0] } : {}),
@@ -124,7 +127,7 @@ function generationPrompt(generationPackage: GenerationPackage, requestText: str
 
 function safeId(value: string): string {
   const trimmed = value.trim();
-  if (!/^[a-zA-Z0-9_-]+$/.test(trimmed)) throw new VisualDirectorError('INVALID_INPUT', 'job_id and asset_id must use only letters, numbers, underscore, or hyphen.', { value });
+  if (!/^[a-zA-Z0-9][a-zA-Z0-9._-]*$/.test(trimmed)) throw new VisualDirectorError('INVALID_INPUT', 'Workflow identifiers must use only letters, numbers, dot, underscore, or hyphen.', { value });
   return trimmed;
 }
 

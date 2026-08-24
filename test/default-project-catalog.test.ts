@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { createVisualDirectorCore } from '../src/core/visual-director.js';
 import type { ProjectVisualOverview } from '../src/domain/types.js';
+import { emptyProjectAssetInventory } from '../src/projects/asset-inventory.js';
 
 describe('default Project Catalog selection', () => {
   it('uses projects.catalog.json when no catalog option or environment override is supplied', async () => {
@@ -52,5 +53,6 @@ function emptyOverview(projectId: string): ProjectVisualOverview {
       jobs: [],
       assets: [],
     },
+    inventory: emptyProjectAssetInventory(),
   };
 }

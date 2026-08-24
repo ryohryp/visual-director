@@ -63,6 +63,10 @@ describe('v0.4 multi-project isolation', () => {
     expect(b.workflow.assets.map((asset) => asset.asset_id)).toEqual(['asset-b']);
     expect(a.workflow.jobs.some((job) => job.job_id === 'job-b')).toBe(false);
     expect(b.workflow.assets.some((asset) => asset.asset_id === 'asset-a')).toBe(false);
+    expect(a.inventory.assets.map((asset) => asset.asset_id)).toEqual(['required-a']);
+    expect(b.inventory.assets.map((asset) => asset.asset_id)).toEqual(['required-b']);
+    expect(a.inventory.assets.some((asset) => asset.asset_id === 'required-b')).toBe(false);
+    expect(b.inventory.assets.some((asset) => asset.asset_id === 'required-a')).toBe(false);
 
     const summaries = await core.listProjects();
     expect(summaries.map(({ project_id, repository, jobs, candidates }) => ({ project_id, repository, jobs, candidates })))
@@ -171,6 +175,7 @@ function repositoryResponse(url: string): Response {
       }],
       assets: [{
         asset_id: `asset-${repo}`,
+        required_asset_id: `required-${repo}`,
         asset_type: 'scene',
         subject_id: `subject-${repo}`,
         status: 'candidate',
@@ -179,6 +184,21 @@ function repositoryResponse(url: string): Response {
       }],
     }));
   }
+  if (url.includes('.visual-director/asset-plan.json')) {
+    return fileResponse(JSON.stringify({
+      version: 1,
+      assets: [{
+        asset_id: `required-${repo}`,
+        asset_type: 'scene',
+        title: `Required ${repo}`,
+        usage: `game-${repo}`,
+        production_path: `public/images/${repo}.png`,
+        subject_ids: [`subject-${repo}`],
+        required: true,
+      }],
+    }));
+  }
+  if (url.includes(`/contents/public/images/${repo}.png?`)) return new Response('{}', { status: 404 });
   return fileResponse('# fixture\n');
 }
 

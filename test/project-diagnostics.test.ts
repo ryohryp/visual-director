@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import type { ProjectVisualOverview } from '../src/domain/types.js';
 import { VisualDirectorError } from '../src/domain/types.js';
+import { emptyProjectAssetInventory } from '../src/projects/asset-inventory.js';
 import { diagnoseProjectRepository } from '../src/projects/diagnostics.js';
 import { personalOrbitDefinition } from '../src/projects/personal-orbit/definition.js';
 import type { RepositorySource } from '../src/projects/repository-source.js';
@@ -149,5 +150,6 @@ function overview(projectId = 'game-b'): ProjectVisualOverview {
     visual_direction: { grand_design: null, global_style: { role: 'global_style' } },
     approved_anchors: [],
     workflow: { metadata_path: '.visual-director/asset-index.json', available: false, jobs: [], assets: [] },
+    inventory: emptyProjectAssetInventory(),
   };
 }

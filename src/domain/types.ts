@@ -12,6 +12,7 @@ export interface GenerateImageInput extends PrepareGenerationInput {
   repository_path: string;
   job_id: string;
   asset_id: string;
+  required_asset_id?: string;
 }
 
 export interface GenerateImageResult {
@@ -34,6 +35,7 @@ export interface RegisterCandidateInput {
   repository_path: string;
   job: {
     job_id: string;
+    required_asset_id?: string;
     asset_type: string;
     subject_ids: string[];
     request_text: string;
@@ -43,6 +45,7 @@ export interface RegisterCandidateInput {
   };
   asset: {
     asset_id: string;
+    required_asset_id?: string;
     asset_type: string;
     subject_id?: string;
     candidate_path: string;
@@ -154,6 +157,7 @@ export interface ApprovedAnchorSummary {
 
 export interface GenerationJobSummary {
   job_id: string;
+  required_asset_id?: string;
   asset_type: string;
   subject_ids: string[];
   request_text: string;
@@ -167,6 +171,7 @@ export interface GenerationJobSummary {
 
 export interface ManagedVisualAssetSummary {
   asset_id: string;
+  required_asset_id?: string;
   asset_type: string;
   status: ManagedAssetStatus;
   subject_id?: string;
@@ -189,6 +194,99 @@ export interface ProjectWorkflowSummary {
   assets: ManagedVisualAssetSummary[];
 }
 
+export type AssetInventoryStatus =
+  | 'MISSING'
+  | 'REVIEW_REQUIRED'
+  | 'READY'
+  | 'BROKEN'
+  | 'UNMANAGED'
+  | 'SUPERSEDED';
+
+export interface RequiredAssetGenerationRequirements {
+  aspect_ratio?: string;
+  request?: string;
+  requirements: string[];
+}
+
+export interface RequiredAssetDefinition {
+  asset_id: string;
+  asset_type: string;
+  title: string;
+  usage: string;
+  production_path: string;
+  subject_ids: string[];
+  required: boolean;
+  generation?: RequiredAssetGenerationRequirements;
+}
+
+export interface RequiredAssetPlan {
+  version: 1;
+  scan: {
+    roots: string[];
+    ignore: string[];
+  };
+  assets: RequiredAssetDefinition[];
+}
+
+export interface AssetInventoryIssue {
+  code: string;
+  message: string;
+  path?: string;
+}
+
+export interface AssetInventoryItem {
+  inventory_id: string;
+  kind: 'required' | 'managed' | 'unmanaged';
+  asset_id?: string;
+  asset_type: string;
+  title: string;
+  required: boolean;
+  subject_ids: string[];
+  status: AssetInventoryStatus;
+  production_path?: string;
+  candidate_path?: string;
+  registered_path?: string;
+  preview_path?: string;
+  current_lifecycle?: ManagedAssetStatus;
+  required_definition?: RequiredAssetDefinition;
+  issues: AssetInventoryIssue[];
+  workflow_assets: ManagedVisualAssetSummary[];
+  source_jobs: GenerationJobSummary[];
+}
+
+export interface AssetInventoryTypeCounts {
+  required: number;
+  optional: number;
+  ready: number;
+  review_required: number;
+  missing: number;
+  broken: number;
+  unmanaged: number;
+  managed_unplanned: number;
+}
+
+export interface ProjectAssetInventory {
+  plan: {
+    metadata_path: '.visual-director/asset-plan.json';
+    available: boolean;
+    version: 1 | null;
+    scan_roots: string[];
+    ignore: string[];
+  };
+  summary: {
+    total_required: number;
+    total_optional: number;
+    ready: number;
+    review_required: number;
+    missing: number;
+    broken: number;
+    unmanaged: number;
+    managed_unplanned: number;
+    by_asset_type: Record<string, AssetInventoryTypeCounts>;
+  };
+  assets: AssetInventoryItem[];
+}
+
 export interface ProjectVisualOverview {
   project_id: string;
   visual_direction: {
@@ -197,6 +295,7 @@ export interface ProjectVisualOverview {
   };
   approved_anchors: ApprovedAnchorSummary[];
   workflow: ProjectWorkflowSummary;
+  inventory: ProjectAssetInventory;
 }
 
 export interface ProjectAdapter {

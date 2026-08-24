@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "scan": {
+    "roots": [
+      "public/images"
+    ],
+    "ignore": [
+      "public/images/docs/**",
+      "public/images/test-fixtures/**",
+      "public/images/generated-build/**"
+    ]
+  },
+  "assets": [
+    {
+      "asset_id": "chapter1_school_gate",
+      "asset_type": "background",
+      "title": "第一章・校門",
+      "usage": "chapter1 opening",
+      "production_path": "public/images/backgrounds/school-gate.webp",
+      "subject_ids": [],
+      "required": true,
+      "generation": {
+        "aspect_ratio": "16:9",
+        "request": "夕暮れの学校正門",
+        "requirements": [
+          "Keep the central 9:16 crop readable."
+        ]
+      }
+    }
+  ]
+}
