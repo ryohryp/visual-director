@@ -5,6 +5,13 @@ import { createVisualDirectorCore } from '../src/core/visual-director.js';
 import { VisualDirectorError } from '../src/domain/types.js';
 
 export default async function handler(req: IncomingMessage, res: ServerResponse): Promise<void> {
+  if (req.method !== 'GET' && req.method !== 'POST') {
+    res.statusCode = 405;
+    res.setHeader('allow', 'GET, POST');
+    res.end();
+    return;
+  }
+
   const url = new URL(req.url ?? '/api/overview', 'https://visual-director.local');
   const projectId = url.searchParams.get('project_id')?.trim() ?? '';
   if (!projectId) {
@@ -31,13 +38,6 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
     } catch (error) {
       writeVisualDirectorError(res, error, 'Required Asset generation preparation failed.');
     }
-    return;
-  }
-
-  if (req.method !== 'GET') {
-    res.statusCode = 405;
-    res.setHeader('allow', 'GET, POST');
-    res.end();
     return;
   }
 
