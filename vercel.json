@@ -14,7 +14,7 @@
     { "src": "^/projects/([^/]+)/anchors/([^/]+)/?$", "dest": "/api/workspace?view=anchor" },
     { "src": "^/projects/([^/]+)/assets/?$", "dest": "/api/workspace?view=collection" },
     { "src": "^/projects/([^/]+)/generations/?$", "dest": "/api/workspace?view=collection" },
-    { "src": "^/api/projects/([^/]+)/required-assets/([^/]+)/prepare/?$", "dest": "/api/prepare-required-asset?project_id=$1&required_asset_id=$2" },
+    { "src": "^/api/projects/([^/]+)/required-assets/([^/]+)/prepare/?$", "dest": "/api/overview?project_id=$1&required_asset_id=$2&action=prepare-generation" },
     { "src": "^/api/projects/([^/]+)/overview/?$", "dest": "/api/overview?project_id=$1" },
     { "src": "^/api/projects/([^/]+)/asset/?$", "dest": "/api/asset?project_id=$1" },
     { "src": "^/api/projects/([^/]+)/anchor-detail/?$", "dest": "/api/anchor-detail?project_id=$1" },
