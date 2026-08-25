@@ -24,6 +24,8 @@ describe('v0.4 project-scoped routing', () => {
     const routes = new Map(config.routes.filter((route) => route.src).map((route) => [route.src as string, route.dest]));
 
     expect(routes.get('^/api/projects/([^/]+)/overview/?$')).toBe('/api/overview?project_id=$1');
+    expect(routes.get('^/api/projects/([^/]+)/required-assets/([^/]+)/prepare/?$'))
+      .toBe('/api/overview?project_id=$1&required_asset_id=$2&action=prepare-generation');
     expect(routes.get('^/api/projects/([^/]+)/asset/?$')).toBe('/api/asset?project_id=$1');
     expect(routes.get('^/api/projects/([^/]+)/anchor-detail/?$')).toBe('/api/anchor-detail?project_id=$1');
   });
@@ -59,6 +61,7 @@ describe('v0.4 project-scoped routing', () => {
     const apiFiles = (await readdir('api')).filter((file) => file.endsWith('.ts'));
     expect(apiFiles.length).toBeLessThanOrEqual(12);
     expect(apiFiles).toContain('workspace.ts');
+    expect(apiFiles).not.toContain('prepare-required-asset.ts');
     expect(apiFiles).not.toContain('home.ts');
     expect(apiFiles).not.toContain('project-dashboard.ts');
     expect(apiFiles).not.toContain('project-collection.ts');
