@@ -6,6 +6,8 @@ import { parseWorkflowIndex, WORKFLOW_INDEX_PATH } from '../domain/visual-overvi
 import { VisualDirectorError } from '../domain/types.js';
 import type { GenerationJobSummary, ManagedVisualAssetSummary, ProjectWorkflowSummary } from '../domain/types.js';
 
+const RETRYABLE_REQUIRED_ASSET_JOB_STATES = new Set(['failed', 'rejected', 'superseded']);
+
 export async function beginGenerationJob(
   repositoryPath: string,
   job: GenerationJobSummary,
@@ -13,6 +15,24 @@ export async function beginGenerationJob(
   const workflow = await readWorkflow(repositoryPath);
   if (workflow.jobs.some((item) => item.job_id === job.job_id)) {
     throw new VisualDirectorError('WORKFLOW_ID_CONFLICT', `Generation Job already exists: ${job.job_id}.`);
+  }
+  if (job.required_asset_id) {
+    const requiredAssetKey = comparisonKey(job.required_asset_id);
+    const existing = workflow.jobs.find((item) =>
+      item.required_asset_id
+      && comparisonKey(item.required_asset_id) === requiredAssetKey
+      && !RETRYABLE_REQUIRED_ASSET_JOB_STATES.has(item.status));
+    if (existing) {
+      throw new VisualDirectorError(
+        'WORKFLOW_REQUIRED_ASSET_CONFLICT',
+        'A non-terminal Generation Job already exists for this Required Asset.',
+        {
+          required_asset_id: job.required_asset_id,
+          existing_job_id: existing.job_id,
+          existing_status: existing.status,
+        },
+      );
+    }
   }
   const next: ProjectWorkflowSummary = {
     metadata_path: WORKFLOW_INDEX_PATH,
@@ -92,4 +112,8 @@ async function exists(filePath: string): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+function comparisonKey(value: string): string {
+  return value.normalize('NFKC').toLocaleLowerCase('en-US');
 }

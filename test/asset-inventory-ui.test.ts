@@ -37,6 +37,18 @@ describe('Project Visual Asset Inventory UI', () => {
     expect(source).toContain("a.required?'required':'optional'");
   });
 
+  it('offers generation preparation only for MISSING required assets', async () => {
+    const source = await readFile('src/web/project-collection.ts', 'utf8');
+
+    expect(source).toContain("function canPrepareGeneration(a){return a.kind==='required'&&a.required&&a.status==='MISSING'");
+    expect(source).toContain("'Prepare Generation'");
+    expect(source).toContain("'/required-assets/'");
+    expect(source).toContain("method:'POST'");
+    expect(source).toContain('Resolving Required Asset definition, Canon, Grand Design, and Approved Anchors');
+    expect(source).toContain('generation_input:data.generation_input');
+    expect(source).toContain('policy:data.generation_package?.policy');
+  });
+
   it('renders required definition, candidate/production previews, problems, and workflow lineage in Asset Detail', async () => {
     const source = await readFile('src/web/project-collection.ts', 'utf8');
 
