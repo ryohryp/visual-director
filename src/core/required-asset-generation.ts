@@ -20,7 +20,7 @@ export interface PreparedRequiredAssetGeneration {
   generation_package: GenerationPackage;
   execution: {
     mode: 'prepare_only';
-    candidate_generation_available: false;
+    candidate_generation_started: false;
     reason: string;
     next_tool: 'visual.generate_image';
   };
@@ -62,7 +62,7 @@ export async function prepareRequiredAssetGeneration(
   if (!asset.required) {
     throw new VisualDirectorError(
       'REQUIRED_ASSET_GENERATION_NOT_ELIGIBLE',
-      'Optional assets are not offered for automatic generation preparation.',
+      'Optional assets are not offered for generation preparation.',
       { project_id: projectId, required_asset_id: asset.asset_id },
     );
   }
@@ -130,8 +130,8 @@ export async function prepareRequiredAssetGeneration(
     generation_package: generationPackage,
     execution: {
       mode: 'prepare_only',
-      candidate_generation_available: false,
-      reason: 'The web workspace is read-only for Candidate generation. Use the prepared input with local/tunnel visual.generate_image to create a Candidate.',
+      candidate_generation_started: false,
+      reason: 'This action only prepares a Generation Package. Use the prepared input with local/tunnel visual.generate_image to create a Candidate; Hosted web remains read-only.',
       next_tool: 'visual.generate_image',
     },
   };
