@@ -50,7 +50,7 @@ describe('Required Asset generation preparation', () => {
       },
       execution: {
         mode: 'prepare_only',
-        candidate_generation_available: false,
+        candidate_generation_started: false,
         next_tool: 'visual.generate_image',
       },
     });
