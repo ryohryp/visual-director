@@ -85,15 +85,16 @@ describe('replacement-pending Approved Visual Anchor', () => {
     expect(manifest('replacement_pending').subjects.kitou?.anchorGenerationStatus).toBe('replacement_pending');
   });
 
-  it('prepares a replacement candidate without using the invalid Approved Anchor as a parent', async () => {
+  it('prepares the reported candidate asset type without using the invalid Approved Anchor as a parent', async () => {
     const adapter = new CanonProjectAdapter(manifest('replacement_pending'), { source: source(false) });
     const result = await adapter.prepare({
       project_id: 'demo',
-      asset_type: 'character_visual_anchor',
+      asset_type: 'character_visual_anchor_candidate',
       subject_ids: ['kitou'],
       request_text: 'Prepare a replacement candidate.',
     });
 
+    expect(result.asset_type).toBe('character_visual_anchor');
     expect(result.reference_assets).toEqual([{ role: 'global_reference', path: 'public/global.webp' }]);
     expect(result.policy).toEqual({
       must_use_approved_anchor: false,
