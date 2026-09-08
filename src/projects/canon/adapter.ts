@@ -70,6 +70,22 @@ export class CanonProjectAdapter extends CanonAdapterBase {
     const anchorPath = anchorPaths[0];
     const anchorFallback = anchorPaths[1];
     const characterMarkdown = await this.source.readText(configured.characterFile, `Character facts for ${subjectId}`);
+
+    if (configured.anchorGenerationStatus === 'replacement_pending') {
+      if (assetType !== NEW_ANCHOR_ASSET_TYPE) {
+        throw new VisualDirectorError(
+          'APPROVED_ANCHOR_REPLACEMENT_PENDING',
+          `Approved Anchor for ${subjectId} is retained as Canon history but is not a valid generation parent while replacement is pending.`,
+          { subject_id: subjectId, required_asset_type_for_replacement: NEW_ANCHOR_ASSET_TYPE, historical_anchor_path: anchorPath },
+        );
+      }
+      if (!configured.anchorRequirementsFile) throw new VisualDirectorError('NEW_ANCHOR_REQUIREMENTS_NOT_CONFIGURED', `Replacement Visual Anchor requirements are not configured for ${subjectId}.`, { subject_id: subjectId });
+      const requirementsMarkdown = await this.source.readText(configured.anchorRequirementsFile, `Replacement Visual Anchor requirements for ${subjectId}`);
+      if (!requirementsMarkdown.trim()) throw new VisualDirectorError('NEW_ANCHOR_REQUIREMENTS_EMPTY', `Replacement Visual Anchor requirements are empty for ${subjectId}.`, { subject_id: subjectId, path: configured.anchorRequirementsFile });
+      validateRequiredNewAnchorTerms(configured, characterMarkdown, requirementsMarkdown);
+      return { ...configured, canonSection, characterMarkdown, requirementsMarkdown, mode: 'new_anchor_candidate' };
+    }
+
     if (anchorPath) {
       await this.source.ensureFile(anchorPath, `Approved Anchor for ${subjectId}`);
       if (anchorFallback && !(await this.source.fileExists(anchorFallback))) throw new VisualDirectorError('APPROVED_ANCHOR_INCOMPLETE', `Same-generation fallback is missing for ${subjectId}.`, { subject_id: subjectId, path: anchorFallback });
@@ -86,6 +102,7 @@ export class CanonProjectAdapter extends CanonAdapterBase {
   protected async listApprovedAnchors(canonMarkdown: string): Promise<ApprovedAnchorSummary[]> {
     const anchors: ApprovedAnchorSummary[] = [];
     for (const configured of Object.values(this.definition.subjects)) {
+      if (configured.anchorGenerationStatus === 'replacement_pending') continue;
       const canonSection = section(canonMarkdown, configured.canonHeading);
       const anchorPath = approvedAnchorPaths(subsection(canonSection, 'Approved Visual Anchor'))[0];
       if (!anchorPath) continue;
@@ -99,7 +116,13 @@ export class CanonProjectAdapter extends CanonAdapterBase {
     if (subject.mode === 'new_anchor_candidate') {
       const facts = canonicalFacts(subject.characterMarkdown, 16);
       if (facts.length === 0) throw new VisualDirectorError('NEW_ANCHOR_CANON_INCOMPLETE', `No structured character facts were found for ${subject.id}.`, { subject_id: subject.id });
-      return [`${subject.displayName} (${subject.id}) — NEW VISUAL ANCHOR CANDIDATE.`, 'No Approved Visual Anchor exists for this subject. Do not use, imitate, merge, or borrow the identity of another character as a reference.', `Canonical character facts: ${facts.join(' | ')}`, 'AUTHORITATIVE NEW-ANCHOR REQUIREMENTS:', subject.requirementsMarkdown?.trim() ?? ''].join('\n\n');
+      const identityState = subject.anchorGenerationStatus === 'replacement_pending'
+        ? 'A previous Approved Visual Anchor remains recorded as Canon history, but it is explicitly invalid as a generation parent. Do not use, imitate, edit, derive from, or silently fall back to that historical binary, any legacy image, or any candidate.'
+        : 'No Approved Visual Anchor exists for this subject. Do not use, imitate, merge, or borrow the identity of another character as a reference.';
+      const heading = subject.anchorGenerationStatus === 'replacement_pending'
+        ? `${subject.displayName} (${subject.id}) — REPLACEMENT VISUAL ANCHOR CANDIDATE / NO VALID GENERATION PARENT.`
+        : `${subject.displayName} (${subject.id}) — NEW VISUAL ANCHOR CANDIDATE.`;
+      return [heading, identityState, `Canonical character facts: ${facts.join(' | ')}`, 'AUTHORITATIVE NEW-ANCHOR REQUIREMENTS:', subject.requirementsMarkdown?.trim() ?? ''].join('\n\n');
     }
     const accepted = bullets(subsection(subject.canonSection, this.labels.acceptedConditionsHeading));
     const canonicalState = subsection(subject.canonSection, 'Canonical state model');
@@ -137,7 +160,6 @@ export class CanonProjectAdapter extends CanonAdapterBase {
         asset_type: input.asset_type,
       });
     }
-
     const sourceReferenceRequired = contract.asset_contract.source_reference_required !== false;
     const referencePaths = explicitReferencePaths(input, sourceReferenceRequired);
     for (const referencePath of referencePaths) {
