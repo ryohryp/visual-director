@@ -18,6 +18,7 @@ const subjectSchema = z.strictObject({
   aliases: stringArray,
   anchor_requirements_file: nonEmptyString.optional(),
   required_new_anchor_terms: stringArray,
+  anchor_generation_status: z.enum(['active', 'replacement_pending']).optional(),
 });
 
 const manifestShapeSchema = z.strictObject({
@@ -114,6 +115,7 @@ function parseSubjects(value: Record<string, unknown> | undefined, path: string)
       ...(subjectAliases.length > 0 ? { aliases: subjectAliases } : {}),
       ...(parsed.data.anchor_requirements_file ? { anchorRequirementsFile: parsed.data.anchor_requirements_file } : {}),
       ...(requiredNewAnchorTerms.length > 0 ? { requiredNewAnchorTerms } : {}),
+      ...(parsed.data.anchor_generation_status ? { anchorGenerationStatus: parsed.data.anchor_generation_status } : {}),
     };
   }
   return result;
@@ -124,6 +126,7 @@ function subjectIssueMessage(id: string, error: z.ZodError): string {
   if (!issue) return `subjects.${id} is invalid.`;
   if (issue.code === 'unrecognized_keys') return `Unknown subjects.${id} key: ${issue.keys[0]}.`;
   const field = issue.path.length > 0 ? `subjects.${id}.${issue.path.join('.')}` : `subjects.${id}`;
+  if (field.endsWith('.anchor_generation_status')) return `${field} must be active or replacement_pending.`;
   return `${field} must be ${issue.code === 'invalid_type' && issue.expected === 'array' ? 'an array' : 'a non-empty string'}.`;
 }
 

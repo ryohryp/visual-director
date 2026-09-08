@@ -10,6 +10,8 @@ export interface ProjectDocuments {
   globalReference: string;
 }
 
+export type SubjectAnchorGenerationStatus = 'active' | 'replacement_pending';
+
 export interface ProjectSubjectDefinition {
   id: string;
   displayName: string;
@@ -18,6 +20,7 @@ export interface ProjectSubjectDefinition {
   aliases?: string[];
   anchorRequirementsFile?: string;
   requiredNewAnchorTerms?: string[];
+  anchorGenerationStatus?: SubjectAnchorGenerationStatus;
 }
 
 export interface ProjectLabels {
