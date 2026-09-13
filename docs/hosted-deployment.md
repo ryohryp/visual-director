@@ -100,6 +100,7 @@ Endpoints:
 
 - `POST /mcp` — stateless Streamable HTTP MCP endpoint.
 - `GET /health` — lightweight service health check. It does not read Canon or validate GitHub credentials.
+- `GET /api/connection-info` — non-secret ChatGPT connection metadata: MCP endpoint, transport mode, expected hosted tools, and generation boundary.
 
 A Canon/authentication check belongs in a real `visual.prepare_generation` request so that failures remain explicit and fail closed.
 
@@ -129,7 +130,7 @@ After deploying and configuring the GitHub read-only secret:
 npm.cmd run verify:hosted -- https://visual-director-beta.vercel.app/mcp
 ```
 
-The verifier checks `/health`, MCP initialize, `tools/list`, and the exact `visual.prepare_generation` result without printing response payloads or credentials.
+The verifier checks `/health`, `/api/connection-info`, MCP initialize, `tools/list`, and the exact `visual.prepare_generation` result without printing response payloads or credentials. The connection descriptor is also the repository-side contract used when adding or refreshing Visual Director from a normal ChatGPT conversation.
 
 For `bottom-of-thirst`, the successful Generation Package must continue to resolve the configured Approved Anchor and `policy.must_use_approved_anchor = true`.
 
