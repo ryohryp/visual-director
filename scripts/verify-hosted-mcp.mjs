@@ -21,6 +21,26 @@ if (health.response.status !== 200 || health.body?.status !== 'ok' || health.bod
 }
 console.log('health: ok (hosted-read-only)');
 
+const connectionUrl = new URL('/api/connection-info', endpoint);
+const connection = await fetchJson(connectionUrl, { method: 'GET' });
+if (connection.response.status !== 200) {
+  fail(`Connection info failed with HTTP ${connection.response.status}.`);
+}
+if (connection.body?.service !== 'visual-director'
+  || connection.body?.display_name !== 'Visual Director'
+  || connection.body?.transport?.endpoint !== endpoint.toString()
+  || connection.body?.transport?.type !== 'streamable-http'
+  || connection.body?.transport?.stateless !== true
+  || connection.body?.usage?.primary_prepare_tool !== 'visual.prepare_generation'
+  || connection.body?.usage?.hosted_generation_available !== false) {
+  fail('Connection info does not match the hosted ChatGPT contract.');
+}
+if (!Array.isArray(connection.body?.expected_tools)
+  || !connection.body.expected_tools.includes('visual.prepare_generation')) {
+  fail('Connection info does not advertise visual.prepare_generation.');
+}
+console.log('connection-info: ok (ChatGPT hosted contract)');
+
 await verifyEra('legacy', { mode: 'legacy' });
 await verifyEra('modern-2026-07-28', { mode: { pin: '2026-07-28' } });
 console.log('Hosted Visual Director E2E passed.');

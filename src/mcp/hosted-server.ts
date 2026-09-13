@@ -5,6 +5,7 @@ import { toNodeHandler } from '@modelcontextprotocol/node';
 import { createMcpHandler } from '@modelcontextprotocol/server';
 
 import { registerApprovedEditSourceTool } from './approved-edit-source.js';
+import { createChatGptConnectionInfo } from './chatgpt-connection.js';
 import { createVisualDirectorServer } from './server.js';
 import type { VisualDirectorServerOptions } from './server.js';
 
@@ -30,6 +31,11 @@ async function handleHostedHttpRequest(
 
   if (req.method === 'GET' && pathname === '/health') {
     writeHealthResponse(res);
+    return;
+  }
+
+  if (req.method === 'GET' && pathname === '/connection-info') {
+    writeConnectionInfoResponse(req, res);
     return;
   }
 
@@ -89,6 +95,16 @@ export async function handleHostedMcpRequest(
   } finally {
     await handler.close().catch(() => undefined);
   }
+}
+
+export function writeConnectionInfoResponse(req: IncomingMessage, res: ServerResponse): void {
+  const forwardedProto = req.headers['x-forwarded-proto']?.toString().split(',')[0]?.trim();
+  const protocol = forwardedProto || 'https';
+  const forwardedHost = req.headers['x-forwarded-host']?.toString().split(',')[0]?.trim();
+  const host = forwardedHost || req.headers.host || 'visual-director-beta.vercel.app';
+  const origin = `${protocol}://${host}`;
+  res.writeHead(200, { 'content-type': 'application/json; charset=utf-8' });
+  res.end(JSON.stringify(createChatGptConnectionInfo(origin)));
 }
 
 export function writeHealthResponse(res: ServerResponse): void {

@@ -87,3 +87,31 @@ After changing this tool's name, description, schema, annotations, or `_meta`, r
 ## Public deployment boundary
 
 Do not expose the current local server directly to the public internet. It is designed for a configured local repository path and has no OAuth authorization server. A permanent shared deployment needs a stable HTTPS `/mcp` endpoint, a hosted read-only project checkout or repository adapter, and the MCP OAuth 2.1 authorization flow described in [Authentication](https://developers.openai.com/plugins/build/auth).
+
+
+## Hosted normal-chat connection
+
+The hosted deployment exposes a stable connection descriptor at:
+
+```text
+https://visual-director-beta.vercel.app/api/connection-info
+```
+
+The descriptor is intentionally non-secret. It publishes the hosted MCP URL, transport contract, expected tool names, and the fact that hosted image generation is disabled.
+
+For a normal ChatGPT conversation, connect the remote MCP endpoint from ChatGPT Developer mode / Plugins using:
+
+```text
+https://visual-director-beta.vercel.app/mcp
+```
+
+After connecting or refreshing the connection, verify that ChatGPT discovers at least:
+
+- `visual.prepare_generation`
+- `visual.prepare_non_character_generation`
+
+A normal chat may then invoke Visual Director without requiring a dedicated Visual Director conversation. The first E2E verification should use `bottom-of-thirst` / `kamino_kyosuke` and confirm the returned package contains the Approved Anchor plus `policy.must_use_approved_anchor = true`.
+
+The repository cannot install or enable a ChatGPT connection on behalf of an account. That account-level connection step remains an explicit ChatGPT action. The service-side contract is verified by `npm run verify:hosted`.
+
+Do not treat absence of the ChatGPT connection, stale tool metadata, or a failed refresh as Canon failure. Reconnect or refresh the Plugin/MCP connection, then rerun the same request.
