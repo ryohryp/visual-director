@@ -19,6 +19,10 @@ describe('default Project Catalog selection', () => {
 
       await expect(core.listProjects()).resolves.toEqual([
         expect.objectContaining({
+          project_id: 'hosted-e2e-fixture',
+          repository: '__visual_director__/hosted-e2e-fixture',
+        }),
+        expect.objectContaining({
           project_id: 'personal-orbit',
           repository: 'ryohryp/personal-orbit',
         }),
@@ -31,7 +35,7 @@ describe('default Project Catalog selection', () => {
           repository: 'ryohryp/crownless',
         }),
       ]);
-      expect(seen).toEqual(['personal-orbit', 'bottom-of-thirst', 'crownless']);
+      expect(seen).toEqual(['hosted-e2e-fixture', 'personal-orbit', 'bottom-of-thirst', 'crownless']);
     } finally {
       if (previous === undefined) delete process.env.VISUAL_DIRECTOR_PROJECT_CATALOG;
       else process.env.VISUAL_DIRECTOR_PROJECT_CATALOG = previous;
