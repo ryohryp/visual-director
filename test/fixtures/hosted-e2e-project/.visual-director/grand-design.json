@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "project_id": "hosted-e2e-fixture",
+  "source_documents": [
+    "docs/visual/style.md",
+    "docs/visual/characters.md",
+    "docs/visual/world.md",
+    "docs/visual/assets.md"
+  ],
+  "visual_dna": "Neutral documentary fixture imagery with stable subject identity, practical lighting, and repository-owned references.",
+  "shared_rules": {
+    "canonical_references_only": true,
+    "stable_subject_identity": true
+  },
+  "fixed_avoid": [
+    "unrelated visual references",
+    "candidate chaining",
+    "subject identity drift"
+  ],
+  "asset_types": {},
+  "review_contract": {
+    "requires_review": true
+  }
+}
