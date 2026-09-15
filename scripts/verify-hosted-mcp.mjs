@@ -1,8 +1,8 @@
 import { Client, StreamableHTTPClientTransport } from '@modelcontextprotocol/client';
 
 const DEFAULT_ENDPOINT = 'https://visual-director-beta.vercel.app/mcp';
-const EXPECTED_GLOBAL_REFERENCE = 'docs/visual/assets/global_visual_style_reference.webp';
-const EXPECTED_SUBJECT_ANCHOR = 'public/images/characters/kamino_kyosuke/v2/default.avif';
+const EXPECTED_GLOBAL_REFERENCE = 'docs/visual/assets/global-reference.png';
+const EXPECTED_SUBJECT_ANCHOR = 'docs/visual/assets/fixture-subject-anchor.png';
 
 const endpoint = new URL(process.argv[2] ?? process.env.VISUAL_DIRECTOR_MCP_URL ?? DEFAULT_ENDPOINT);
 const allowHttp = process.env.VISUAL_DIRECTOR_ALLOW_INSECURE_HTTP === '1';
@@ -70,10 +70,10 @@ async function verifyEra(label, versionNegotiation) {
     const prepared = await client.callTool({
       name: 'visual.prepare_generation',
       arguments: {
-        project_id: 'bottom-of-thirst',
+        project_id: 'hosted-e2e-fixture',
         asset_type: 'character_visual_anchor',
-        subject_ids: ['kamino_kyosuke'],
-        request_text: '神野恭介のApproved Visual Anchorを正本としてGeneration Packageを取得する。画像生成は行わない。',
+        subject_ids: ['fixture_subject'],
+        request_text: 'Visual Director-owned fixture の Approved Visual Anchor を正本として Generation Package を取得する。画像生成は行わない。',
       },
     });
     if (prepared.isError === true) {
@@ -81,7 +81,7 @@ async function verifyEra(label, versionNegotiation) {
     }
 
     const packageResult = prepared.structuredContent;
-    if (packageResult?.project_id !== 'bottom-of-thirst') {
+    if (packageResult?.project_id !== 'hosted-e2e-fixture') {
       fail(`${label}: visual.prepare_generation returned an unexpected project.`);
     }
     const grandDesignLock = packageResult?.prompt_package?.grand_design_lock;
@@ -94,7 +94,7 @@ async function verifyEra(label, versionNegotiation) {
     } catch {
       fail(`${label}: grand_design_lock is not valid JSON.`);
     }
-    if (grandDesign?.project_id !== 'bottom-of-thirst' || grandDesign?.schema_version !== 1) {
+    if (grandDesign?.project_id !== 'hosted-e2e-fixture' || grandDesign?.schema_version !== 1) {
       fail(`${label}: grand_design_lock does not match the Bottom of Thirst Grand Design.`);
     }
     if (typeof packageResult?.prompt_package?.style_lock !== 'string' || packageResult.prompt_package.style_lock.trim() === '') {
