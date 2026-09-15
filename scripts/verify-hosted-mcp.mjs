@@ -2,7 +2,7 @@ import { Client, StreamableHTTPClientTransport } from '@modelcontextprotocol/cli
 
 const DEFAULT_ENDPOINT = 'https://visual-director-beta.vercel.app/mcp';
 const EXPECTED_GLOBAL_REFERENCE = 'docs/visual/assets/global_visual_style_reference.webp';
-const EXPECTED_SUBJECT_ANCHOR = 'public/images/characters/kamino_kyosuke/v2/default.avif';
+const EXPECTED_SUBJECT_ANCHOR = 'public/images/characters/souma/v2/default.avif';
 
 const endpoint = new URL(process.argv[2] ?? process.env.VISUAL_DIRECTOR_MCP_URL ?? DEFAULT_ENDPOINT);
 const allowHttp = process.env.VISUAL_DIRECTOR_ALLOW_INSECURE_HTTP === '1';
@@ -72,8 +72,8 @@ async function verifyEra(label, versionNegotiation) {
       arguments: {
         project_id: 'bottom-of-thirst',
         asset_type: 'character_visual_anchor',
-        subject_ids: ['kamino_kyosuke'],
-        request_text: '神野恭介のApproved Visual Anchorを正本としてGeneration Packageを取得する。画像生成は行わない。',
+        subject_ids: ['souma'],
+        request_text: '相馬健人のApproved Visual Anchorを正本としてGeneration Packageを取得する。画像生成は行わない。',
       },
     });
     if (prepared.isError === true) {
