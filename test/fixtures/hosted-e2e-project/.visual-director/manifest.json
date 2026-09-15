@@ -2,11 +2,11 @@
   "version": 1,
   "project_id": "hosted-e2e-fixture",
   "documents": {
-    "global_style": "docs/visual/style.md",
-    "character_canon": "docs/visual/characters.md",
-    "world_direction": "docs/visual/world.md",
-    "asset_manifest": "docs/visual/assets.md",
-    "global_reference": "docs/visual/assets/global-reference.png"
+    "globalStyle": "docs/visual/style.md",
+    "characterCanon": "docs/visual/characters.md",
+    "worldDirection": "docs/visual/world.md",
+    "assetManifest": "docs/visual/assets.md",
+    "globalReference": "docs/visual/assets/global-reference.png"
   },
   "subjects": {
     "fixture_subject": {
