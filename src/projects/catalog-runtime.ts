@@ -1,3 +1,5 @@
+import path from 'node:path';
+
 import { VisualDirectorError } from '../domain/types.js';
 import type { ProjectAdapter } from '../domain/types.js';
 import { loadProjectCatalog } from './catalog.js';
@@ -7,7 +9,7 @@ import { loadRepositoryCanonDefinition } from './canon/repository-manifest.js';
 import { createRegisteredLocalRepositorySource } from './project-registry.js';
 import { PersonalOrbitAdapter } from './personal-orbit/adapter.js';
 import { personalOrbitDefinition } from './personal-orbit/definition.js';
-import { GitHubRepositorySource } from './repository-source.js';
+import { GitHubRepositorySource, LocalRepositorySource } from './repository-source.js';
 import type { RepositorySource } from './repository-source.js';
 
 const DEFAULT_PROJECT_CATALOG_PATH = 'projects.catalog.json';
@@ -45,6 +47,9 @@ export function createCatalogRepositorySource(
 ): RepositorySource {
   const mode = options.repositoryMode ?? (process.env.VISUAL_DIRECTOR_REPOSITORY_MODE === 'local' ? 'local' : 'github');
   if (mode === 'local') return createRegisteredLocalRepositorySource(entry.project_id);
+  if (entry.repository.owner === '__visual_director__' && entry.repository.name === 'hosted-e2e-fixture') {
+    return new LocalRepositorySource(path.resolve('test/fixtures/hosted-e2e-project'));
+  }
 
   const token = process.env.VISUAL_DIRECTOR_GITHUB_TOKEN?.trim();
   if (!token) {

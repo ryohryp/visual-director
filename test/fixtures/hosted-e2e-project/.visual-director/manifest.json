@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "project_id": "hosted-e2e-fixture",
+  "documents": {
+    "global_style": "docs/visual/style.md",
+    "character_canon": "docs/visual/characters.md",
+    "world_direction": "docs/visual/world.md",
+    "asset_manifest": "docs/visual/assets.md",
+    "global_reference": "docs/visual/assets/global-reference.png"
+  },
+  "subjects": {
+    "fixture_subject": {
+      "display_name": "Fixture Subject",
+      "character_file": "docs/visual/fixture-subject.md",
+      "canon_heading": "Fixture Subject",
+      "aliases": [],
+      "required_new_anchor_terms": [],
+      "anchor_generation_status": "active"
+    }
+  }
+}

@@ -45,6 +45,13 @@ const DEFAULT_PROJECT_CATALOG_PATH = 'projects.catalog.json';
 const DEFAULT_PROJECT_CATALOG = {
   projects: [
     {
+      project_id: 'hosted-e2e-fixture',
+      display_name: 'Hosted E2E Fixture',
+      repository: '__visual_director__/hosted-e2e-fixture',
+      ref: 'main',
+      adapter_type: 'generic',
+    },
+    {
       project_id: 'personal-orbit',
       display_name: 'Personal Orbit',
       repository: 'ryohryp/personal-orbit',
