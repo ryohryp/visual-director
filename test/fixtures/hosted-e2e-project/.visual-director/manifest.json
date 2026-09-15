@@ -2,6 +2,7 @@
   "version": 1,
   "project_id": "hosted-e2e-fixture",
   "documents": {
+    "grandDesign": ".visual-director/grand-design.json",
     "globalStyle": "docs/visual/style.md",
     "characterCanon": "docs/visual/characters.md",
     "worldDirection": "docs/visual/world.md",

@@ -1,6 +1,7 @@
 import { Client, StreamableHTTPClientTransport } from '@modelcontextprotocol/client';
 
 const DEFAULT_ENDPOINT = 'https://visual-director-beta.vercel.app/mcp';
+const EXPECTED_SUBJECT_ID = 'fixture_subject';
 const EXPECTED_GLOBAL_REFERENCE = 'docs/visual/assets/global-reference.png';
 const EXPECTED_SUBJECT_ANCHOR = 'docs/visual/assets/fixture-subject-anchor.png';
 
@@ -72,7 +73,7 @@ async function verifyEra(label, versionNegotiation) {
       arguments: {
         project_id: 'hosted-e2e-fixture',
         asset_type: 'character_visual_anchor',
-        subject_ids: ['fixture_subject'],
+        subject_ids: [EXPECTED_SUBJECT_ID],
         request_text: 'Visual Director-owned fixture の Approved Visual Anchor を正本として Generation Package を取得する。画像生成は行わない。',
       },
     });
@@ -95,14 +96,14 @@ async function verifyEra(label, versionNegotiation) {
       fail(`${label}: grand_design_lock is not valid JSON.`);
     }
     if (grandDesign?.project_id !== 'hosted-e2e-fixture' || grandDesign?.schema_version !== 1) {
-      fail(`${label}: grand_design_lock does not match the Bottom of Thirst Grand Design.`);
+      fail(`${label}: grand_design_lock does not match the Hosted E2E Fixture Grand Design.`);
     }
     if (typeof packageResult?.prompt_package?.style_lock !== 'string' || packageResult.prompt_package.style_lock.trim() === '') {
       fail(`${label}: visual.prepare_generation did not preserve style_lock.`);
     }
     if (!Array.isArray(packageResult?.prompt_package?.subject_lock)
-      || !packageResult.prompt_package.subject_lock.some((lock) => typeof lock === 'string' && lock.includes('kamino_kyosuke'))) {
-      fail(`${label}: visual.prepare_generation did not preserve the Kamino subject_lock.`);
+      || !packageResult.prompt_package.subject_lock.some((lock) => typeof lock === 'string' && lock.includes(EXPECTED_SUBJECT_ID))) {
+      fail(`${label}: visual.prepare_generation did not preserve the Fixture subject_lock.`);
     }
     if (packageResult?.policy?.must_use_approved_anchor !== true) {
       fail(`${label}: visual.prepare_generation did not require the Approved Anchor.`);
@@ -118,10 +119,10 @@ async function verifyEra(label, versionNegotiation) {
     }
     if (!packageResult.reference_assets.some((asset) => (
       asset?.role === 'subject_anchor'
-      && asset?.subject_id === 'kamino_kyosuke'
+      && asset?.subject_id === EXPECTED_SUBJECT_ID
       && asset?.path === EXPECTED_SUBJECT_ANCHOR
     ))) {
-      fail(`${label}: visual.prepare_generation did not return the expected Kamino subject_anchor.`);
+      fail(`${label}: visual.prepare_generation did not return the expected Fixture Subject subject_anchor.`);
     }
 
     console.log(`${label}: ok (tools=${tools.tools.length}, anchor=${EXPECTED_SUBJECT_ANCHOR}, grand-design=v${grandDesign.schema_version})`);
