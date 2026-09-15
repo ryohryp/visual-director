@@ -1,3 +1,4 @@
 # World Direction
 
-A neutral fictional test environment.
+- Use a neutral fictional test environment.
+- Keep lighting practical and scene details non-narrative unless the request explicitly requires them.
