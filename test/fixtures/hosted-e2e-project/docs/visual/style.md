@@ -1,16 +1,19 @@
 # Global Visual Style
 
-## Common Rules
-- Keep a stable documentary visual language.
-
-## Accepted Conditions
-- Use the approved fixture references.
+```text
+STYLE LOCK: Neutral documentary fixture imagery. Use practical lighting, stable proportions, and repository-owned references only.
+```
 
 ## Allowed Changes
-- Scene composition may change.
+- Scene composition may change within the fixture request.
+- Pose and crop may vary without changing subject identity.
 
 ## Forbidden Changes
-- Do not change subject identity.
+- Do not change subject identity or stable proportions.
+- Do not use unrelated, legacy, or Candidate references as generation parents.
 
-## Avoid
-- Unrelated visual references.
+## Fixed Avoid Block
+
+```text
+AVOID: unrelated visual references, identity drift, candidate chaining
+```
