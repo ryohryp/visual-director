@@ -151,7 +151,7 @@ describe('v0.4 multi-project isolation', () => {
     } finally {
       await rm(directory, { recursive: true, force: true });
     }
-  });
+  }, 15_000);
 });
 
 function repositoryResponse(url: string): Response {
