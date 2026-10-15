@@ -39,6 +39,19 @@ describe('compiled Canon', () => {
     expect(firstSerialized).not.toContain('repository_path');
   });
 
+  it('compiles text Canon and subject anchors without an unapproved global image', async () => {
+    const repositoryPath = await crownlessRepository();
+    const manifestPath = path.join(repositoryPath, '.visual-director/manifest.json');
+    const manifest = JSON.parse(await readFile(manifestPath, 'utf8'));
+    manifest.documents.globalReference = null;
+    await writeFile(manifestPath, JSON.stringify(manifest), 'utf8');
+    const compiled = await compileRepositoryCanon({ projectId: 'crownless', repositoryPath });
+    expect(compiled.global_reference_path).toBeUndefined();
+    expect(compiled.subjects).toHaveLength(1);
+    expect(compiled.subjects[0]?.approved_anchor_path).toContain('player-unarmed');
+    await expect(compileRepositoryCanon({ projectId: 'crownless', repositoryPath, check: true })).resolves.toEqual(compiled);
+  });
+
   it('fails --check when Grand Design semantic content is stale', async () => {
     const repositoryPath = await crownlessRepository();
     await compileRepositoryCanon({ projectId: 'crownless', repositoryPath });

@@ -72,10 +72,20 @@ function parseDocuments(value: Record<string, unknown> | undefined, path: string
   for (const key of Object.keys(value)) {
     if (!allowedKeys.has(key)) throw invalid(path, `Unknown documents key: ${key}.`);
   }
+  // Explicit null opts out of a global image when the approved reference has not
+  // yet been archived. Omitted keys keep the legacy default for existing projects.
+  const suppressGlobalReference = Object.prototype.hasOwnProperty.call(value, 'globalReference')
+    && value.globalReference === null;
   const overrides = Object.fromEntries(
-    Object.entries(value).map(([key, item]) => [key, parseRequiredString(item, path, `documents.${key}`)]),
+    Object.entries(value)
+      .filter(([key]) => !(suppressGlobalReference && key === 'globalReference'))
+      .map(([key, item]) => [key, parseRequiredString(item, path, `documents.${key}`)]),
   );
-  return { ...DEFAULT_PROJECT_DOCUMENTS, ...overrides };
+  return {
+    ...DEFAULT_PROJECT_DOCUMENTS,
+    ...overrides,
+    ...(suppressGlobalReference ? { globalReference: undefined } : {}),
+  };
 }
 
 function parseLabels(value: Record<string, unknown> | undefined, path: string): ProjectLabels {

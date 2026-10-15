@@ -170,7 +170,7 @@ export class CanonProjectAdapter extends CanonAdapterBase {
       }
       await this.source.ensureFile(referencePath, `Source asset reference for ${input.asset_type}`);
     }
-    await this.source.ensureFile(this.definition.documents.globalReference, 'Global Visual Reference');
+    if (this.definition.documents.globalReference) await this.source.ensureFile(this.definition.documents.globalReference, 'Global Visual Reference');
 
     const worldMarkdown = await this.source.readText(this.definition.documents.worldDirection, 'World Direction');
     const sceneContext = visibleSceneContext(input.scene_context);
@@ -208,7 +208,7 @@ export class CanonProjectAdapter extends CanonAdapterBase {
         avoid_block: unique([...grandDesign.fixed_avoid, ...contractForbidden]),
       },
       reference_assets: [
-        { role: 'global_reference', path: this.definition.documents.globalReference },
+        ...(this.definition.documents.globalReference ? [{ role: 'global_reference' as const, path: this.definition.documents.globalReference }] : []),
         ...referencePaths.map((path) => ({ role: 'source_asset' as const, path })),
       ],
       policy: {
