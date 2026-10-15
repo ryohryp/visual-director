@@ -25,7 +25,7 @@ export interface CompiledCanon {
   avoid_block: string[];
   asset_type_rules: Record<string, { must_use_approved_anchor: boolean; must_not_chain_from_candidate: true; must_review_after_generation: true }>;
   subjects: CompiledCanonSubject[];
-  global_reference_path: string;
+  global_reference_path?: string;
   policy: GenerationPackage['policy'];
 }
 
@@ -79,8 +79,8 @@ async function compileCanonFromRuntime(projectId: string, runtime: LocalCompileR
   const baseline = prepared[0]?.generationPackage;
   if (!baseline) throw new VisualDirectorError('COMPILED_CANON_EMPTY', 'Compiled Canon could not resolve a baseline package.');
   const globalReference = baseline.reference_assets.find((asset) => asset.role === 'global_reference')?.path;
-  if (!globalReference) throw new VisualDirectorError('COMPILED_CANON_GLOBAL_REFERENCE_MISSING', 'Global reference is required for compiled Canon.');
-
+  // Text-only Canon is valid while the user-approved global composite has not
+  // yet been archived; individual character anchors remain authoritative.
   const semanticPayload = {
     project_id: projectId,
     ...(runtime.grandDesign ? { grand_design: runtime.grandDesign } : {}),
@@ -89,7 +89,7 @@ async function compileCanonFromRuntime(projectId: string, runtime: LocalCompileR
     avoid_block: baseline.prompt_package.avoid_block,
     asset_type_rules: compiledAssetTypeRules(runtime.grandDesign, baseline.policy),
     subjects: prepared.map(({ anchor, generationPackage }) => ({ subject_id: anchor.subject_id, display_name: anchor.display_name, subject_lock: generationPackage.prompt_package.subject_lock[0] ?? '', approved_anchor_path: anchor.path, allowed_changes: [...generationPackage.prompt_package.allowed_changes], forbidden_changes: [...generationPackage.prompt_package.forbidden_changes] })).sort((left, right) => left.subject_id.localeCompare(right.subject_id)),
-    global_reference_path: globalReference,
+    ...(globalReference ? { global_reference_path: globalReference } : {}),
     policy: { ...baseline.policy },
   };
   return { schema_version: 1, source_revision: createHash('sha256').update(stableJson(semanticPayload)).digest('hex'), ...semanticPayload };

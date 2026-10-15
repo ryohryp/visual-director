@@ -76,7 +76,7 @@ export abstract class CanonAdapterBase implements ProjectAdapter {
         { subject_ids: input.subject_ids, asset_type: input.asset_type },
       );
     }
-    await this.source.ensureFile(this.documents.globalReference, 'Global Visual Reference');
+    if (this.documents.globalReference) await this.source.ensureFile(this.documents.globalReference, 'Global Visual Reference');
 
     const styleLock = fencedBlock(documents.styleMarkdown, 'text');
     const avoidBlock = fencedBlockAfter(documents.styleMarkdown, this.labels.avoidBlockHeading);
@@ -97,7 +97,7 @@ export abstract class CanonAdapterBase implements ProjectAdapter {
         avoid_block: splitAvoidBlock(avoidBlock),
       },
       reference_assets: [
-        { role: 'global_reference', path: this.documents.globalReference },
+        ...(this.documents.globalReference ? [{ role: 'global_reference' as const, path: this.documents.globalReference }] : []),
         ...subjects.flatMap((subject) =>
           subject.anchorPath
             ? [{ role: 'subject_anchor' as const, subject_id: subject.id, path: subject.anchorPath }]
@@ -110,7 +110,7 @@ export abstract class CanonAdapterBase implements ProjectAdapter {
 
   async getVisualOverview(): Promise<ProjectVisualOverview> {
     const documents = await this.readDocuments();
-    await this.source.ensureFile(this.documents.globalReference, 'Global Visual Reference');
+    if (this.documents.globalReference) await this.source.ensureFile(this.documents.globalReference, 'Global Visual Reference');
     const approvedAnchors = await this.listApprovedAnchors(documents.canonMarkdown);
     const workflow = await this.readWorkflowSummary();
     const visualDirection: ProjectVisualOverview['visual_direction'] = {
@@ -121,7 +121,7 @@ export abstract class CanonAdapterBase implements ProjectAdapter {
       global_style: {
         role: 'global_style',
         document_path: this.documents.globalStyle,
-        asset_path: this.documents.globalReference,
+        ...(this.documents.globalReference ? { asset_path: this.documents.globalReference } : {}),
       },
     };
     const inventory = await loadProjectAssetInventory({

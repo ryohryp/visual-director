@@ -54,7 +54,6 @@ export async function diagnoseProjectRepository(
       ['character_canon', 'Character Visual Canon', documents.characterCanon],
       ['world_direction', 'World Direction', documents.worldDirection],
       ['asset_manifest', 'Visual asset manifest', documents.assetManifest],
-      ['global_reference', 'Global Visual Style reference', documents.globalReference],
     ] as const;
 
     for (const [key, label, path] of requiredFiles) {
@@ -64,6 +63,14 @@ export async function diagnoseProjectRepository(
         : { key, label, state: 'required_missing', blocking: true, message: `${label} is required but missing.`, path });
     }
 
+    if (documents.globalReference) {
+      const exists = await source.fileExists(documents.globalReference);
+      items.push(exists
+        ? { key: 'global_reference', label: 'Global Visual Style reference', state: 'ready', blocking: false, message: 'Global Visual Style reference found.', path: documents.globalReference }
+        : { key: 'global_reference', label: 'Global Visual Style reference', state: 'required_missing', blocking: true, message: 'Global Visual Style reference is required but missing.', path: documents.globalReference });
+    } else {
+      items.push({ key: 'global_reference', label: 'Global Visual Style reference', state: 'optional_missing', blocking: false, message: 'No approved global image; text style and subject anchors remain available.' });
+    }
     if (items.some((item) => item.blocking)) return finalize(entry.project_id, items);
 
     const overview = await diagnoseOverviewReferences(loadOverview, items);

@@ -7,7 +7,7 @@ export interface ProjectDocuments {
   characterCanon: string;
   worldDirection: string;
   assetManifest: string;
-  globalReference: string;
+  globalReference?: string;
 }
 
 export type SubjectAnchorGenerationStatus = 'active' | 'replacement_pending';

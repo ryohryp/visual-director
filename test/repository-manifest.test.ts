@@ -20,6 +20,17 @@ describe('repository-native Canon manifest', () => {
     expect(definition.subjects.hero).toEqual({ id: 'hero', displayName: 'Hero', characterFile: 'art/characters/hero.md', canonHeading: 'Hero', aliases: ['protagonist', '主人公'], anchorRequirementsFile: 'art/characters/HERO_ANCHOR.md', requiredNewAnchorTerms: ['24歳', '配信者'] });
   });
 
+  it('allows a project to opt out of an unapproved global image with explicit null', () => {
+    const definition = parseRepositoryCanonManifest({
+      version: 1, project_id: 'crownless',
+      documents: { globalReference: null },
+    });
+    expect(definition.documents.globalReference).toBeUndefined();
+    expect(definition.documents.globalStyle).toBe(DEFAULT_PROJECT_DOCUMENTS.globalStyle);
+    expect(parseRepositoryCanonManifest({version: 1, project_id: 'legacy'}).documents.globalReference)
+      .toBe(DEFAULT_PROJECT_DOCUMENTS.globalReference);
+  });
+
   it('does not invent optional design documents when the manifest omits them', () => {
     const definition = parseRepositoryCanonManifest({ version: 1, project_id: 'game-a' });
     expect(definition.documents.grandDesign).toBeUndefined();
