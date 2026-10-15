@@ -197,7 +197,9 @@ export class CanonProjectAdapter extends CanonAdapterBase {
           ]
           : [
             'Create a new subjectless visual asset only within the factual, compositional, material, lighting, and style boundaries defined by this request and its Grand Design asset contract.',
-            'Use the Global Visual Reference as the visual-family calibration source; do not borrow location identity, composition, or objects from unrelated generated or legacy assets.',
+            ...(this.definition.documents.globalReference
+              ? ['Use the Global Visual Reference as the visual-family calibration source; do not borrow location identity, composition, or objects from unrelated generated or legacy assets.']
+              : ['Use the active repository text Visual Canon as the visual-family source; no approved global reference image is registered. Never substitute unrelated generated or historical image assets.']),
           ],
         forbidden_changes: unique([
           ...(hasSourceReference ? ['Do not redesign the referenced location or object into a different place merely for visual drama.'] : []),
