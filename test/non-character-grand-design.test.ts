@@ -7,7 +7,7 @@ import { createCatalogProjectAdapter } from '../src/projects/catalog-runtime.js'
 import { parseProjectCatalog } from '../src/projects/catalog.js';
 import { LocalRepositorySource } from '../src/projects/repository-source.js';
 
-function createBackgroundProject(allowNewAsset = false) {
+function createBackgroundProject(allowNewAsset = false, omitGlobalReference = false) {
   const root = mkdtempSync(path.join(os.tmpdir(), 'visual-director-non-character-'));
   const files: Record<string, string | Buffer> = {
     '.visual-director/manifest.json': JSON.stringify({
@@ -19,7 +19,7 @@ function createBackgroundProject(allowNewAsset = false) {
         characterCanon: 'docs/visual/CHARACTER_ONLY_CANON.md',
         worldDirection: 'docs/WORLD_DIRECTION.md',
         assetManifest: 'docs/visual/assets/README.md',
-        globalReference: 'docs/visual/assets/character_only_reference.webp',
+        globalReference: omitGlobalReference ? null : 'docs/visual/assets/character_only_reference.webp',
       },
       subjects: {},
     }),
@@ -117,6 +117,21 @@ describe('non-character Grand Design preparation', () => {
     expect(prepared.prompt_package.allowed_changes.join('\n')).toContain('Create a new subjectless visual asset');
     expect(prepared.prompt_package.forbidden_changes.join('\n')).not.toContain('Do not redesign the referenced location');
     expect(prepared.prompt_package.scene_requirements.join('\n')).toContain('aspect_ratio: 16:9');
+  });
+
+  it('does not invent a global reference in asset instructions when explicitly absent', async () => {
+    const { root, entry } = createBackgroundProject(true, true);
+    const adapter = await createCatalogProjectAdapter(entry, new LocalRepositorySource(root));
+    const prepared = await adapter.prepare({
+      project_id: 'bottom-of-thirst',
+      asset_type: 'background',
+      subject_ids: [],
+      request_text: 'Compose one new documented place without implicit source art.',
+      scene_context: { reference_paths: [] },
+    });
+    expect(prepared.reference_assets).toEqual([]);
+    expect(prepared.prompt_package.allowed_changes.join('\\n')).toContain('active repository text Visual Canon');
+    expect(prepared.prompt_package.allowed_changes.join('\\n')).not.toContain('Use the Global Visual Reference');
   });
 
   it('fails closed without an explicit source asset', async () => {
