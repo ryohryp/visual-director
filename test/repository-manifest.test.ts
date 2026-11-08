@@ -37,6 +37,22 @@ describe('repository-native Canon manifest', () => {
     expect(definition.documents.currentDesignBaseline).toBeUndefined();
   });
 
+  it('supports repository-owned explicit Anchors and Canon fact labels without legacy headings', () => {
+    const definition = parseRepositoryCanonManifest({ version: 1, project_id: 'game-v3', subjects: {
+      hero: { display_name: 'Hero', character_file: 'characters/hero.md', canon_facts_label: 'Hero', approved_anchor_path: 'public/images/hero/v3/default.png' },
+    } });
+    expect(definition.subjects.hero).toMatchObject({
+      canonFactsLabel: 'Hero', approvedAnchorPath: 'public/images/hero/v3/default.png',
+    });
+    expect(definition.subjects.hero?.canonHeading).toBe('');
+  });
+
+  it('requires a Canon lookup even when an explicit Anchor path exists', () => {
+    expect(() => parseRepositoryCanonManifest({ version: 1, project_id: 'game-v3', subjects: {
+      hero: { display_name: 'Hero', character_file: 'characters/hero.md', approved_anchor_path: 'public/images/hero/v3/default.png' },
+    } })).toThrow('Either canon_heading or canon_facts_label is required.');
+  });
+
   it('rejects unsupported manifest versions', () => {
     expect(() => parseRepositoryCanonManifest({ version: 2, project_id: 'game-a' })).toThrow('Unsupported Visual Director manifest version: 2.');
   });
