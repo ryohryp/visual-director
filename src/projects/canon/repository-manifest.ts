@@ -14,11 +14,15 @@ const stringArray = z.array(nonEmptyString).optional().default([]);
 const subjectSchema = z.strictObject({
   display_name: nonEmptyString,
   character_file: nonEmptyString,
-  canon_heading: nonEmptyString,
+  canon_heading: nonEmptyString.optional(),
+  canon_facts_label: nonEmptyString.optional(),
+  approved_anchor_path: nonEmptyString.optional(),
   aliases: stringArray,
   anchor_requirements_file: nonEmptyString.optional(),
   required_new_anchor_terms: stringArray,
   anchor_generation_status: z.enum(['active', 'replacement_pending']).optional(),
+}).refine((subject) => Boolean(subject.canon_heading || subject.canon_facts_label), {
+  message: 'Either canon_heading or canon_facts_label is required.',
 });
 
 const manifestShapeSchema = z.strictObject({
@@ -106,7 +110,7 @@ function parseSubjects(value: Record<string, unknown> | undefined, path: string)
   for (const [id, subject] of Object.entries(value)) {
     const parsed = subjectSchema.safeParse(subject);
     if (!parsed.success) throw invalid(path, subjectIssueMessage(id, parsed.error));
-    const { display_name: displayName, character_file: characterFile, canon_heading: canonHeading } = parsed.data;
+    const { display_name: displayName, character_file: characterFile } = parsed.data;
     const subjectAliases = [...new Set(parsed.data.aliases)];
     const requiredNewAnchorTerms = [...new Set(parsed.data.required_new_anchor_terms)];
     for (const alias of [id, displayName, ...subjectAliases]) {
@@ -121,7 +125,9 @@ function parseSubjects(value: Record<string, unknown> | undefined, path: string)
       id,
       displayName,
       characterFile,
-      canonHeading,
+      canonHeading: parsed.data.canon_heading ?? '',
+      ...(parsed.data.canon_facts_label ? { canonFactsLabel: parsed.data.canon_facts_label } : {}),
+      ...(parsed.data.approved_anchor_path ? { approvedAnchorPath: parsed.data.approved_anchor_path } : {}),
       ...(subjectAliases.length > 0 ? { aliases: subjectAliases } : {}),
       ...(parsed.data.anchor_requirements_file ? { anchorRequirementsFile: parsed.data.anchor_requirements_file } : {}),
       ...(requiredNewAnchorTerms.length > 0 ? { requiredNewAnchorTerms } : {}),
@@ -137,6 +143,7 @@ function subjectIssueMessage(id: string, error: z.ZodError): string {
   if (issue.code === 'unrecognized_keys') return `Unknown subjects.${id} key: ${issue.keys[0]}.`;
   const field = issue.path.length > 0 ? `subjects.${id}.${issue.path.join('.')}` : `subjects.${id}`;
   if (field.endsWith('.anchor_generation_status')) return `${field} must be active or replacement_pending.`;
+  if (issue.code === 'custom') return issue.message;
   return `${field} must be ${issue.code === 'invalid_type' && issue.expected === 'array' ? 'an array' : 'a non-empty string'}.`;
 }
 
