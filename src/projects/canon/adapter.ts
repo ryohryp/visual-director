@@ -22,6 +22,7 @@ interface SubjectAnchor extends ProjectSubjectDefinition {
   anchorPath?: string;
   anchorFallback?: string;
   canonSection: string;
+  canonInvariant?: string;
   characterMarkdown: string;
   requirementsMarkdown?: string;
   mode?: 'approved_anchor' | 'new_anchor_candidate';
@@ -65,10 +66,9 @@ export class CanonProjectAdapter extends CanonAdapterBase {
   protected async loadSubject(subjectId: string, canonMarkdown: string, assetType = ''): Promise<SubjectAnchor> {
     const configured = this.definition.subjects[subjectId];
     if (!configured) throw new VisualDirectorError('SUBJECT_NOT_FOUND', `Unknown subject_id: ${subjectId}.`);
-    const canonSection = section(canonMarkdown, configured.canonHeading);
-    const anchorPaths = approvedAnchorPaths(subsection(canonSection, 'Approved Visual Anchor'));
-    const anchorPath = anchorPaths[0];
-    const anchorFallback = anchorPaths[1];
+    const canonSection = configured.canonHeading ? section(canonMarkdown, configured.canonHeading) : '';
+    const canonInvariant = configured.canonFactsLabel ? requiredCanonInvariant(canonMarkdown, configured) : undefined;
+    const { anchorPath, anchorFallback } = resolveApprovedAnchor(configured, canonSection);
     const characterMarkdown = await this.source.readText(configured.characterFile, `Character facts for ${subjectId}`);
 
     if (configured.anchorGenerationStatus === 'replacement_pending') {
@@ -83,28 +83,29 @@ export class CanonProjectAdapter extends CanonAdapterBase {
       const requirementsMarkdown = await this.source.readText(configured.anchorRequirementsFile, `Replacement Visual Anchor requirements for ${subjectId}`);
       if (!requirementsMarkdown.trim()) throw new VisualDirectorError('NEW_ANCHOR_REQUIREMENTS_EMPTY', `Replacement Visual Anchor requirements are empty for ${subjectId}.`, { subject_id: subjectId, path: configured.anchorRequirementsFile });
       validateRequiredNewAnchorTerms(configured, characterMarkdown, requirementsMarkdown);
-      return { ...configured, canonSection, characterMarkdown, requirementsMarkdown, mode: 'new_anchor_candidate' };
+      return { ...configured, canonSection, canonInvariant, characterMarkdown, requirementsMarkdown, mode: 'new_anchor_candidate' };
     }
 
     if (anchorPath) {
       await this.source.ensureFile(anchorPath, `Approved Anchor for ${subjectId}`);
       if (anchorFallback && !(await this.source.fileExists(anchorFallback))) throw new VisualDirectorError('APPROVED_ANCHOR_INCOMPLETE', `Same-generation fallback is missing for ${subjectId}.`, { subject_id: subjectId, path: anchorFallback });
-      return { ...configured, anchorPath, anchorFallback, canonSection, characterMarkdown, mode: 'approved_anchor' };
+      return { ...configured, anchorPath, anchorFallback, canonSection, canonInvariant, characterMarkdown, mode: 'approved_anchor' };
     }
     if (assetType !== NEW_ANCHOR_ASSET_TYPE) throw new VisualDirectorError('APPROVED_ANCHOR_NOT_FOUND', `Approved Anchor is not defined for ${subjectId}.`, { subject_id: subjectId, required_asset_type_for_new_anchor: NEW_ANCHOR_ASSET_TYPE });
     if (!configured.anchorRequirementsFile) throw new VisualDirectorError('NEW_ANCHOR_REQUIREMENTS_NOT_CONFIGURED', `New Visual Anchor requirements are not configured for ${subjectId}.`, { subject_id: subjectId });
     const requirementsMarkdown = await this.source.readText(configured.anchorRequirementsFile, `Visual Anchor requirements for ${subjectId}`);
     if (!requirementsMarkdown.trim()) throw new VisualDirectorError('NEW_ANCHOR_REQUIREMENTS_EMPTY', `New Visual Anchor requirements are empty for ${subjectId}.`, { subject_id: subjectId, path: configured.anchorRequirementsFile });
     validateRequiredNewAnchorTerms(configured, characterMarkdown, requirementsMarkdown);
-    return { ...configured, canonSection, characterMarkdown, requirementsMarkdown, mode: 'new_anchor_candidate' };
+    return { ...configured, canonSection, canonInvariant, characterMarkdown, requirementsMarkdown, mode: 'new_anchor_candidate' };
   }
 
   protected async listApprovedAnchors(canonMarkdown: string): Promise<ApprovedAnchorSummary[]> {
     const anchors: ApprovedAnchorSummary[] = [];
     for (const configured of Object.values(this.definition.subjects)) {
       if (configured.anchorGenerationStatus === 'replacement_pending') continue;
-      const canonSection = section(canonMarkdown, configured.canonHeading);
-      const anchorPath = approvedAnchorPaths(subsection(canonSection, 'Approved Visual Anchor'))[0];
+      const canonSection = configured.canonHeading ? section(canonMarkdown, configured.canonHeading) : '';
+      if (configured.canonFactsLabel) requiredCanonInvariant(canonMarkdown, configured);
+      const { anchorPath } = resolveApprovedAnchor(configured, canonSection);
       if (!anchorPath) continue;
       await this.source.ensureFile(anchorPath, `Approved Anchor for ${configured.id}`);
       anchors.push({ subject_id: configured.id, display_name: configured.displayName, asset_type: NEW_ANCHOR_ASSET_TYPE, path: anchorPath, status: 'approved' });
@@ -127,7 +128,13 @@ export class CanonProjectAdapter extends CanonAdapterBase {
     const accepted = bullets(subsection(subject.canonSection, this.labels.acceptedConditionsHeading));
     const canonicalState = subsection(subject.canonSection, 'Canonical state model');
     const facts = canonicalFacts(subject.characterMarkdown, 8);
-    return `${subject.displayName} (${subject.id}) - Approved Visual Anchor: ${subject.anchorPath}. ${accepted.join(' ')} ${facts.join(' ')}${canonicalState ? ` Canonical state: ${canonicalState}` : ''}`.trim();
+    return [
+      `${subject.displayName} (${subject.id}) - Approved Visual Anchor: ${subject.anchorPath}.`,
+      ...accepted,
+      ...(subject.canonInvariant ? [`Visual Canon invariant: ${subject.canonInvariant}`] : []),
+      ...facts,
+      ...(canonicalState ? [`Canonical state: ${canonicalState}`] : []),
+    ].join(' ').trim();
   }
 
   protected allowedChanges(styleMarkdown: string, preparingNewAnchor = false): string[] {
@@ -136,7 +143,7 @@ export class CanonProjectAdapter extends CanonAdapterBase {
   }
 
   protected forbiddenChanges(canonMarkdown: string, styleMarkdown: string, preparingNewAnchor = false): string[] {
-    return [...globalForbiddenChanges(), ...(preparingNewAnchor ? ['Do not include any other character Approved Anchor or character image as a subject reference for this new-anchor request.', 'Do not copy another character identity to compensate for the absence of an Approved Anchor.', 'Do not generate from assistant memory, conversation guesses, or fallback character facts when Canon preparation fails.'] : []), ...bulletsAfterLabel(styleMarkdown, this.labels.forbiddenChangesHeading), ...bullets(section(canonMarkdown, this.labels.commonRulesHeading))];
+    return [...globalForbiddenChanges(), ...(preparingNewAnchor ? ['Do not include any other character Approved Anchor or character image as a subject reference for this new-anchor request.', 'Do not copy another character identity to compensate for the absence of an Approved Anchor.', 'Do not generate from assistant memory, conversation guesses, or fallback character facts when Canon preparation fails.'] : []), ...bulletsAfterLabel(styleMarkdown, this.labels.forbiddenChangesHeading), ...canonRules(section(canonMarkdown, this.labels.commonRulesHeading))];
   }
 
   private async prepareNonCharacterAsset(input: PrepareGenerationInput): Promise<GenerationPackage> {
@@ -266,6 +273,37 @@ function stringArray(value: unknown): string[] {
 }
 
 function unique<T>(values: T[]): T[] { return [...new Set(values)]; }
+function resolveApprovedAnchor(configured: ProjectSubjectDefinition, canonSection: string): { anchorPath?: string; anchorFallback?: string } {
+  const [legacyPath, anchorFallback] = approvedAnchorPaths(subsection(canonSection, 'Approved Visual Anchor'));
+  if (configured.approvedAnchorPath && legacyPath && configured.approvedAnchorPath !== legacyPath) {
+    throw new VisualDirectorError('APPROVED_ANCHOR_CONFLICT', `Manifest and Visual Canon disagree on the Approved Anchor for ${configured.id}.`, {
+      subject_id: configured.id, manifest_path: configured.approvedAnchorPath, canon_path: legacyPath,
+    });
+  }
+  return { anchorPath: configured.approvedAnchorPath ?? legacyPath, anchorFallback };
+}
+
+function requiredCanonInvariant(canonMarkdown: string, configured: ProjectSubjectDefinition): string {
+  const label = configured.canonFactsLabel;
+  const matches = canonMarkdown.split(/\r?\n/).flatMap((line) => {
+    const match = line.match(/^\s*[-*]\s+\*\*(.+?)\*\*\s*[:：]\s*(.+?)\s*$/);
+    return match && match[1] === label && match[2] ? [match[2]] : [];
+  });
+  if (matches.length !== 1) {
+    throw new VisualDirectorError('CHARACTER_CANON_INVARIANT_INVALID', `Expected exactly one Visual Canon invariant for ${configured.id}, found ${matches.length}.`, {
+      subject_id: configured.id, canon_facts_label: label, matches: matches.length,
+    });
+  }
+  return matches[0]!;
+}
+
+function canonRules(markdown: string): string[] {
+  return markdown.split(/\r?\n/).flatMap((line) => {
+    const match = line.match(/^\s*(?:[-*]|\d+[.)])\s+(.+?)\s*$/);
+    return match?.[1] ? [match[1]] : [];
+  });
+}
+
 function buildSubjectAliasIndex(subjects: Record<string, ProjectSubjectDefinition>): Map<string, string> { const index = new Map<string, string>(); for (const subject of Object.values(subjects)) for (const alias of [subject.id, subject.displayName, ...(subject.aliases ?? [])]) { const key = normalizeSubjectAlias(alias); const existing = index.get(key); if (existing && existing !== subject.id) throw new VisualDirectorError('PROJECT_CONFIG_INVALID', `Subject alias ${alias} is ambiguous between ${existing} and ${subject.id}.`); index.set(key, subject.id); } return index; }
 function normalizeSubjectAlias(value: string): string { return value.normalize('NFKC').trim().toLocaleLowerCase('en-US').replace(/[\s_-]+/g, ''); }
 function normalizeAssetType(value: string): string { const normalized = value.normalize('NFKC').trim().toLowerCase().replace(/[\s-]+/g, '_'); if (normalized === 'visual_anchor' || normalized === 'character_anchor' || normalized === 'visualanchor' || normalized === 'character_visual_anchor_candidate') return NEW_ANCHOR_ASSET_TYPE; return value.trim(); }
