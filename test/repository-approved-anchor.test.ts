@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
+import { VisualDirectorError } from '../src/domain/types.js';
 import { CanonProjectAdapter } from '../src/projects/canon/adapter.js';
 import { parseRepositoryCanonManifest } from '../src/projects/canon/repository-manifest.js';
 import type { RepositorySource } from '../src/projects/repository-source.js';
@@ -37,7 +38,7 @@ function adapter(options: { canon?: string; anchorPath?: string; canonHeading?: 
       return content;
     },
     ensureFile: async (file) => {
-      if (file !== anchor || options.exists === false) throw new Error(`Missing approved file: ${file}`);
+      if (file !== anchor || options.exists === false) throw new VisualDirectorError('REFERENCE_NOT_FOUND', `Missing approved file: ${file}`);
     },
     fileExists: async (file) => file === anchor && options.exists !== false,
   };
@@ -64,9 +65,14 @@ describe('repository-owned Approved Anchor paths', () => {
     await expect(project.getVisualOverview()).rejects.toMatchObject({ code: 'CHARACTER_CANON_INVARIANT_INVALID' });
   });
 
+  it('fails closed when the v3 Canon invariant is ambiguous', async () => {
+    const project = adapter({ canon: `${canon}\n- **Hero**: conflicting hair color` });
+    await expect(project.prepare(request)).rejects.toMatchObject({ code: 'CHARACTER_CANON_INVARIANT_INVALID' });
+  });
+
   it('does not fall back to a retired Anchor if the v3 file is absent', async () => {
     const project = adapter({ exists: false });
-    await expect(project.prepare(request)).rejects.toThrow('Missing approved file');
+    await expect(project.prepare(request)).rejects.toMatchObject({ code: 'REFERENCE_NOT_FOUND' });
   });
 
   it('rejects conflicting explicit and legacy Anchor paths', async () => {
