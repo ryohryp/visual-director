@@ -6,6 +6,8 @@ Visual Director は、ゲームの Visual Canon と Approved Visual Anchor を�
 
 ## 設計方針
 
+今後の repository-owned Canon / request-scoped project resolution への移行方針と、現行実装との差分は [`docs/adr/0001-repository-owned-canon-and-request-scoped-resolution.md`](docs/adr/0001-repository-owned-canon-and-request-scoped-resolution.md) を参照してください。以下には移行前の互換経路も含まれます。
+
 MCP は Visual Director 本体ではなく薄い adapter として扱います。
 
 ```text
