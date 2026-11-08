@@ -132,26 +132,14 @@ Approved Anchor が存在する既存キャラクターでは、`reference_asset
 
 ## 標準プロジェクト
 
-標準 Adapter は `bottom-of-thirst` です。
+既存の互換 Catalog には `bottom-of-thirst` が登録されていますが、人物設定・画風・Approved Anchor の正本はゲーム側リポジトリです。Visual Director は `.visual-director/manifest.json` とそこから参照されたファイルを検証します。旧画像世代への自動 fallback はありません。
 
-対象リポジトリ:
+Manifest の人物定義には次の2方式があります。
 
-```text
-ryohryp/---The-Bottom-of-Thirst
-```
+- 従来方式: `canon_heading` で人物別 Markdown 見出しを選び、`### Approved Visual Anchor` からパスを読む。
+- 明示方式: `approved_anchor_path` にリポジトリ内の承認済み画像パスを指定し、`canon_facts_label` で Visual Canon の `- **ラベル**：不変条件` 行を特定する。両方がある場合、人物固有条件が欠損・重複していれば失敗し、従来見出しにも画像パスがある場合は不一致を拒否する。
 
-主に次の正本を参照します。
-
-```text
-docs/WORLD_DIRECTION.md
-docs/visual/GLOBAL_VISUAL_STYLE.md
-docs/visual/CHARACTER_VISUAL_CANON.md
-docs/characters/*.md
-docs/visual/assets/global_visual_style_reference.webp
-public/images/characters/*/v2/*
-```
-
-追加ゲームは `projects.json` と Canon 互換 Adapter で追加できます。
+どちらも Manifest はゲーム側が管理する参照索引です。画像本体・人物固有の不変条件を Visual Director 側へコピーしません。新規ゲームの登録手順と request-scoped 解決への移行は ADR-0001 を参照してください。
 
 ## repository path の解決
 
@@ -168,8 +156,8 @@ public/images/characters/*/v2/*
 {
   "project_id": "bottom-of-thirst",
   "asset_type": "character_visual_anchor",
-  "subject_ids": ["kamino_kyosuke"],
-  "request_text": "神野恭介の現在の Approved Visual Anchor を使って Generation Package を作る",
+  "subject_ids": ["saya"],
+  "request_text": "沙耶の現在の Approved Visual Anchor を使って Generation Package を作る",
   "scene_context": {
     "repository_path": "I:\\04_develop\\---The-Bottom-of-Thirst"
   }
