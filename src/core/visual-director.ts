@@ -59,19 +59,8 @@ export function createVisualDirectorCore(
   return {
     async prepareGeneration(input: PrepareGenerationInput): Promise<GenerationPackage> {
       const repositoryPath = repositoryPathFromSceneContext(input);
-      if (repositoryPath) {
-        const adapter = await requestScopedRepositoryAdapter(input.project_id, repositoryPath, options);
-        return adapter.prepare(stripRepositoryPath(input));
-      }
-
-      try {
-        return await registry.resolve(input.project_id).prepare(input);
-      } catch (error) {
-        if (!(error instanceof VisualDirectorError)
-          || (error.code !== 'PROJECT_CONFIG_MISSING' && error.code !== 'PROJECT_NOT_FOUND')) throw error;
-        const adapter = await catalogAdapterForProject(input.project_id, options);
-        return adapter.prepare(input);
-      }
+      return withProjectAdapter(input.project_id, repositoryPath, options, registry,
+        (adapter) => adapter.prepare(repositoryPath ? stripRepositoryPath(input) : input));
     },
 
     async generateImage(input: GenerateImageInput): Promise<GenerateImageResult> {
@@ -100,18 +89,8 @@ export function createVisualDirectorCore(
           { project_id: input.project_id },
         );
       }
-      if (repositoryPath) {
-        return (await requestScopedRepositoryAdapter(input.project_id, repositoryPath, options)).getVisualOverview();
-      }
-
-      try {
-        return await registry.resolve(input.project_id).getVisualOverview();
-      } catch (error) {
-        if (!(error instanceof VisualDirectorError)
-          || (error.code !== 'PROJECT_CONFIG_MISSING' && error.code !== 'PROJECT_NOT_FOUND')) throw error;
-        const adapter = await catalogAdapterForProject(input.project_id, options);
-        return adapter.getVisualOverview();
-      }
+      return withProjectAdapter(input.project_id, repositoryPath, options, registry,
+        (adapter) => adapter.getVisualOverview());
     },
 
     async listProjects(): Promise<ProjectSummary[]> {
@@ -160,6 +139,26 @@ export function createVisualDirectorCore(
       return registry.adoptAnchor(input);
     },
   };
+}
+
+async function withProjectAdapter<T>(
+  projectId: string,
+  repositoryPath: string | undefined,
+  options: VisualDirectorCoreOptions,
+  registry: ProjectRegistry,
+  operation: (adapter: ProjectAdapter) => Promise<T>,
+): Promise<T> {
+  if (repositoryPath) {
+    return operation(await requestScopedRepositoryAdapter(projectId, repositoryPath, options));
+  }
+
+  try {
+    return await operation(registry.resolve(projectId));
+  } catch (error) {
+    if (!(error instanceof VisualDirectorError)
+      || (error.code !== 'PROJECT_CONFIG_MISSING' && error.code !== 'PROJECT_NOT_FOUND')) throw error;
+    return operation(await catalogAdapterForProject(projectId, options));
+  }
 }
 
 async function requestScopedRepositoryAdapter(
