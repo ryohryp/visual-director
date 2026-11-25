@@ -59,6 +59,19 @@ describe('Visual Director Core', () => {
       .rejects.toMatchObject({ code: 'PROJECT_CONFIG_INVALID' });
   });
 
+  it('keeps overview repository binding request-scoped', async () => {
+    const core = createVisualDirectorCore();
+    await expect(core.getProjectVisualOverview({ project_id: request.project_id, repository_path: fixtureRoot }))
+      .resolves.toMatchObject({ project_id: request.project_id });
+    await expect(core.prepareGeneration(request)).rejects.toMatchObject({ code: 'PROJECT_CONFIG_MISSING' });
+  });
+
+  it('rejects invalid explicit overview paths without falling back', async () => {
+    const core = createVisualDirectorCore({ repoPath: fixtureRoot });
+    await expect(core.getProjectVisualOverview({ project_id: request.project_id, repository_path: '   ' }))
+      .rejects.toMatchObject({ code: 'PROJECT_CONFIG_INVALID' });
+  });
+
   it('preserves Canon fail-closed behavior when the Approved Anchor is missing', async () => {
     const core = createVisualDirectorCore();
     await rm(path.join(fixtureRoot, 'public/images/characters/souma/v2/default.avif'));
