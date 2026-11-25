@@ -84,6 +84,22 @@ describe('hosted Visual Director Core', () => {
     expect(result.prompt_package.subject_lock.join('\n')).toContain('default.avif');
   });
 
+  it('fails closed before reading Canon when revision resolution fails', async () => {
+    const calls: string[] = [];
+    const core = createVisualDirectorCore({ fetchImpl: async (input) => {
+      calls.push(String(input));
+      return new Response('{}', { status: 404 });
+    } });
+    await expect(core.prepareGeneration({
+      project_id: 'bottom-of-thirst',
+      asset_type: 'character_visual_anchor',
+      subject_ids: ['kamino_kyosuke'],
+      request_text: 'prepare',
+    })).rejects.toMatchObject({ code: 'GITHUB_REPOSITORY_UNAVAILABLE' });
+    expect(calls).toHaveLength(1);
+    expect(calls[0]).toContain('/commits/main');
+  });
+
   it('keeps adopt_anchor disabled when hosted read-only mode is configured', async () => {
     const core = createVisualDirectorCore({ fetchImpl: githubFixtureFetch });
     await expect(core.adoptAnchor({
@@ -97,6 +113,10 @@ describe('hosted Visual Director Core', () => {
 
 async function githubFixtureFetch(input: RequestInfo | URL): Promise<Response> {
   const url = new URL(String(input));
+  if (url.pathname.endsWith('/commits/main')) {
+    return new Response(JSON.stringify({ sha: 'a'.repeat(40) }));
+  }
+  expect(url.searchParams.get('ref')).toBe('a'.repeat(40));
   const marker = '/contents/';
   const index = url.pathname.indexOf(marker);
   const relativePath = index >= 0 ? url.pathname.slice(index + marker.length).split('/').map(decodeURIComponent).join('/') : '';

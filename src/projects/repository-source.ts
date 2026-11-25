@@ -138,6 +138,22 @@ export class GitHubRepositorySource implements RepositorySource {
     this.fetchImpl = options.fetchImpl ?? fetch;
   }
 
+  async pinRevision(): Promise<GitHubRepositorySource> {
+    if (/^[a-f0-9]{40}$/i.test(this.ref)) return this;
+    const url = `https://api.github.com/repos/${encodeURIComponent(this.owner)}/${encodeURIComponent(this.repo)}/commits/${encodeURIComponent(this.ref)}`;
+    const response = await this.fetchImpl(url, { headers: this.headers() });
+    if (!response.ok) throw this.apiError(response.status, '');
+    const payload: unknown = await response.json();
+    if (!isRecord(payload) || typeof payload.sha !== 'string' || !/^[a-f0-9]{40}$/i.test(payload.sha)) {
+      throw new VisualDirectorError('GITHUB_REPOSITORY_UNAVAILABLE', 'GitHub did not return an immutable commit SHA.', {
+        repository: `${this.owner}/${this.repo}`, ref: this.ref,
+      });
+    }
+    return new GitHubRepositorySource({
+      owner: this.owner, repo: this.repo, ref: payload.sha, token: this.token, fetchImpl: this.fetchImpl,
+    });
+  }
+
   async checkAccess(): Promise<void> {
     const url = `https://api.github.com/repos/${encodeURIComponent(this.owner)}/${encodeURIComponent(this.repo)}`;
     const response = await this.fetchImpl(url, { headers: this.headers() });
