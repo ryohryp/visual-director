@@ -28,7 +28,7 @@ import { diagnoseProjectRepository } from '../projects/diagnostics.js';
 import type { ProjectDiagnostics } from '../projects/diagnostics.js';
 import { createProjectRegistry } from '../projects/registry.js';
 import type { ProjectConfiguration, ProjectRegistry, ProjectRegistryOptions } from '../projects/registry.js';
-import { LocalRepositorySource } from '../projects/repository-source.js';
+import { GitHubRepositorySource, LocalRepositorySource } from '../projects/repository-source.js';
 import type { RepositorySource } from '../projects/repository-source.js';
 import { registerCandidate, reviewCandidate } from '../projects/workflow-store.js';
 import { runImageGeneration } from './image-generation-service.js';
@@ -60,7 +60,7 @@ export function createVisualDirectorCore(
     async prepareGeneration(input: PrepareGenerationInput): Promise<GenerationPackage> {
       const repositoryPath = repositoryPathFromSceneContext(input);
       return withProjectAdapter(input.project_id, repositoryPath, options, registry,
-        (adapter) => adapter.prepare(repositoryPath ? stripRepositoryPath(input) : input));
+        (adapter) => adapter.prepare(repositoryPath ? stripRepositoryPath(input) : input), true);
     },
 
     async generateImage(input: GenerateImageInput): Promise<GenerateImageResult> {
@@ -147,6 +147,7 @@ async function withProjectAdapter<T>(
   options: VisualDirectorCoreOptions,
   registry: ProjectRegistry,
   operation: (adapter: ProjectAdapter) => Promise<T>,
+  pinRevision = false,
 ): Promise<T> {
   if (repositoryPath) {
     return operation(await requestScopedRepositoryAdapter(projectId, repositoryPath, options));
@@ -157,7 +158,7 @@ async function withProjectAdapter<T>(
   } catch (error) {
     if (!(error instanceof VisualDirectorError)
       || (error.code !== 'PROJECT_CONFIG_MISSING' && error.code !== 'PROJECT_NOT_FOUND')) throw error;
-    return operation(await catalogAdapterForProject(projectId, options));
+    return operation(await catalogAdapterForProject(projectId, options, pinRevision));
   }
 }
 
@@ -187,10 +188,10 @@ async function requestScopedRepositoryAdapter(
   }
 }
 
-async function catalogAdapterForProject(projectId: string, options: VisualDirectorCoreOptions) {
+async function catalogAdapterForProject(projectId: string, options: VisualDirectorCoreOptions, pinRevision: boolean) {
   const entry = resolveRuntimeProjectCatalog(options).resolve(projectId);
   const source = createCatalogRepositorySource(entry, options);
-  return createCatalogProjectAdapter(entry, source);
+  return createCatalogProjectAdapter(entry, pinRevision && source instanceof GitHubRepositorySource ? await source.pinRevision() : source);
 }
 
 async function loadCatalogDiagnostics(
