@@ -11,6 +11,7 @@ import type {
   ProjectVisualOverview,
   ProjectVisualOverviewInput,
   RegisterCandidateInput,
+  RepositorySnapshot,
   ReviewCandidateInput,
 } from '../domain/types.js';
 import type { ImageGenerator } from '../generators/types.js';
@@ -60,7 +61,10 @@ export function createVisualDirectorCore(
     async prepareGeneration(input: PrepareGenerationInput): Promise<GenerationPackage> {
       const repositoryPath = repositoryPathFromSceneContext(input);
       return withProjectAdapter(input.project_id, repositoryPath, options, registry,
-        (adapter) => adapter.prepare(repositoryPath ? stripRepositoryPath(input) : input), true);
+        async (adapter, snapshot) => {
+          const prepared = await adapter.prepare(repositoryPath ? stripRepositoryPath(input) : input);
+          return snapshot ? { ...prepared, repository_snapshot: snapshot } : prepared;
+        }, true);
     },
 
     async generateImage(input: GenerateImageInput): Promise<GenerateImageResult> {
@@ -146,7 +150,7 @@ async function withProjectAdapter<T>(
   repositoryPath: string | undefined,
   options: VisualDirectorCoreOptions,
   registry: ProjectRegistry,
-  operation: (adapter: ProjectAdapter) => Promise<T>,
+  operation: (adapter: ProjectAdapter, snapshot?: RepositorySnapshot) => Promise<T>,
   pinRevision = false,
 ): Promise<T> {
   if (repositoryPath) {
@@ -158,7 +162,8 @@ async function withProjectAdapter<T>(
   } catch (error) {
     if (!(error instanceof VisualDirectorError)
       || (error.code !== 'PROJECT_CONFIG_MISSING' && error.code !== 'PROJECT_NOT_FOUND')) throw error;
-    return operation(await catalogAdapterForProject(projectId, options, pinRevision));
+    const { adapter, snapshot } = await catalogAdapterForProject(projectId, options, pinRevision);
+    return operation(adapter, snapshot);
   }
 }
 
@@ -191,7 +196,14 @@ async function requestScopedRepositoryAdapter(
 async function catalogAdapterForProject(projectId: string, options: VisualDirectorCoreOptions, pinRevision: boolean) {
   const entry = resolveRuntimeProjectCatalog(options).resolve(projectId);
   const source = createCatalogRepositorySource(entry, options);
-  return createCatalogProjectAdapter(entry, pinRevision && source instanceof GitHubRepositorySource ? await source.pinRevision() : source);
+  const pinned = pinRevision && source instanceof GitHubRepositorySource ? await source.pinRevision() : source;
+  const commitSha = pinned instanceof GitHubRepositorySource ? pinned.commitSha : undefined;
+  const snapshot: RepositorySnapshot | undefined = pinRevision && commitSha ? {
+    version: 1,
+    repository: `${entry.repository.owner}/${entry.repository.name}`,
+    commit_sha: commitSha,
+  } : undefined;
+  return { adapter: await createCatalogProjectAdapter(entry, pinned), snapshot };
 }
 
 async function loadCatalogDiagnostics(
