@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { VisualDirectorError } from '../domain/types.js';
 import type {
   AdoptAnchorInput,
@@ -61,9 +62,20 @@ export function createVisualDirectorCore(
     async prepareGeneration(input: PrepareGenerationInput): Promise<GenerationPackage> {
       const repositoryPath = repositoryPathFromSceneContext(input);
       return withProjectAdapter(input.project_id, repositoryPath, options, registry,
-        async (adapter, snapshot) => {
+        async (adapter, snapshot, source) => {
           const prepared = await adapter.prepare(repositoryPath ? stripRepositoryPath(input) : input);
-          return snapshot ? { ...prepared, repository_snapshot: snapshot } : prepared;
+          if (!snapshot || !source) return prepared;
+          const digests = new Map<string, string>();
+          const reference_assets = [];
+          for (const reference of prepared.reference_assets) {
+            let sha256 = digests.get(reference.path);
+            if (!sha256) {
+              sha256 = createHash('sha256').update(await source.readReferenceBytes(reference.path)).digest('hex');
+              digests.set(reference.path, sha256);
+            }
+            reference_assets.push({ ...reference, sha256 });
+          }
+          return { ...prepared, repository_snapshot: snapshot, reference_assets };
         }, true);
     },
 
@@ -150,7 +162,7 @@ async function withProjectAdapter<T>(
   repositoryPath: string | undefined,
   options: VisualDirectorCoreOptions,
   registry: ProjectRegistry,
-  operation: (adapter: ProjectAdapter, snapshot?: RepositorySnapshot) => Promise<T>,
+  operation: (adapter: ProjectAdapter, snapshot?: RepositorySnapshot, source?: GitHubRepositorySource) => Promise<T>,
   pinRevision = false,
 ): Promise<T> {
   if (repositoryPath) {
@@ -162,8 +174,8 @@ async function withProjectAdapter<T>(
   } catch (error) {
     if (!(error instanceof VisualDirectorError)
       || (error.code !== 'PROJECT_CONFIG_MISSING' && error.code !== 'PROJECT_NOT_FOUND')) throw error;
-    const { adapter, snapshot } = await catalogAdapterForProject(projectId, options, pinRevision);
-    return operation(adapter, snapshot);
+    const { adapter, snapshot, source } = await catalogAdapterForProject(projectId, options, pinRevision);
+    return operation(adapter, snapshot, source);
   }
 }
 
@@ -203,7 +215,7 @@ async function catalogAdapterForProject(projectId: string, options: VisualDirect
     repository: `${entry.repository.owner}/${entry.repository.name}`,
     commit_sha: commitSha,
   } : undefined;
-  return { adapter: await createCatalogProjectAdapter(entry, pinned), snapshot };
+  return { adapter: await createCatalogProjectAdapter(entry, pinned), snapshot, source: pinned instanceof GitHubRepositorySource ? pinned : undefined };
 }
 
 async function loadCatalogDiagnostics(
