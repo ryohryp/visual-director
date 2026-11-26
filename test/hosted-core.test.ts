@@ -75,6 +75,11 @@ describe('hosted Visual Director Core', () => {
       request_text: 'Approved Visual Anchorを正本としてGeneration Packageを取得する',
     });
 
+    expect(result.repository_snapshot).toEqual({
+      version: 1,
+      repository: 'ryohryp/---The-Bottom-of-Thirst',
+      commit_sha: 'a'.repeat(40),
+    });
     expect(result.reference_assets).toContainEqual({
       role: 'subject_anchor',
       subject_id: 'kamino_kyosuke',

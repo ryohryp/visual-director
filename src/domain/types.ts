@@ -115,7 +115,14 @@ export interface PromptPackage {
   avoid_block: string[];
 }
 
+export interface RepositorySnapshot {
+  version: 1;
+  repository: string;
+  commit_sha: string;
+}
+
 export interface GenerationPackage {
+  repository_snapshot?: RepositorySnapshot;
   project_id: string;
   asset_type: string;
   prompt_package: PromptPackage;

@@ -138,6 +138,10 @@ export class GitHubRepositorySource implements RepositorySource {
     this.fetchImpl = options.fetchImpl ?? fetch;
   }
 
+  get commitSha(): string | undefined {
+    return /^[a-f0-9]{40}$/i.test(this.ref) ? this.ref : undefined;
+  }
+
   async pinRevision(): Promise<GitHubRepositorySource> {
     if (/^[a-f0-9]{40}$/i.test(this.ref)) return this;
     const url = `https://api.github.com/repos/${encodeURIComponent(this.owner)}/${encodeURIComponent(this.repo)}/commits/${encodeURIComponent(this.ref)}`;
