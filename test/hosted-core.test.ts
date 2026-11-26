@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { createVisualDirectorCore } from '../src/core/visual-director.js';
@@ -84,7 +85,9 @@ describe('hosted Visual Director Core', () => {
       role: 'subject_anchor',
       subject_id: 'kamino_kyosuke',
       path: 'public/images/characters/kamino_kyosuke/v2/default.avif',
+      sha256: createHash('sha256').update(Buffer.from([0])).digest('hex'),
     });
+    expect(result.reference_assets.every((asset) => /^[a-f0-9]{64}$/.test(asset.sha256 ?? ''))).toBe(true);
     expect(result.policy.must_use_approved_anchor).toBe(true);
     expect(result.prompt_package.subject_lock.join('\n')).toContain('default.avif');
   });
@@ -105,6 +108,23 @@ describe('hosted Visual Director Core', () => {
     expect(calls[0]).toContain('/commits/main');
   });
 
+  it('fails closed when raw reference bytes are missing or empty', async () => {
+    for (const status of [404, 200]) {
+      const core = createVisualDirectorCore({ fetchImpl: async (input, init) => {
+        if (new Headers(init?.headers).get('accept') === 'application/vnd.github.raw+json') {
+          return new Response(null, { status });
+        }
+        return githubFixtureFetch(input, init);
+      } });
+      await expect(core.prepareGeneration({
+        project_id: 'bottom-of-thirst',
+        asset_type: 'character_visual_anchor',
+        subject_ids: ['kamino_kyosuke'],
+        request_text: 'prepare',
+      })).rejects.toMatchObject({ code: 'REFERENCE_NOT_FOUND' });
+    }
+  });
+
   it('keeps adopt_anchor disabled when hosted read-only mode is configured', async () => {
     const core = createVisualDirectorCore({ fetchImpl: githubFixtureFetch });
     await expect(core.adoptAnchor({
@@ -116,7 +136,7 @@ describe('hosted Visual Director Core', () => {
   });
 });
 
-async function githubFixtureFetch(input: RequestInfo | URL): Promise<Response> {
+async function githubFixtureFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
   const url = new URL(String(input));
   if (url.pathname.endsWith('/commits/main')) {
     return new Response(JSON.stringify({ sha: 'a'.repeat(40) }));
@@ -133,6 +153,9 @@ async function githubFixtureFetch(input: RequestInfo | URL): Promise<Response> {
     }), { status: 200, headers: { 'content-type': 'application/json' } });
   }
   if (binaryFiles.has(relativePath)) {
+    if (new Headers(init?.headers).get('accept') === 'application/vnd.github.raw+json') {
+      return new Response(Buffer.from([0]));
+    }
     return new Response(JSON.stringify({ type: 'file', encoding: 'base64', content: 'AA==' }), {
       status: 200,
       headers: { 'content-type': 'application/json' },
