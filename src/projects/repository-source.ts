@@ -249,10 +249,24 @@ export class GitHubRepositorySource implements RepositorySource {
     return files.sort((left, right) => left.localeCompare(right));
   }
 
-  private request(relativePath: string): Promise<Response> {
+  async readReferenceBytes(relativePath: string): Promise<Buffer> {
+    const pathName = safeRelativePath(relativePath);
+    const response = await this.request(pathName, 'application/vnd.github.raw+json');
+    if (response.status === 404) {
+      throw new VisualDirectorError('REFERENCE_NOT_FOUND', 'Reference bytes were not found.', { path: pathName });
+    }
+    if (!response.ok) throw this.apiError(response.status, pathName);
+    const bytes = Buffer.from(await response.arrayBuffer());
+    if (bytes.length === 0) {
+      throw new VisualDirectorError('REFERENCE_NOT_FOUND', 'Reference bytes are empty.', { path: pathName });
+    }
+    return bytes;
+  }
+
+  private request(relativePath: string, accept = 'application/vnd.github+json'): Promise<Response> {
     const encodedPath = relativePath.split('/').map(encodeURIComponent).join('/');
     const url = `https://api.github.com/repos/${encodeURIComponent(this.owner)}/${encodeURIComponent(this.repo)}/contents/${encodedPath}?ref=${encodeURIComponent(this.ref)}`;
-    return this.fetchImpl(url, { headers: this.headers() });
+    return this.fetchImpl(url, { headers: { ...this.headers(), accept } });
   }
 
   private headers(): Record<string, string> {
