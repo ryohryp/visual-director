@@ -100,6 +100,7 @@ export interface AdoptAnchorResult {
 }
 
 export interface ReferenceAsset {
+  sha256?: string;
   role: 'global_reference' | 'subject_anchor' | 'source_asset';
   path: string;
   subject_id?: string;
